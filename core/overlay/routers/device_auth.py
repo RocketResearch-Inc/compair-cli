@@ -38,7 +38,9 @@ def _gen_user_code() -> str:
 
 
 def _sign_tokens(username: str) -> dict:
-    secret = os.getenv("JWT_SECRET", "dev_secret_change_me")
+    secret = os.getenv("JWT_SECRET", "").strip()
+    if not secret or secret in {"CHANGE_ME", "dev_secret_change_me"}:
+        raise RuntimeError("JWT_SECRET must be set to a non-default value before issuing device auth tokens")
     user_id = f"usr_{uuid.uuid4().hex[:8]}"
     now = _now()
     access_exp = now + 3600
@@ -146,7 +148,10 @@ async def poll_device(request: Request):
     if rec.status != "approved" or not rec.username:
         return JSONResponse({"status":"pending"}, status_code=202)
     # Issue tokens
-    tokens = _sign_tokens(rec.username)
+    try:
+        tokens = _sign_tokens(rec.username)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return JSONResponse(tokens)
 
 
@@ -176,4 +181,3 @@ async def activate_submit(request: Request):
         return HTMLResponse("Invalid user code", status_code=404)
     _approve_device(rec, username)
     return HTMLResponse("Device approved. You can close this window.")
-

@@ -1,6 +1,6 @@
 # Operator Guide (Compair Core)
 
-This guide covers running the Core overlay in production, profiles, and maintenance.
+This guide covers running the optional Core overlay, profiles, and maintenance.
 
 - Services
   - api: uvicorn core.overlay.app:app
@@ -19,6 +19,8 @@ This guide covers running the Core overlay in production, profiles, and maintena
 
 - Environment
   - COMPAIR_API_BASE, DATABASE_URL, REDIS_URL, JWT_SECRET, MODEL_RUNTIME_URL
+
+`JWT_SECRET` is required for device-auth token issuance. Do not leave it unset or at a placeholder value such as `CHANGE_ME`.
 
 - Health
   - `/_operator/healthz` and `/_operator/ready` for API readiness
