@@ -1,6 +1,8 @@
 name: CI
 on:
-  push: { branches: ["main"] }
+  push:
+    branches:
+      - "main"
   pull_request:
 jobs:
   build-test:
@@ -12,7 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: ${{ matrix.go }} }
+        with:
+          go-version: "${{ matrix.go }}"
       - name: Build
         run: go build ./...
       - name: Test
