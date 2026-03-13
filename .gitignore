@@ -1,0 +1,33 @@
+# Local Compair runtime state
+.compair/
+core/compose/.env
+
+# Built CLI binaries
+/compair
+/compair-cli
+/compair.exe
+/compair-cli.exe
+
+# Common build/test artifacts
+/bin/
+/build/
+/dist/
+/coverage/
+coverage.out
+*.coverprofile
+*.prof
+*.test
+*.out
+*.pyc
+*.pyo
+*.swp
+__pycache__/
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Misc local caches/logs
+.cache/
+*.log
