@@ -24,6 +24,55 @@ Package-manager publishing (Homebrew / Scoop / winget) is not wired yet.
 
 ## Quickstarts
 
+### Core (Self-hosted)
+```bash
+# Inspect the local runtime config and Docker state
+compair core status
+
+# Start the default local Core container (single-user, local providers)
+compair core up
+compair core doctor
+compair profile use local
+
+# Single-user installs auto-provision a session; run login once to cache it locally
+compair login
+compair status
+
+# Inside a repo, create the companion document and track files
+compair track
+
+# Same authoring loop
+compair group create "Local Demo"
+compair group use "Local Demo"
+compair review
+compair reports
+```
+
+Use your own OpenAI key instead of the bundled local providers:
+```bash
+compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
+compair core up
+```
+
+Switch back to the default free local path:
+```bash
+compair core config set --provider local
+compair core up
+```
+
+Shut the container down later:
+```bash
+compair core logs --tail 200
+compair core restart
+compair core down
+compair core down --purge   # also remove the Docker data volume
+```
+
+See `docs/core_quickstart.md` for the self-hosted Core flow and `docs/user_guide.md` for full workflows.
+See `docs/ci_review_examples.md` for GitHub Actions and GitLab CI review patterns.
+
+Long review runs emit periodic progress lines while waiting on server processing and new feedback. Remaining-time estimates are approximate.
+
 ### Cloud (SaaS)
 ```bash
 # Use the hosted profile (default)
@@ -78,55 +127,6 @@ compair diff --snapshot-mode auto
 compair sync --json --gate api-contract
 compair stats
 ```
-
-### Core (Self-hosted)
-```bash
-# Inspect the local runtime config and Docker state
-compair core status
-
-# Start the default local Core container (single-user, local providers)
-compair core up
-compair core doctor
-compair profile use local
-
-# Single-user installs auto-provision a session; run login once to cache it locally
-compair login
-compair status
-
-# Inside a repo, create the companion document and track files
-compair track
-
-# Same authoring loop
-compair group create "Local Demo"
-compair group use "Local Demo"
-compair review
-compair reports
-```
-
-Use your own OpenAI key instead of the bundled local providers:
-```bash
-compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
-compair core up
-```
-
-Switch back to the default free local path:
-```bash
-compair core config set --provider local
-compair core up
-```
-
-Shut the container down later:
-```bash
-compair core logs --tail 200
-compair core restart
-compair core down
-compair core down --purge   # also remove the Docker data volume
-```
-
-See `docs/core_quickstart.md` for the self-hosted Core flow and `docs/user_guide.md` for full workflows.
-See `docs/ci_review_examples.md` for GitHub Actions and GitLab CI review patterns.
-
-Long review runs emit periodic progress lines while waiting on server processing and new feedback. Remaining-time estimates are approximate.
 
 ## Profiles
 Profiles let you switch between Cloud and Core endpoints without rebuilding the CLI.
