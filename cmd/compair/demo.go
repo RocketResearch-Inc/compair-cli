@@ -14,6 +14,7 @@ import (
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
 	"github.com/RocketResearch-Inc/compair-cli/internal/config"
+	"github.com/RocketResearch-Inc/compair-cli/internal/git"
 )
 
 var (
@@ -104,8 +105,20 @@ var demoCmd = &cobra.Command{
 		if feedbackWaitSec <= 0 {
 			feedbackWaitSec = 90
 		}
-		snapshotMode = "snapshot"
+		snapshotMode = "diff"
 		syncProcessTimeoutSec = 0
+
+		fmt.Println()
+		fmt.Println("Priming demo workspace...")
+		if err := primeDemoWorkspace(cmd, client, groupID, roots); err != nil {
+			return err
+		}
+
+		fmt.Println()
+		fmt.Println("Introducing demo drift...")
+		if err := introduceDemoDrift(roots); err != nil {
+			return err
+		}
 
 		fmt.Println()
 		fmt.Println("Running demo review...")
@@ -274,6 +287,97 @@ func enableDemoSelfFeedback(client *api.Client) error {
 	})
 }
 
+func primeDemoWorkspace(cmd *cobra.Command, client *api.Client, groupID string, roots []string) error {
+	snapshotOpts := defaultSnapshotOptions()
+	if prof := loadActiveProfileSnapshot(); prof != nil {
+		applySnapshotOverrides(&snapshotOpts, *prof)
+	}
+	progress := newRepoProgressTracker(len(roots))
+	for idx, root := range roots {
+		cfg, err := config.ReadProjectConfig(root)
+		if err != nil {
+			return err
+		}
+		if len(cfg.Repos) == 0 || strings.TrimSpace(cfg.Repos[0].DocumentID) == "" {
+			return fmt.Errorf("demo repo %s is missing Compair document metadata", root)
+		}
+		repo := &cfg.Repos[0]
+		repoLabel := repoDisplayLabel(root, repo.RemoteURL)
+		repoStartedAt := time.Now()
+		fmt.Printf("[%d/%d] Priming %s\n", idx+1, len(roots), repoLabel)
+		ensureRepoDocumentPublished(client, repo.DocumentID, root)
+
+		text := ""
+		latest := ""
+		snapshotUsed := false
+
+		res, err := buildRepoSnapshot(root, groupID, repo, snapshotOpts)
+		if err == nil {
+			text = res.Text
+			latest = res.Head
+			snapshotUsed = true
+			maybeWarnSnapshotScope(root, res.Stats, snapshotOpts)
+		} else {
+			fmt.Printf("Warning: snapshot failed for %s: %v (falling back to diff mode)\n", repo.RemoteURL, err)
+			text, latest = gitCollectDemoFallback(root)
+		}
+
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("no demo payload generated for %s", repo.RemoteURL)
+		}
+
+		var resp api.ProcessDocResp
+		if snapshotUsed {
+			resp, err = client.ProcessDocWithMode(repo.DocumentID, text, false, "client")
+		} else {
+			resp, err = client.ProcessDoc(repo.DocumentID, text, false)
+		}
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(resp.TaskID) != "" {
+			st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(elapsed time.Duration) {
+				fmt.Println(progress.waitingLine(idx+1, repoLabel, elapsed))
+			})
+			if err != nil {
+				return err
+			}
+			if timedOut {
+				return fmt.Errorf(
+					"processing timeout after %ds while priming demo repo %s",
+					syncProcessTimeoutSec,
+					repo.RemoteURL,
+				)
+			}
+			switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+			case "SUCCESS":
+			default:
+				return fmt.Errorf("demo priming failed for %s with status %s", repo.RemoteURL, st.Status)
+			}
+			if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+				fmt.Printf(
+					"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)\n",
+					idx+1,
+					len(roots),
+					taskIndex,
+					taskTotal,
+					repoLabel,
+					humanDuration(elapsed),
+				)
+			}); err != nil {
+				return err
+			}
+		}
+		finalizeRepoSync(root, groupID, cfg, repo, latest)
+		fmt.Println(progress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
+	}
+	return nil
+}
+
+func gitCollectDemoFallback(root string) (string, string) {
+	return git.CollectChangeTextAtWithLimit(root, "", 10, false)
+}
+
 func createDemoWorkspace() (string, []string, error) {
 	root, err := os.MkdirTemp("", "compair-demo-*")
 	if err != nil {
@@ -286,7 +390,8 @@ func createDemoWorkspace() (string, []string, error) {
 		"README.md": `# Demo API
 
 This repo defines the backend review contract.
-The review response uses the fields "severity", "category", and "rationale".
+The /reviews endpoint returns reviews[] objects with the fields "severity", "category", and "rationale".
+Clients should not expect "items", "priority", or "type".
 `,
 		"api/openapi.yaml": `openapi: 3.1.0
 info:
@@ -318,7 +423,18 @@ paths:
                         rationale:
                           type: string
 `,
-		"src/server.py": `def serialize_review(review: dict) -> dict:
+		"src/server.py": `def list_reviews() -> dict:
+    return {
+        "reviews": [
+            {
+                "severity": "high",
+                "category": "api-contract",
+                "rationale": "Frontend should render category and severity from the backend contract.",
+            }
+        ]
+    }
+
+def serialize_review(review: dict) -> dict:
     return {
         "severity": review["severity"],
         "category": review["category"],
@@ -333,27 +449,36 @@ paths:
 		"README.md": `# Demo Client
 
 This repo consumes the review API.
-The client currently expects the fields "priority" and "type".
+The UI expects /reviews to return reviews[] with the fields "severity", "category", and "rationale".
+It renders the backend contract fields directly.
 `,
 		"src/reviewClient.ts": `export type Review = {
-  priority: "high" | "medium" | "low";
-  type: string;
+  severity: "high" | "medium" | "low";
+  category: string;
   rationale: string;
 };
 
 export function normalizeReview(payload: any): Review {
   return {
-    priority: payload.priority ?? "low",
-    type: payload.type ?? "general",
+    severity: payload.severity ?? "low",
+    category: payload.category ?? "general",
     rationale: payload.rationale ?? "",
   };
+}
+`,
+		"src/reviewFeed.ts": `import { renderReviewCard } from "./renderReview";
+
+export async function loadReviewFeed(): Promise<string[]> {
+  const response = await fetch("/reviews");
+  const payload = await response.json();
+  return (payload.reviews ?? []).map((item: any) => renderReviewCard(item));
 }
 `,
 		"src/renderReview.ts": `import { normalizeReview } from "./reviewClient";
 
 export function renderReviewCard(payload: any): string {
   const review = normalizeReview(payload);
-  return review.priority.toUpperCase() + ": " + review.type + " - " + review.rationale;
+  return review.severity.toUpperCase() + ": " + review.category + " - " + review.rationale;
 }
 `,
 	}); err != nil {
@@ -392,5 +517,68 @@ func createDemoRepo(root, remote string, files map[string]string) error {
 			return fmt.Errorf("%s: %s", strings.Join(step, " "), strings.TrimSpace(string(out)))
 		}
 	}
+	return nil
+}
+
+func introduceDemoDrift(roots []string) error {
+	if len(roots) < 2 {
+		return fmt.Errorf("demo workspace is missing the client repo")
+	}
+	clientRepo := roots[1]
+	updates := map[string]string{
+		"README.md": `# Demo Client
+
+This repo consumes the review API.
+The UI currently expects /reviews to return items[] with the fields "priority", "type", and "rationale".
+If the payload uses "reviews", "severity", or "category", the list silently renders fallback values.
+`,
+		"src/reviewClient.ts": `export type Review = {
+  priority: "high" | "medium" | "low";
+  type: string;
+  rationale: string;
+};
+
+export function normalizeReview(payload: any): Review {
+  return {
+    priority: payload.priority ?? "low",
+    type: payload.type ?? "general",
+    rationale: payload.rationale ?? "",
+  };
+}
+`,
+		"src/reviewFeed.ts": `import { renderReviewCard } from "./renderReview";
+
+export async function loadReviewFeed(): Promise<string[]> {
+  const response = await fetch("/reviews");
+  const payload = await response.json();
+  return (payload.items ?? []).map((item: any) => renderReviewCard(item));
+}
+`,
+		"src/renderReview.ts": `import { normalizeReview } from "./reviewClient";
+
+export function renderReviewCard(payload: any): string {
+  const review = normalizeReview(payload);
+  return review.priority.toUpperCase() + ": " + review.type + " - " + review.rationale;
+}
+`,
+	}
+	for rel, content := range updates {
+		target := filepath.Join(clientRepo, rel)
+		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+			return err
+		}
+	}
+	steps := [][]string{
+		{"git", "-C", clientRepo, "add", "README.md", "src/renderReview.ts", "src/reviewClient.ts", "src/reviewFeed.ts"},
+		{"git", "-C", clientRepo, "commit", "-m", "Introduce demo client contract drift"},
+	}
+	for _, step := range steps {
+		cmd := exec.Command(step[0], step[1:]...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%s: %s", strings.Join(step, " "), strings.TrimSpace(string(out)))
+		}
+	}
+	fmt.Println("Committed an intentional contract regression in", clientRepo)
 	return nil
 }

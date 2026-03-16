@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var reportsAll bool
@@ -134,11 +135,30 @@ func renderInteractive(reports []feedbackReport) error {
 }
 
 func renderMarkdown(md string) (string, error) {
+	if shouldRenderPlainMarkdown() {
+		if strings.HasSuffix(md, "\n") {
+			return md, nil
+		}
+		return md + "\n", nil
+	}
 	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
 	if err != nil {
 		return "", err
 	}
 	return renderer.Render(md)
+}
+
+func shouldRenderPlainMarkdown() bool {
+	if viper.GetBool("no_color") {
+		return true
+	}
+	if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {
+		return true
+	}
+	if runtime.GOOS != "windows" {
+		return false
+	}
+	return strings.TrimSpace(os.Getenv("WT_SESSION")) == "" && strings.TrimSpace(os.Getenv("TERM_PROGRAM")) == ""
 }
 
 func openWithSystem(path string) error {

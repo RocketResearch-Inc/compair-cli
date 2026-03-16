@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,6 +34,10 @@ type feedbackNotificationMeta struct {
 	DeliveryAction string
 	CreatedAt      string
 	Rationale      []string
+	DedupeKey      string
+	EvidenceTarget string
+	EvidencePeer   string
+	PeerDocIDs     []string
 	Rank           int
 }
 
@@ -40,6 +45,37 @@ type feedbackRenderItem struct {
 	Feedback api.FeedbackEntry
 	Meta     *feedbackNotificationMeta
 }
+
+type reportReferenceSummary struct {
+	Title    string
+	Author   string
+	Excerpts int
+}
+
+type reportFeedbackSummary struct {
+	DocumentCount       int
+	FeedbackCount       int
+	CollapsedDuplicates int
+	ByIntent            map[string]int
+	BySeverity          map[string]int
+}
+
+type feedbackEvidenceProfile struct {
+	Intent    string
+	Severity  string
+	Timestamp time.Time
+	Paths     map[string]struct{}
+	Refs      map[string]struct{}
+	Anchors   map[string]struct{}
+	Tokens    map[string]struct{}
+}
+
+var (
+	reportDiffPathPattern     = regexp.MustCompile(`(?m)^diff --git a/([^\s]+) b/[^\s]+$`)
+	reportFileHeaderPattern   = regexp.MustCompile(`(?m)^### File:\s+([^\n(]+)`)
+	reportBacktickCodePattern = regexp.MustCompile("`([^`\\n]+)`")
+	reportTokenPattern        = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]{2,}`)
+)
 
 var writeMD string
 var syncAll bool
@@ -171,6 +207,10 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	totalFeedback := 0
 	reportPath := ""
 	lines := []string{}
+	feedbackSummary := reportFeedbackSummary{
+		ByIntent:   map[string]int{},
+		BySeverity: map[string]int{},
+	}
 
 	snapshotOpts := resolveSnapshotOptions(cmd)
 	if syncDryRun {
@@ -242,6 +282,21 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 				case "SUCCESS":
+					if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+						printer.Info(
+							fmt.Sprintf(
+								"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+								idx+1,
+								len(rootList),
+								taskIndex,
+								taskTotal,
+								repoLabel,
+								humanDuration(elapsed),
+							),
+						)
+					}); err != nil {
+						return err
+					}
 					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false)
 					latest := strings.TrimSpace(r.PendingTaskCommit)
 					if latest != "" {
@@ -327,6 +382,21 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						"processing timeout after %ds (rerun 'compair sync' to continue waiting without resubmitting this repo; increase with --process-timeout-sec or set 0 to wait indefinitely)",
 						syncProcessTimeoutSec,
 					)
+				}
+				if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+					printer.Info(
+						fmt.Sprintf(
+							"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+							idx+1,
+							len(rootList),
+							taskIndex,
+							taskTotal,
+							repoLabel,
+							humanDuration(elapsed),
+						),
+					)
+				}); err != nil {
+					return err
 				}
 				appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed)
 			} else {
@@ -490,6 +560,20 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 
 				if doFetch {
+					if err := waitForChunkTasks(cmd.Context(), client, st.Result, filepath.Base(it.Path), func(taskIndex int, taskTotal int, elapsed time.Duration) {
+						printer.Info(
+							fmt.Sprintf(
+								"Waiting for chunk task %d/%d for %s (%s elapsed)",
+								taskIndex,
+								taskTotal,
+								filepath.Base(it.Path),
+								humanDuration(elapsed),
+							),
+						)
+					}); err != nil {
+						printer.Warn(fmt.Sprintf("Chunk processing failed for %s: %v", it.Path, err))
+						continue
+					}
 					lines = append(lines, "File: "+it.Path)
 					lines = append(lines, "Server Response:")
 					if st.Result != nil {
@@ -602,34 +686,50 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				})
 			}
 			sortFeedbackRenderItems(items)
+			items, collapsedCount := collapseDuplicateFeedbackItems(items)
+			feedbackSummary.CollapsedDuplicates += collapsedCount
 			newLines := []string{}
-			for _, item := range items {
+			for itemIdx, item := range items {
 				fb := item.Feedback
 				totalFeedback++
 				seen[fb.FeedbackID] = struct{}{}
 				ts := fmt.Sprint(fb.Timestamp)
-				entry := []string{fmt.Sprintf("- Time: %s", ts)}
+				entry := []string{feedbackHeading(item, itemIdx+1), ""}
+				entry = append(entry, "**Time:** "+ts)
 				if item.Meta != nil {
-					rankLine := fmt.Sprintf(
-						"  Notification: %s %s via %s",
-						strings.ToUpper(strings.TrimSpace(item.Meta.Severity)),
-						item.Meta.Intent,
-						item.Meta.DeliveryAction,
-					)
-					if item.Meta.Rank > 0 {
-						rankLine += fmt.Sprintf(" (rank %d)", item.Meta.Rank)
+					if label := humanizeIntentLabel(item.Meta.Intent); label != "" {
+						entry = append(entry, "**Type:** "+label)
 					}
-					entry = append(entry, rankLine)
+					if severity := strings.ToUpper(strings.TrimSpace(item.Meta.Severity)); severity != "" {
+						entry = append(entry, "**Severity:** "+severity)
+					}
+					if delivery := strings.TrimSpace(item.Meta.DeliveryAction); delivery != "" {
+						entry = append(entry, "**Delivery:** "+delivery)
+					}
 					if strings.TrimSpace(item.Meta.CreatedAt) != "" {
-						entry = append(entry, "  Notification time: "+item.Meta.CreatedAt)
+						entry = append(entry, "**Notification Time:** "+item.Meta.CreatedAt)
+					}
+					if len(item.Meta.PeerDocIDs) > 0 {
+						entry = append(entry, "**Peer Docs:** "+strings.Join(item.Meta.PeerDocIDs, ", "))
 					}
 					if len(item.Meta.Rationale) > 0 {
-						entry = append(entry, "  Rationale:")
+						entry = append(entry, "", "**Notification Rationale**")
 						for _, line := range item.Meta.Rationale {
 							if trimmed := strings.TrimSpace(line); trimmed != "" {
-								entry = append(entry, "    - "+trimmed)
+								entry = append(entry, "- "+trimmed)
 							}
 						}
+					}
+				}
+				feedbackSummary.FeedbackCount++
+				if item.Meta != nil {
+					intentKey := strings.TrimSpace(item.Meta.Intent)
+					if intentKey != "" {
+						feedbackSummary.ByIntent[intentKey]++
+					}
+					severityKey := strings.ToLower(strings.TrimSpace(item.Meta.Severity))
+					if severityKey != "" {
+						feedbackSummary.BySeverity[severityKey]++
 					}
 				}
 				ctx := strings.TrimSpace(fb.ChunkContent)
@@ -637,22 +737,21 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					ctx = cmap[fb.ChunkID]
 				}
 				if ctx != "" {
-					ctx = trimContext(ctx, 12, 500)
-					entry = append(entry, "  Context: "+ctx)
+					ctx = trimContext(ctx, 8, 360)
+					entry = append(entry, "", "**Context**", "")
+					appendFencedMarkdownBlock(&entry, "text", ctx)
 				}
-				entry = append(entry, "  Feedback: "+strings.TrimSpace(fb.Feedback))
+				entry = append(entry, "**Feedback**", "")
+				entry = append(entry, strings.Split(strings.TrimSpace(fb.Feedback), "\n")...)
+				entry = append(entry, "")
 				if len(fb.References) > 0 {
-					entry = append(entry, "  References:")
-					for _, r := range fb.References {
-						rtitle := strings.TrimSpace(r.Title)
-						if rtitle == "" {
-							rtitle = r.DocumentID
+					refSummaries := summarizeFeedbackReferences(fb.References, nil)
+					if len(refSummaries) > 0 {
+						entry = append(entry, "**References**")
+						for _, ref := range refSummaries {
+							entry = append(entry, "- "+formatReportReference(ref))
 						}
-						line := "    - " + rtitle
-						if strings.TrimSpace(r.Author) != "" {
-							line += " (author: " + r.Author + ")"
-						}
-						entry = append(entry, line)
+						entry = append(entry, "")
 					}
 				} else {
 					refs, ok := legacyRefs[fb.ChunkID]
@@ -660,32 +759,26 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						refs, _ = client.LoadReferences(fb.ChunkID)
 						legacyRefs[fb.ChunkID] = refs
 					}
-					if len(refs) > 0 {
-						entry = append(entry, "  References:")
-						for _, r := range refs {
-							rtitle := strings.TrimSpace(r.Document.Title)
-							if rtitle == "" {
-								rtitle = r.Document.DocumentID
-							}
-							entry = append(entry, "    - "+rtitle+" (author: "+r.DocumentAuthor+")")
+					refSummaries := summarizeFeedbackReferences(nil, refs)
+					if len(refSummaries) > 0 {
+						entry = append(entry, "**References**")
+						for _, ref := range refSummaries {
+							entry = append(entry, "- "+formatReportReference(ref))
 						}
+						entry = append(entry, "")
 					}
 				}
 				newLines = append(newLines, entry...)
-				newLines = append(newLines, "")
 			}
+			newLines = trimTrailingBlankLines(newLines)
 			if len(newLines) == 0 {
 				cache[docID] = seen
 				continue
 			}
-			if len(newLines) > 0 && newLines[len(newLines)-1] == "" {
-				newLines = newLines[:len(newLines)-1]
-			}
 			cache[docID] = seen
-			if len(lines) > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, "Document: "+title+" ("+docID+")")
+			feedbackSummary.DocumentCount++
+			appendMarkdownHeading(&lines, "## Document: "+title)
+			lines = append(lines, "Document ID: `"+docID+"`", "")
 			lines = append(lines, newLines...)
 		}
 		if err := saveFeedbackCache(cachePath, cache); err != nil {
@@ -700,6 +793,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 		}
 		if filepath.Ext(outPath) == "" {
 			outPath += ".md"
+		}
+		if summaryLines := buildReportFeedbackSummaryLines(feedbackSummary); len(summaryLines) > 0 {
+			lines = append(summaryLines, lines...)
 		}
 		if err := printer.WriteMarkdownReport(outPath, "Compair Sync Report", lines); err != nil {
 			return err
@@ -782,6 +878,10 @@ func buildNotificationIndex(client *api.Client, group string) map[string]*feedba
 			DeliveryAction: strings.TrimSpace(event.DeliveryAction),
 			CreatedAt:      formatTimestamp(event.CreatedAt),
 			Rationale:      event.Rationale,
+			DedupeKey:      strings.TrimSpace(event.DedupeKey),
+			EvidenceTarget: strings.TrimSpace(event.EvidenceTarget),
+			EvidencePeer:   strings.TrimSpace(event.EvidencePeer),
+			PeerDocIDs:     append([]string(nil), event.PeerDocIDs...),
 			Rank:           notificationRank(event),
 		}
 		prev := index[chunkID]
@@ -817,6 +917,421 @@ func sortFeedbackRenderItems(items []feedbackRenderItem) {
 		}
 		return leftTime > rightTime
 	})
+}
+
+func feedbackHeading(item feedbackRenderItem, index int) string {
+	if item.Meta != nil {
+		if label := humanizeIntentLabel(item.Meta.Intent); label != "" {
+			return fmt.Sprintf("### %s %d", label, index)
+		}
+	}
+	return fmt.Sprintf("### Feedback %d", index)
+}
+
+func humanizeIntentLabel(intent string) string {
+	switch strings.ToLower(strings.TrimSpace(intent)) {
+	case "":
+		return ""
+	case "potential_conflict":
+		return "Potential Conflict"
+	case "relevant_update":
+		return "Relevant Update"
+	case "hidden_overlap":
+		return "Hidden Overlap"
+	case "quiet_validation":
+		return "Quiet Validation"
+	case "information_gap":
+		return "Information Gap"
+	}
+	parts := strings.Fields(strings.NewReplacer("_", " ", "-", " ").Replace(strings.TrimSpace(intent)))
+	if len(parts) == 0 {
+		return ""
+	}
+	for i, part := range parts {
+		lower := strings.ToLower(part)
+		parts[i] = strings.ToUpper(lower[:1]) + lower[1:]
+	}
+	return strings.Join(parts, " ")
+}
+
+func buildReportFeedbackSummaryLines(summary reportFeedbackSummary) []string {
+	if summary.FeedbackCount == 0 {
+		return nil
+	}
+	lines := []string{
+		"## Summary",
+		"",
+		fmt.Sprintf("- %s across %s.", pluralizeCount(summary.FeedbackCount, "notification", "notifications"), pluralizeCount(summary.DocumentCount, "document", "documents")),
+	}
+	if breakdown := formatCountBreakdown(summary.ByIntent, humanizeIntentLabel); breakdown != "" {
+		lines = append(lines, "- Notification mix: "+breakdown+".")
+	}
+	if breakdown := formatCountBreakdown(summary.BySeverity, func(value string) string {
+		return strings.ToUpper(strings.TrimSpace(value))
+	}); breakdown != "" {
+		lines = append(lines, "- Severity mix: "+breakdown+".")
+	}
+	if summary.CollapsedDuplicates > 0 {
+		lines = append(lines, fmt.Sprintf("- Collapsed %s in the report view.", pluralizeCount(summary.CollapsedDuplicates, "near-duplicate", "near-duplicates")))
+	}
+	lines = append(lines, "")
+	return lines
+}
+
+func formatCountBreakdown(counts map[string]int, labelFn func(string) string) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	type entry struct {
+		Key   string
+		Count int
+		Label string
+	}
+	entries := make([]entry, 0, len(counts))
+	for key, count := range counts {
+		if count <= 0 {
+			continue
+		}
+		label := strings.TrimSpace(labelFn(key))
+		if label == "" {
+			continue
+		}
+		entries = append(entries, entry{Key: key, Count: count, Label: label})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].Count != entries[j].Count {
+			return entries[i].Count > entries[j].Count
+		}
+		return entries[i].Label < entries[j].Label
+	})
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		parts = append(parts, fmt.Sprintf("%s x%d", entry.Label, entry.Count))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func pluralizeCount(count int, singular string, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %s", count, plural)
+}
+
+func collapseDuplicateFeedbackItems(items []feedbackRenderItem) ([]feedbackRenderItem, int) {
+	if len(items) < 2 {
+		return items, 0
+	}
+	kept := make([]feedbackRenderItem, 0, len(items))
+	profiles := make([]feedbackEvidenceProfile, 0, len(items))
+	collapsed := 0
+	for _, item := range items {
+		profile := buildFeedbackEvidenceProfile(item)
+		duplicateIndex := -1
+		for i := range kept {
+			if shouldCollapseFeedbackItems(kept[i], profiles[i], item, profile) {
+				duplicateIndex = i
+				break
+			}
+		}
+		if duplicateIndex < 0 {
+			kept = append(kept, item)
+			profiles = append(profiles, profile)
+			continue
+		}
+		collapsed++
+		if feedbackItemScore(item, profile) > feedbackItemScore(kept[duplicateIndex], profiles[duplicateIndex]) {
+			kept[duplicateIndex] = item
+			profiles[duplicateIndex] = profile
+		}
+	}
+	return kept, collapsed
+}
+
+func shouldCollapseFeedbackItems(
+	left feedbackRenderItem,
+	leftProfile feedbackEvidenceProfile,
+	right feedbackRenderItem,
+	rightProfile feedbackEvidenceProfile,
+) bool {
+	if strings.TrimSpace(left.Feedback.FeedbackID) != "" && left.Feedback.FeedbackID == right.Feedback.FeedbackID {
+		return true
+	}
+	if strings.TrimSpace(left.Feedback.ChunkID) != "" && left.Feedback.ChunkID == right.Feedback.ChunkID {
+		return true
+	}
+	if leftProfile.Intent != "" && rightProfile.Intent != "" && leftProfile.Intent != rightProfile.Intent {
+		return false
+	}
+	if leftProfile.Severity != "" && rightProfile.Severity != "" && leftProfile.Severity != rightProfile.Severity {
+		return false
+	}
+	if !withinFeedbackWindow(leftProfile.Timestamp, rightProfile.Timestamp, 10*time.Minute) {
+		return false
+	}
+
+	pathOverlap := setOverlapRatio(leftProfile.Paths, rightProfile.Paths)
+	refOverlap := setOverlapRatio(leftProfile.Refs, rightProfile.Refs)
+	anchorOverlap := setOverlapRatio(leftProfile.Anchors, rightProfile.Anchors)
+	tokenOverlap := setOverlapRatio(leftProfile.Tokens, rightProfile.Tokens)
+
+	if refOverlap >= 0.75 && anchorOverlap >= 0.5 {
+		return true
+	}
+	if pathOverlap >= 0.75 && anchorOverlap >= 0.5 {
+		return true
+	}
+	if pathOverlap >= 0.75 && refOverlap >= 0.75 && tokenOverlap >= 0.45 {
+		return true
+	}
+	if pathOverlap >= 0.75 && tokenOverlap >= 0.68 {
+		return true
+	}
+	if refOverlap >= 0.75 && tokenOverlap >= 0.55 {
+		return true
+	}
+	return false
+}
+
+func buildFeedbackEvidenceProfile(item feedbackRenderItem) feedbackEvidenceProfile {
+	profile := feedbackEvidenceProfile{
+		Intent:   strings.ToLower(strings.TrimSpace(firstNonEmpty(itemMetaIntent(item.Meta), ""))),
+		Severity: strings.ToLower(strings.TrimSpace(itemMetaSeverity(item.Meta))),
+		Paths:    extractReportPaths(strings.TrimSpace(item.Feedback.ChunkContent), strings.TrimSpace(item.Feedback.Feedback), itemMetaEvidenceTarget(item.Meta), itemMetaEvidencePeer(item.Meta)),
+		Refs:     extractFeedbackReferenceKeys(item),
+		Anchors:  extractFeedbackAnchors(strings.TrimSpace(item.Feedback.ChunkContent), strings.TrimSpace(item.Feedback.Feedback), itemMetaEvidenceTarget(item.Meta), itemMetaEvidencePeer(item.Meta)),
+		Tokens:   feedbackTokenSet(strings.TrimSpace(item.Feedback.Feedback)),
+	}
+	if item.Meta != nil {
+		if ts, ok := timestampAsTime(item.Meta.CreatedAt); ok {
+			profile.Timestamp = ts
+		}
+	}
+	if profile.Timestamp.IsZero() {
+		if ts, ok := timestampAsTime(item.Feedback.Timestamp); ok {
+			profile.Timestamp = ts
+		}
+	}
+	return profile
+}
+
+func feedbackItemScore(item feedbackRenderItem, profile feedbackEvidenceProfile) float64 {
+	score := float64(len(strings.TrimSpace(item.Feedback.Feedback))) / 48.0
+	score += float64(len(strings.TrimSpace(item.Feedback.ChunkContent))) / 120.0
+	score += float64(len(item.Feedback.References)) * 8.0
+	score += float64(len(profile.Paths)) * 4.0
+	score += float64(len(profile.Refs)) * 3.0
+	score += float64(len(profile.Anchors)) * 2.0
+	score += float64(len(profile.Tokens)) * 0.1
+	if item.Meta != nil {
+		score += float64(item.Meta.Rank)
+		score += float64(len(nonEmptyLines(item.Meta.Rationale)))
+	}
+	return score
+}
+
+func withinFeedbackWindow(left time.Time, right time.Time, window time.Duration) bool {
+	if left.IsZero() || right.IsZero() {
+		return false
+	}
+	delta := left.Sub(right)
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta <= window
+}
+
+func setOverlapRatio(left map[string]struct{}, right map[string]struct{}) float64 {
+	if len(left) == 0 || len(right) == 0 {
+		return 0.0
+	}
+	shared := 0
+	for key := range left {
+		if _, ok := right[key]; ok {
+			shared++
+		}
+	}
+	denominator := len(left)
+	if len(right) < denominator {
+		denominator = len(right)
+	}
+	if denominator == 0 {
+		return 0.0
+	}
+	return float64(shared) / float64(denominator)
+}
+
+func extractReportPaths(values ...string) map[string]struct{} {
+	paths := map[string]struct{}{}
+	addPath := func(candidate string) {
+		if normalized := normalizeReportPath(candidate); normalized != "" {
+			paths[normalized] = struct{}{}
+		}
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		for _, match := range reportDiffPathPattern.FindAllStringSubmatch(value, -1) {
+			if len(match) > 1 {
+				addPath(match[1])
+			}
+		}
+		for _, match := range reportFileHeaderPattern.FindAllStringSubmatch(value, -1) {
+			if len(match) > 1 {
+				addPath(match[1])
+			}
+		}
+		for _, match := range reportBacktickCodePattern.FindAllStringSubmatch(value, -1) {
+			if len(match) > 1 {
+				addPath(match[1])
+			}
+		}
+	}
+	return paths
+}
+
+func normalizeReportPath(value string) string {
+	candidate := strings.TrimSpace(value)
+	if candidate == "" {
+		return ""
+	}
+	candidate = strings.Trim(candidate, "`'\"()[]{}<>.,;")
+	if strings.Contains(candidate, ":") {
+		head, _, _ := strings.Cut(candidate, ":")
+		if strings.Contains(head, "/") || strings.Contains(head, "\\") || filepath.Ext(head) != "" {
+			candidate = head
+		}
+	}
+	if strings.Contains(candidate, " ") {
+		return ""
+	}
+	if strings.HasPrefix(candidate, "a/") || strings.HasPrefix(candidate, "b/") {
+		candidate = candidate[2:]
+	}
+	candidate = strings.TrimPrefix(candidate, "./")
+	candidate = filepath.ToSlash(candidate)
+	if candidate == "" {
+		return ""
+	}
+	if !strings.Contains(candidate, "/") && filepath.Ext(candidate) == "" {
+		return ""
+	}
+	return strings.ToLower(candidate)
+}
+
+func extractFeedbackReferenceKeys(item feedbackRenderItem) map[string]struct{} {
+	refs := map[string]struct{}{}
+	add := func(values ...string) {
+		value := strings.ToLower(strings.TrimSpace(firstNonEmpty(values...)))
+		if value == "" {
+			return
+		}
+		refs[value] = struct{}{}
+	}
+	for _, ref := range item.Feedback.References {
+		add(ref.Title, ref.DocumentID, ref.NoteID)
+	}
+	if item.Meta != nil {
+		for _, peerDocID := range item.Meta.PeerDocIDs {
+			add(peerDocID)
+		}
+	}
+	return refs
+}
+
+func feedbackTokenSet(value string) map[string]struct{} {
+	stopwords := map[string]struct{}{
+		"about": {}, "after": {}, "again": {}, "also": {}, "because": {}, "before": {}, "being": {}, "between": {},
+		"could": {}, "does": {}, "from": {}, "have": {}, "into": {}, "just": {}, "more": {}, "only": {}, "other": {},
+		"same": {}, "than": {}, "that": {}, "their": {}, "there": {}, "these": {}, "they": {}, "this": {}, "those": {},
+		"through": {}, "when": {}, "where": {}, "which": {}, "while": {}, "with": {}, "would": {}, "your": {},
+	}
+	tokens := map[string]struct{}{}
+	for _, match := range reportTokenPattern.FindAllString(value, -1) {
+		token := strings.ToLower(strings.TrimSpace(match))
+		if len(token) < 4 {
+			continue
+		}
+		if _, ok := stopwords[token]; ok {
+			continue
+		}
+		tokens[token] = struct{}{}
+		if len(tokens) >= 64 {
+			break
+		}
+	}
+	return tokens
+}
+
+func extractFeedbackAnchors(values ...string) map[string]struct{} {
+	anchors := map[string]struct{}{}
+	addToken := func(token string) {
+		token = strings.ToLower(strings.TrimSpace(token))
+		if len(token) < 3 {
+			return
+		}
+		anchors[token] = struct{}{}
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		for _, match := range reportBacktickCodePattern.FindAllStringSubmatch(value, -1) {
+			if len(match) < 2 {
+				continue
+			}
+			for _, token := range reportTokenPattern.FindAllString(match[1], -1) {
+				addToken(token)
+			}
+		}
+		for _, line := range strings.Split(value, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			if strings.HasPrefix(trimmed, "+++") || strings.HasPrefix(trimmed, "---") {
+				continue
+			}
+			if strings.HasPrefix(trimmed, "+") || strings.HasPrefix(trimmed, "-") {
+				for _, token := range reportTokenPattern.FindAllString(trimmed, -1) {
+					addToken(token)
+					if len(anchors) >= 48 {
+						return anchors
+					}
+				}
+			}
+		}
+	}
+	return anchors
+}
+
+func itemMetaIntent(meta *feedbackNotificationMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return meta.Intent
+}
+
+func itemMetaSeverity(meta *feedbackNotificationMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return meta.Severity
+}
+
+func itemMetaEvidenceTarget(meta *feedbackNotificationMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return meta.EvidenceTarget
+}
+
+func itemMetaEvidencePeer(meta *feedbackNotificationMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return meta.EvidencePeer
 }
 
 func notificationRank(event api.NotificationEvent) int {
@@ -1029,6 +1544,68 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 	}
 }
 
+func waitForChunkTasks(ctx context.Context, client *api.Client, result any, label string, onProgress func(int, int, time.Duration)) error {
+	taskIDs := extractChunkTaskIDs(result)
+	for idx, taskID := range taskIDs {
+		st, timedOut, err := waitForProcessingTask(ctx, client, taskID, func(elapsed time.Duration) {
+			if onProgress != nil {
+				onProgress(idx+1, len(taskIDs), elapsed)
+			}
+		})
+		if err != nil {
+			return err
+		}
+		if timedOut {
+			return fmt.Errorf(
+				"processing timeout after %ds while waiting for chunk task %s for %s",
+				syncProcessTimeoutSec,
+				shortTaskID(taskID),
+				label,
+			)
+		}
+		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+		case "SUCCESS":
+		default:
+			return fmt.Errorf("chunk task %s for %s ended with status %s", shortTaskID(taskID), label, st.Status)
+		}
+	}
+	return nil
+}
+
+func extractChunkTaskIDs(result any) []string {
+	if result == nil {
+		return nil
+	}
+	payload, ok := result.(map[string]any)
+	if !ok {
+		return nil
+	}
+	raw, ok := payload["chunk_task_ids"]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch values := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(values))
+		for _, value := range values {
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(values))
+		for _, value := range values {
+			if trimmed := strings.TrimSpace(fmt.Sprint(value)); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 type repoProgressTracker struct {
 	total         int
 	completed     int
@@ -1115,17 +1692,109 @@ func repoDisplayLabel(root, remote string) string {
 
 func appendRepoServerResponse(lines *[]string, remoteURL, text string, result any, snapshotUsed bool) {
 	b, _ := json.MarshalIndent(result, "", "  ")
-	label := "Repo: " + remoteURL
+	label := "## Repo: " + remoteURL
 	if snapshotUsed {
 		label += " (baseline snapshot)"
 	}
-	*lines = append(*lines, label)
+	appendMarkdownHeading(lines, label)
 	if strings.TrimSpace(text) != "" {
-		*lines = append(*lines, "Changes:")
-		*lines = append(*lines, strings.Split(strings.TrimSpace(text), "\n")...)
+		*lines = append(*lines, "### Changes", "")
+		appendFencedMarkdownBlock(lines, "diff", strings.TrimSpace(text))
 	}
-	*lines = append(*lines, "Server Response:")
-	*lines = append(*lines, strings.Split(strings.TrimSpace(string(b)), "\n")...)
+	*lines = append(*lines, "### Server Response", "")
+	appendFencedMarkdownBlock(lines, "json", strings.TrimSpace(string(b)))
+}
+
+func appendMarkdownHeading(lines *[]string, heading string) {
+	if len(*lines) > 0 {
+		*lines = trimTrailingBlankLines(*lines)
+		*lines = append(*lines, "")
+	}
+	*lines = append(*lines, heading, "")
+}
+
+func appendFencedMarkdownBlock(lines *[]string, language string, content string) {
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+	fence := "~~~"
+	if trimmed := strings.TrimSpace(language); trimmed != "" {
+		fence += trimmed
+	}
+	*lines = append(*lines, fence)
+	*lines = append(*lines, strings.Split(strings.TrimRight(content, "\n"), "\n")...)
+	*lines = append(*lines, "~~~", "")
+}
+
+func trimTrailingBlankLines(lines []string) []string {
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+func summarizeFeedbackReferences(direct []api.FeedbackReference, legacy []api.Reference) []reportReferenceSummary {
+	order := []string{}
+	index := map[string]int{}
+	summaries := []reportReferenceSummary{}
+	add := func(title, author, fallback string) {
+		title = strings.TrimSpace(title)
+		author = strings.TrimSpace(author)
+		if title == "" {
+			title = strings.TrimSpace(fallback)
+		}
+		if title == "" {
+			title = "(untitled reference)"
+		}
+		key := strings.ToLower(title) + "\x00" + strings.ToLower(author)
+		if idx, ok := index[key]; ok {
+			summaries[idx].Excerpts++
+			return
+		}
+		index[key] = len(summaries)
+		order = append(order, key)
+		summaries = append(summaries, reportReferenceSummary{
+			Title:    title,
+			Author:   author,
+			Excerpts: 1,
+		})
+	}
+	for _, ref := range direct {
+		add(ref.Title, ref.Author, firstNonEmpty(ref.DocumentID, ref.NoteID))
+	}
+	for _, ref := range legacy {
+		add(ref.Document.Title, ref.DocumentAuthor, ref.Document.DocumentID)
+	}
+	sort.SliceStable(summaries, func(i, j int) bool {
+		if summaries[i].Title == summaries[j].Title {
+			return summaries[i].Author < summaries[j].Author
+		}
+		return summaries[i].Title < summaries[j].Title
+	})
+	return summaries
+}
+
+func formatReportReference(ref reportReferenceSummary) string {
+	parts := []string{}
+	if ref.Author != "" {
+		parts = append(parts, "author: "+ref.Author)
+	}
+	if ref.Excerpts > 1 {
+		parts = append(parts, fmt.Sprintf("%d excerpts", ref.Excerpts))
+	}
+	if len(parts) == 0 {
+		return ref.Title
+	}
+	return ref.Title + " (" + strings.Join(parts, "; ") + ")"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func persistPendingRepoTask(root string, cfg config.Project, repo *config.Repo, taskID, latest string, initialFeedbackCount int) {

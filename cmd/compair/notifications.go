@@ -2,8 +2,7 @@ package compair
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
+	"strings"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
 	"github.com/RocketResearch-Inc/compair-cli/internal/groups"
@@ -52,27 +51,13 @@ var notificationsCmd = &cobra.Command{
 			fmt.Println("No notification events found.")
 			return nil
 		}
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "EventID\tSeverity\tIntent\tDoc\tStatus\tCreated")
-		for _, event := range resp.Events {
-			status := "new"
-			if formatTimestamp(event.DismissedAt) != "" {
-				status = "dismissed"
-			} else if formatTimestamp(event.AcknowledgedAt) != "" {
-				status = "acknowledged"
+		for idx, event := range resp.Events {
+			if idx > 0 {
+				fmt.Println()
 			}
-			fmt.Fprintf(
-				w,
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
-				event.EventID,
-				event.Severity,
-				event.Intent,
-				event.TargetDocID,
-				status,
-				formatTimestamp(event.CreatedAt),
-			)
+			printNotificationEvent(event, notificationsAllGroups)
 		}
-		return w.Flush()
+		return nil
 	},
 }
 
@@ -131,4 +116,71 @@ func init() {
 	notificationsCmd.AddCommand(notificationsDismissCmd)
 	notificationsCmd.AddCommand(notificationsShareCmd)
 	notificationsShareCmd.Flags().StringVar(&notificationsShareNote, "note", "", "Optional note to include when sharing")
+}
+
+func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
+	severity := strings.ToUpper(strings.TrimSpace(event.Severity))
+	if severity == "" {
+		severity = "UNKNOWN"
+	}
+	intent := strings.TrimSpace(event.Intent)
+	if intent == "" {
+		intent = "unknown"
+	}
+	created := formatTimestamp(event.CreatedAt)
+	if created == "" {
+		created = "unknown"
+	}
+	fmt.Printf("%s  %s  %s  %s  %s\n", event.EventID, severity, intent, notificationStatus(event), created)
+	if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
+		fmt.Println("  Doc:", docID)
+	}
+	if includeGroup {
+		if groupID := strings.TrimSpace(event.GroupID); groupID != "" {
+			fmt.Println("  Group:", groupID)
+		}
+	}
+	if delivery := strings.TrimSpace(event.DeliveryAction); delivery != "" {
+		line := "  Delivery: " + delivery
+		if channel := strings.TrimSpace(event.Channel); channel != "" {
+			line += " via " + channel
+		}
+		fmt.Println(line)
+	}
+	if len(event.PeerDocIDs) > 0 {
+		fmt.Println("  Peer docs:", strings.Join(event.PeerDocIDs, ", "))
+	}
+	rationale := nonEmptyLines(event.Rationale)
+	if len(rationale) > 0 {
+		fmt.Println("  Rationale:")
+		for _, line := range rationale {
+			fmt.Println("   -", line)
+		}
+	}
+	if snippet := truncateText(event.EvidenceTarget, 180); snippet != "" {
+		fmt.Println("  Target evidence:", snippet)
+	}
+	if snippet := truncateText(event.EvidencePeer, 180); snippet != "" {
+		fmt.Println("  Peer evidence:", snippet)
+	}
+}
+
+func notificationStatus(event api.NotificationEvent) string {
+	if formatTimestamp(event.DismissedAt) != "" {
+		return "dismissed"
+	}
+	if formatTimestamp(event.AcknowledgedAt) != "" {
+		return "acknowledged"
+	}
+	return "new"
+}
+
+func nonEmptyLines(lines []string) []string {
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	return filtered
 }
