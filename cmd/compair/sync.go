@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -60,6 +62,19 @@ type reportFeedbackSummary struct {
 	BySeverity          map[string]int
 }
 
+type reportDetailLevel int
+
+const (
+	reportDetailBrief reportDetailLevel = iota
+	reportDetailDetailed
+	reportDetailVerbose
+)
+
+type reportRenderOptions struct {
+	DetailLevel  reportDetailLevel
+	IncludeDebug bool
+}
+
 type feedbackEvidenceProfile struct {
 	Intent    string
 	Severity  string
@@ -99,10 +114,12 @@ var syncFailOnFeedback int
 var syncFailOnSeverity []string
 var syncFailOnType []string
 var syncProcessTimeoutSec int
+var syncReanalyzeExisting bool
 
 type syncInvocationMode struct {
-	FetchOnly bool
-	PushOnly  bool
+	FetchOnly         bool
+	PushOnly          bool
+	ReanalyzeExisting bool
 }
 
 var syncCmd = &cobra.Command{
@@ -131,6 +148,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	}
 	client := api.NewClient(viper.GetString("api.base"))
 	caps, _ := client.Capabilities(10 * time.Minute)
+	reportOptions := resolveReportRenderOptions(client)
 	gclient := api.NewClient(viper.GetString("api.base"))
 	group, _, err := groups.ResolveWithAuto(gclient, "", viper.GetString("group"))
 	if err != nil {
@@ -141,8 +159,15 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 		return err
 	}
 	snapshotMode = mode
+	reanalyzeExisting := syncReanalyzeExisting || modeFlags.ReanalyzeExisting
+	if reanalyzeExisting && snapshotMode != "snapshot" {
+		return fmt.Errorf("--reanalyze-existing requires --snapshot-mode snapshot")
+	}
 	doUpload := !modeFlags.FetchOnly
 	doFetch := !modeFlags.PushOnly
+	if reanalyzeExisting && !doUpload {
+		return fmt.Errorf("--reanalyze-existing requires an upload pass; remove --fetch-only")
+	}
 	waitForFeedback := doFetch && feedbackWaitSec > 0
 	updatedDocs := map[string]struct{}{}
 	gatedDocIDs := map[string]struct{}{}
@@ -266,6 +291,21 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			}
 			gatedDocIDs[r.DocumentID] = struct{}{}
 			if doFetch && strings.TrimSpace(r.PendingTaskID) != "" {
+				if stale, age, cutoff := isPendingRepoTaskStale(r.PendingTaskStartedAt); stale {
+					printer.Warn(
+						fmt.Sprintf(
+							"[%d/%d] Saved processing task for %s is stale (%s old; cutoff %s). Resubmitting current snapshot.",
+							idx+1,
+							len(rootList),
+							repoLabel,
+							humanDuration(age),
+							humanDuration(cutoff),
+						),
+					)
+					clearPendingRepoTask(root, cfg, r)
+				}
+			}
+			if doFetch && strings.TrimSpace(r.PendingTaskID) != "" {
 				printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(rootList), repoLabel))
 				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, r.PendingTaskID, func(elapsed time.Duration) {
 					printer.Info(repoProgress.waitingLine(idx+1, repoLabel, elapsed))
@@ -297,7 +337,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					}); err != nil {
 						return err
 					}
-					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false)
+					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
 					latest := strings.TrimSpace(r.PendingTaskCommit)
 					if latest != "" {
 						finalizeRepoSync(root, group, cfg, r, latest)
@@ -359,7 +399,10 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			}
 			var resp api.ProcessDocResp
 			if snapshotUsed {
-				resp, err = client.ProcessDocWithMode(r.DocumentID, text, true, "client")
+				resp, err = client.ProcessDocWithOptions(r.DocumentID, text, true, api.ProcessDocOptions{
+					ChunkMode:         "client",
+					ReanalyzeExisting: reanalyzeExisting,
+				})
 			} else {
 				resp, err = client.ProcessDoc(r.DocumentID, text, true)
 			}
@@ -398,7 +441,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}); err != nil {
 					return err
 				}
-				appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed)
+				appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed, reportOptions)
 			} else {
 				if snapshotUsed {
 					printer.Info("Uploaded baseline snapshot for " + r.RemoteURL)
@@ -574,13 +617,15 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						printer.Warn(fmt.Sprintf("Chunk processing failed for %s: %v", it.Path, err))
 						continue
 					}
-					lines = append(lines, "File: "+it.Path)
-					lines = append(lines, "Server Response:")
-					if st.Result != nil {
-						bb, _ := json.MarshalIndent(st.Result, "", "  ")
-						lines = append(lines, strings.Split(strings.TrimSpace(string(bb)), "\n")...)
-					} else {
-						lines = append(lines, "Processing completed.")
+					if reportOptions.IncludeDebug {
+						lines = append(lines, "File: "+it.Path)
+						lines = append(lines, "Server Response:")
+						if st.Result != nil {
+							bb, _ := json.MarshalIndent(st.Result, "", "  ")
+							lines = append(lines, strings.Split(strings.TrimSpace(string(bb)), "\n")...)
+						} else {
+							lines = append(lines, "Processing completed.")
+						}
 					}
 				} else {
 					printer.Info("Uploaded " + it.Path)
@@ -736,11 +781,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				if ctx == "" {
 					ctx = cmap[fb.ChunkID]
 				}
-				if ctx != "" {
-					ctx = trimContext(ctx, 8, 360)
-					entry = append(entry, "", "**Context**", "")
-					appendFencedMarkdownBlock(&entry, "text", ctx)
-				}
+				appendFeedbackContext(&entry, ctx, reportOptions)
 				entry = append(entry, "**Feedback**", "")
 				entry = append(entry, strings.Split(strings.TrimSpace(fb.Feedback), "\n")...)
 				entry = append(entry, "")
@@ -1046,6 +1087,43 @@ func collapseDuplicateFeedbackItems(items []feedbackRenderItem) ([]feedbackRende
 		}
 	}
 	return kept, collapsed
+}
+
+func resolveReportRenderOptions(client *api.Client) reportRenderOptions {
+	return reportRenderOptions{
+		DetailLevel:  resolveReportDetailLevel(client),
+		IncludeDebug: viper.GetBool("verbose"),
+	}
+}
+
+func resolveReportDetailLevel(client *api.Client) reportDetailLevel {
+	if client == nil {
+		return reportDetailDetailed
+	}
+	session, err := client.EnsureSession()
+	if err != nil {
+		return reportDetailDetailed
+	}
+	userID := strings.TrimSpace(session.UserID)
+	if userID == "" {
+		return reportDetailDetailed
+	}
+	user, err := client.LoadUserByID(userID)
+	if err != nil {
+		return reportDetailDetailed
+	}
+	return parseReportDetailLevel(user.PreferredFeedbackLength)
+}
+
+func parseReportDetailLevel(value string) reportDetailLevel {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "brief":
+		return reportDetailBrief
+	case "verbose", "full":
+		return reportDetailVerbose
+	default:
+		return reportDetailDetailed
+	}
 }
 
 func shouldCollapseFeedbackItems(
@@ -1518,11 +1596,22 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 	deadline := processingDeadline()
 	startedAt := time.Now()
 	lastProgressAt := time.Time{}
+	consecutivePollErrors := 0
 	for {
 		st, err := client.GetTaskStatus(taskID)
 		if err != nil {
+			if isRetryableStatusPollError(err) && consecutivePollErrors < 5 {
+				consecutivePollErrors++
+				select {
+				case <-ctx.Done():
+					return api.TaskStatus{}, false, ctx.Err()
+				case <-time.After(2 * time.Second):
+					continue
+				}
+			}
 			return api.TaskStatus{}, false, err
 		}
+		consecutivePollErrors = 0
 		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 		case "SUCCESS":
 			return st, false, nil
@@ -1542,6 +1631,26 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+func isRetryableStatusPollError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if os.IsTimeout(err) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "operation timed out") ||
+		strings.Contains(msg, "client.timeout") ||
+		strings.Contains(msg, "timeout awaiting response headers") ||
+		strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "tls handshake timeout")
 }
 
 func waitForChunkTasks(ctx context.Context, client *api.Client, result any, label string, onProgress func(int, int, time.Duration)) error {
@@ -1690,8 +1799,7 @@ func repoDisplayLabel(root, remote string) string {
 	return filepath.Base(root)
 }
 
-func appendRepoServerResponse(lines *[]string, remoteURL, text string, result any, snapshotUsed bool) {
-	b, _ := json.MarshalIndent(result, "", "  ")
+func appendRepoServerResponse(lines *[]string, remoteURL, text string, result any, snapshotUsed bool, options reportRenderOptions) {
 	label := "## Repo: " + remoteURL
 	if snapshotUsed {
 		label += " (baseline snapshot)"
@@ -1699,10 +1807,65 @@ func appendRepoServerResponse(lines *[]string, remoteURL, text string, result an
 	appendMarkdownHeading(lines, label)
 	if strings.TrimSpace(text) != "" {
 		*lines = append(*lines, "### Changes", "")
-		appendFencedMarkdownBlock(lines, "diff", strings.TrimSpace(text))
+		if options.DetailLevel >= reportDetailVerbose {
+			appendFencedMarkdownBlock(lines, "diff", strings.TrimSpace(text))
+		} else {
+			appendFencedMarkdownBlock(lines, "text", summarizeRepoChanges(text, options.DetailLevel))
+		}
 	}
-	*lines = append(*lines, "### Server Response", "")
-	appendFencedMarkdownBlock(lines, "json", strings.TrimSpace(string(b)))
+	if options.IncludeDebug && result != nil {
+		b, _ := json.MarshalIndent(result, "", "  ")
+		*lines = append(*lines, "### Server Response", "")
+		appendFencedMarkdownBlock(lines, "json", strings.TrimSpace(string(b)))
+	}
+}
+
+func summarizeRepoChanges(text string, level reportDetailLevel) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return ""
+	}
+	headerLines := []string{}
+	for _, line := range strings.Split(trimmed, "\n") {
+		if strings.HasPrefix(line, "diff --git ") {
+			break
+		}
+		line = strings.TrimRight(line, " ")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		headerLines = append(headerLines, line)
+	}
+	if len(headerLines) == 0 {
+		if level == reportDetailBrief {
+			return trimContext(trimmed, 4, 220)
+		}
+		return trimContext(trimmed, 8, 360)
+	}
+	if level == reportDetailBrief {
+		condensed := make([]string, 0, len(headerLines))
+		if len(headerLines) > 0 {
+			condensed = append(condensed, headerLines[0])
+		}
+		for _, line := range headerLines[1:] {
+			if strings.Contains(line, "|") || strings.Contains(line, "file changed") || strings.Contains(line, "files changed") {
+				condensed = append(condensed, line)
+			}
+		}
+		if len(condensed) > 0 {
+			return strings.Join(condensed, "\n")
+		}
+	}
+	return strings.Join(headerLines, "\n")
+}
+
+func appendFeedbackContext(entry *[]string, ctx string, options reportRenderOptions) {
+	if strings.TrimSpace(ctx) == "" || options.DetailLevel < reportDetailDetailed {
+		return
+	}
+	ctx = trimContext(ctx, 8, 360)
+	*entry = append(*entry, "", "**Context**", "")
+	appendFencedMarkdownBlock(entry, "text", ctx)
 }
 
 func appendMarkdownHeading(lines *[]string, heading string) {
@@ -1795,6 +1958,36 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func pendingTaskStaleAfter() time.Duration {
+	const defaultCutoff = 2 * time.Hour
+	raw := strings.TrimSpace(os.Getenv("COMPAIR_PENDING_TASK_STALE_AFTER_SEC"))
+	if raw == "" {
+		return defaultCutoff
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		return defaultCutoff
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func isPendingRepoTaskStale(startedAt string) (bool, time.Duration, time.Duration) {
+	cutoff := pendingTaskStaleAfter()
+	if cutoff <= 0 {
+		return false, 0, cutoff
+	}
+	ts := strings.TrimSpace(startedAt)
+	if ts == "" {
+		return false, 0, cutoff
+	}
+	parsed, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return false, 0, cutoff
+	}
+	age := time.Since(parsed)
+	return age >= cutoff, age, cutoff
 }
 
 func persistPendingRepoTask(root string, cfg config.Project, repo *config.Repo, taskID, latest string, initialFeedbackCount int) {
@@ -2051,6 +2244,7 @@ func addSyncFlags(cmd *cobra.Command, includeModeFlags bool) {
 	cmd.Flags().StringArrayVar(&snapshotExclude, "snapshot-exclude", nil, "Snapshot exclude glob (repeatable)")
 	cmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Show the payload that would be sent and exit")
 	cmd.Flags().BoolVar(&syncJSON, "json", false, "Output machine-readable sync summary JSON")
+	cmd.Flags().BoolVar(&syncReanalyzeExisting, "reanalyze-existing", false, "When used with --snapshot-mode snapshot, generate feedback from already-indexed content instead of only new chunks")
 	cmd.Flags().StringVar(&syncGate, "gate", "", "Named gating preset: off, api-contract, cross-product, review, strict (or 'help')")
 	cmd.Flags().IntVar(&syncFailOnFeedback, "fail-on-feedback", 0, "Exit non-zero when new feedback count is at or above this threshold (0 disables)")
 	cmd.Flags().StringArrayVar(&syncFailOnSeverity, "fail-on-severity", nil, "Primary gate: fail when new notification severity matches (repeatable or comma-separated)")

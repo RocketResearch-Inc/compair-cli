@@ -24,12 +24,14 @@ var addRepoInitialSync bool
 var addRepoCommitLimit int
 var addRepoExtDetail bool
 var addRepoUnpublished bool
+var addRepoNoFeedback bool
 
 type repoRegistrationOptions struct {
-	InitialSync bool
-	CommitLimit int
-	ExtDetail   bool
-	Unpublished bool
+	InitialSync       bool
+	InitialNoFeedback bool
+	CommitLimit       int
+	ExtDetail         bool
+	Unpublished       bool
 }
 
 var groupAddRepoCmd = &cobra.Command{
@@ -57,10 +59,11 @@ var groupAddRepoCmd = &cobra.Command{
 			return err
 		}
 		_, err = registerRepoDocument(client, groupID, remote, root, repoRegistrationOptions{
-			InitialSync: addRepoInitialSync,
-			CommitLimit: addRepoCommitLimit,
-			ExtDetail:   addRepoExtDetail,
-			Unpublished: addRepoUnpublished,
+			InitialSync:       addRepoInitialSync,
+			InitialNoFeedback: addRepoNoFeedback,
+			CommitLimit:       addRepoCommitLimit,
+			ExtDetail:         addRepoExtDetail,
+			Unpublished:       addRepoUnpublished,
 		})
 		if err != nil {
 			return err
@@ -239,11 +242,14 @@ func registerRepoDocument(client *api.Client, groupID, remote, root string, opts
 	}
 	if strings.TrimSpace(text) != "" {
 		var resp api.ProcessDocResp
+		generateFeedback := !opts.InitialNoFeedback
 		var err error
 		if useClientChunks {
-			resp, err = client.ProcessDocWithMode(doc.DocumentID, text, true, "client")
+			resp, err = client.ProcessDocWithOptions(doc.DocumentID, text, generateFeedback, api.ProcessDocOptions{
+				ChunkMode: "client",
+			})
 		} else {
-			resp, err = client.ProcessDoc(doc.DocumentID, text, true)
+			resp, err = client.ProcessDoc(doc.DocumentID, text, generateFeedback)
 		}
 		if err == nil {
 			_ = resp
@@ -289,6 +295,7 @@ func init() {
 	groupAddRepoCmd.Flags().StringVar(&branchFlag, "branch", "", "Default branch (unused for API, kept for config parity)")
 	groupAddRepoCmd.Flags().StringVar(&repoPath, "repo", "", "Path to a local git repo (optional)")
 	groupAddRepoCmd.Flags().BoolVar(&addRepoInitialSync, "initial-sync", false, "Perform an initial sync after creating the document")
+	groupAddRepoCmd.Flags().BoolVar(&addRepoNoFeedback, "no-feedback", false, "When used with --initial-sync, upload the baseline without generating feedback")
 	groupAddRepoCmd.Flags().IntVar(&addRepoCommitLimit, "commits", 10, "Number of commits for the initial sync if no prior sync exists")
 	groupAddRepoCmd.Flags().BoolVar(&addRepoExtDetail, "ext-detail", false, "Include detailed per-commit patches in initial sync")
 	groupAddRepoCmd.Flags().BoolVar(&addRepoUnpublished, "unpublished", false, "Keep the repo document unpublished (default: publish so other repos can reference it)")

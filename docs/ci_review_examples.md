@@ -4,6 +4,8 @@ These examples assume the repository checkout path is `compair-cli/`. If your ch
 
 These examples show how to run Compair in CI once a repo has already been tracked and bound to a Compair document.
 
+Compair is most valuable in CI when that document belongs to a group that also contains the other repos it depends on. The CI job still runs in one checkout, but the review compares that repo against peer repos already indexed in the same Compair group.
+
 ## Recommended Setup
 
 Before using Compair in CI:
@@ -20,9 +22,20 @@ compair track
 
 Without a stable `.compair/config.yaml`, CI will not know which Compair document the repo should continue updating.
 
+## Cross-Repo Setup
+
+For cross-repo checks, do this once from a trusted workstation before enabling CI:
+
+1. Create a shared Compair group for the related repos.
+2. Track each repo into that group.
+3. Baseline the group with `--initial-sync --no-feedback`.
+4. Run a warm review pass so the group already has peer context before the first CI run.
+
+See [cross_repo_workflow.md](cross_repo_workflow.md) for the full local setup flow.
+
 ## GitHub Actions: Advisory Review
 
-This uploads the current repo, writes the default Markdown report, and stores it as a build artifact without blocking the PR.
+This uploads the current repo, compares it against its peer repos in the same Compair group, writes the default Markdown report, and stores it as a build artifact without blocking the PR.
 
 ```yaml
 name: compair-review
@@ -61,9 +74,9 @@ jobs:
           if-no-files-found: ignore
 ```
 
-## GitHub Actions: Blocking Gate
+## GitHub Actions: Failing PR Check
 
-This keeps the artifact, but fails the job when the configured Compair gate fires.
+This keeps the artifact, but fails the job when the configured Compair rule matches severe notifications.
 
 ```yaml
 name: compair-gate
@@ -89,7 +102,7 @@ jobs:
         working-directory: compair-cli
         run: ./compair --api-base https://app.compair.sh/api login --token "${{ secrets.COMPAIR_AUTH_TOKEN }}"
 
-      - name: Run blocking gate
+      - name: Run failing PR check
         working-directory: ${{ github.workspace }}
         run: ./compair-cli/compair --api-base https://app.compair.sh/api sync --json --gate api-contract
 
@@ -123,7 +136,7 @@ compair_review:
       - .compair/latest_feedback_sync.md
 ```
 
-## GitLab CI: Blocking Gate
+## GitLab CI: Failing Check
 
 ```yaml
 stages:
@@ -147,10 +160,11 @@ compair_gate:
 ## Practical Guidance
 
 - Start with advisory mode.
-- Only promote to blocking once you trust the signal quality for your repos.
+- Only promote to failing checks once you trust the signal quality for your repos.
 - Use a dedicated Compair account and group for CI.
-- Prefer `api-contract` as the first blocking gate. It is the most conservative preset.
-- Keep the Markdown artifact even on failure so reviewers can see why the job blocked.
+- Prefer `api-contract` as the first failing-check preset. It is the most conservative option.
+- Use advisory mode for medium-severity findings until you trust the signal for that repo set.
+- Keep the Markdown artifact even on failure so reviewers can see why the job failed.
 
 ## Optional: Post a PR Comment
 

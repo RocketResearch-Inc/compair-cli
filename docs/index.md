@@ -1,6 +1,6 @@
 # Compair CLI
 
-Compair CLI brings your **code-aware comparisons** to the terminal. Track repositories as documents, process recent changes, and surface relevant feedback—all from your shell.
+Compair CLI brings your **code-aware comparisons** to the terminal. Track repositories as documents, process recent changes, and surface relevant feedback across repo boundaries from your shell.
 
 When you target Compair Cloud and notification scoring is enabled, the CLI can also use ranked notification events as a report-ordering and CI-gating layer.
 
@@ -78,6 +78,7 @@ go build -o compair .
 ## Documentation Map
 
 User-facing:
+- [Cross-Repo Workflow](cross_repo_workflow.md)
 - [User Guide](user_guide.md)
 - [Core Quickstart](core_quickstart.md)
 - [Hook Recipes](hook_recipes.md)

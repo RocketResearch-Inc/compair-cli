@@ -23,6 +23,8 @@ On an interactive terminal, Compair will ask whether to run:
 
 The demo creates a disposable workspace with two small repos, tracks them in a dedicated demo group, and runs a real Compair review.
 
+If you want the recommended multi-repo product workflow instead of the disposable demo, follow [cross_repo_workflow.md](cross_repo_workflow.md).
+
 ## Configure API base
 The CLI uses `--api-base` or `COMPAIR_API_BASE`:
 ```bash
@@ -182,12 +184,14 @@ compair track                     # simplest repo-first path; uses active group
 compair track ./path/to/repo      # track another local repo
 compair track --group <group>     # explicit group id or name
 compair track --initial-sync      # register + send the first sync immediately
+compair track --initial-sync --no-feedback   # register + upload a baseline without feedback
 compair track --unpublished       # keep this repo private
 ```
 - Creates a **document** representing the repo via `/create_doc`
 - Saves `.compair/config.yaml` with `document_id` and repo metadata
 - Existing repo bindings are auto-published on `compair sync` unless the repo config explicitly opts out with `unpublished: true`
 - `compair track` is the repo-registration entry point
+- `--no-feedback` only applies when paired with `--initial-sync`; it is the recommended way to baseline a repo into a shared group before a later warm review pass
 
 ## Self-feedback
 For single-user cross-repo review, enable your own published repo documents as reference candidates:
@@ -208,6 +212,7 @@ compair feedback-length verbose
 # Run a full review (default uploads + fetches, waits up to 45s for feedback,
 # writes .compair/latest_feedback_sync.md, then renders it)
 compair review --commits 10 --ext-detail
+compair review --all --snapshot-mode snapshot --reanalyze-existing
 
 # Simpler task-oriented aliases
 compair push
@@ -239,6 +244,7 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - Collects recent commits + a summary of diffs since the last sync
 - On the first sync of a repo (no `last_synced_commit` yet), sends a baseline snapshot with the file tree and full tracked text contents by default
 - Sends text to `/process_doc` with `generate_feedback=true`
+- `--reanalyze-existing` is the warm-pass switch: when paired with `--snapshot-mode snapshot`, Compair can generate feedback from already-indexed repo chunks that do not yet have feedback
 - Waits (configurable via `--feedback-wait`) for newly generated feedback before continuing
 - Caches feedback IDs locally so repeated syncs only append newly seen items
 - Updates `last_synced_commit` both in repo-local `.compair/config.yaml` and the workspace DB
@@ -255,6 +261,26 @@ Baseline snapshots now default to full-repo indexing. Add caps only when you wan
 compair sync --snapshot-max-files 80 --snapshot-max-total-bytes 500000
 compair push --snapshot-max-total-bytes 300000 --snapshot-max-files 60
 ```
+
+## First-time multi-repo review
+For a shared group of repos you own, the recommended pattern is:
+
+```bash
+# 1. Put every repo in the same active group and upload a baseline with no feedback
+compair group use <group-id|group-name>
+compair self-feedback on
+compair track ~/code/compair_core --initial-sync --no-feedback
+compair track ~/code/compair_cloud --initial-sync --no-feedback
+compair track ~/code/compair-cli --initial-sync --no-feedback
+
+# 2. Once all repo baselines exist in that group, run one warm snapshot pass
+compair review --all --snapshot-mode snapshot --reanalyze-existing
+```
+
+This keeps the onboarding path aligned with the normal Compair model:
+- each repo is still just a document in a group
+- the baseline pass creates the searchable snapshot without prematurely generating feedback
+- the warm pass generates feedback after the whole group is available for cross-repo reference selection
 
 Persist those caps in a profile when you want them every time:
 ```bash

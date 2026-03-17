@@ -26,7 +26,15 @@ func TestSummarizeFeedbackReferencesDedupesRepeatedDocuments(t *testing.T) {
 
 func TestAppendRepoServerResponseUsesMarkdownSections(t *testing.T) {
 	lines := []string{}
-	appendRepoServerResponse(&lines, "git@example.com:demo/repo.git", "diff --git a/a b/a", map[string]any{"ok": true}, false)
+	appendRepoServerResponse(
+		&lines,
+		"git@example.com:demo/repo.git",
+		"abc123 Demo change\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n"+
+			"diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new",
+		map[string]any{"ok": true},
+		false,
+		reportRenderOptions{DetailLevel: reportDetailVerbose},
+	)
 
 	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "## Repo: git@example.com:demo/repo.git") {
@@ -35,8 +43,88 @@ func TestAppendRepoServerResponseUsesMarkdownSections(t *testing.T) {
 	if !strings.Contains(out, "### Changes") || !strings.Contains(out, "~~~diff") {
 		t.Fatalf("expected fenced diff block, got:\n%s", out)
 	}
+	if strings.Contains(out, "### Server Response") || strings.Contains(out, "~~~json") {
+		t.Fatalf("did not expect server response without debug mode, got:\n%s", out)
+	}
+}
+
+func TestAppendRepoServerResponseDetailedUsesSummaryBlock(t *testing.T) {
+	lines := []string{}
+	appendRepoServerResponse(
+		&lines,
+		"git@example.com:demo/repo.git",
+		"abc123 Demo change\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n"+
+			"diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new",
+		map[string]any{"ok": true},
+		false,
+		reportRenderOptions{DetailLevel: reportDetailDetailed},
+	)
+
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "### Changes") || !strings.Contains(out, "~~~text") {
+		t.Fatalf("expected summarized text block, got:\n%s", out)
+	}
+	if strings.Contains(out, "diff --git a/file.txt b/file.txt") {
+		t.Fatalf("did not expect raw diff in detailed mode, got:\n%s", out)
+	}
+	if !strings.Contains(out, "file.txt | 2 +-") {
+		t.Fatalf("expected summary lines in detailed mode, got:\n%s", out)
+	}
+}
+
+func TestAppendRepoServerResponseBriefUsesCondensedSummary(t *testing.T) {
+	lines := []string{}
+	appendRepoServerResponse(
+		&lines,
+		"git@example.com:demo/repo.git",
+		"abc123 Demo change\n README.md | 2 +-\n src/client.ts | 4 ++--\n 2 files changed, 3 insertions(+), 3 deletions(-)\n\n"+
+			"diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md",
+		nil,
+		false,
+		reportRenderOptions{DetailLevel: reportDetailBrief},
+	)
+
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "~~~text") {
+		t.Fatalf("expected condensed text block, got:\n%s", out)
+	}
+	if strings.Contains(out, "diff --git a/README.md b/README.md") {
+		t.Fatalf("did not expect raw diff in brief mode, got:\n%s", out)
+	}
+	if !strings.Contains(out, "2 files changed, 3 insertions(+), 3 deletions(-)") {
+		t.Fatalf("expected condensed change summary, got:\n%s", out)
+	}
+}
+
+func TestAppendRepoServerResponseIncludesServerResponseInDebugMode(t *testing.T) {
+	lines := []string{}
+	appendRepoServerResponse(
+		&lines,
+		"git@example.com:demo/repo.git",
+		"",
+		map[string]any{"chunk_task_ids": []string{"abc"}},
+		false,
+		reportRenderOptions{DetailLevel: reportDetailDetailed, IncludeDebug: true},
+	)
+
+	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "### Server Response") || !strings.Contains(out, "~~~json") {
-		t.Fatalf("expected fenced json block, got:\n%s", out)
+		t.Fatalf("expected debug server response block, got:\n%s", out)
+	}
+}
+
+func TestAppendFeedbackContextHonorsVerbosity(t *testing.T) {
+	brief := []string{}
+	appendFeedbackContext(&brief, "line 1\nline 2", reportRenderOptions{DetailLevel: reportDetailBrief})
+	if len(brief) != 0 {
+		t.Fatalf("expected no context in brief mode, got %#v", brief)
+	}
+
+	detailed := []string{}
+	appendFeedbackContext(&detailed, "line 1\nline 2", reportRenderOptions{DetailLevel: reportDetailDetailed})
+	out := strings.Join(detailed, "\n")
+	if !strings.Contains(out, "**Context**") || !strings.Contains(out, "~~~text") {
+		t.Fatalf("expected context block in detailed mode, got:\n%s", out)
 	}
 }
 

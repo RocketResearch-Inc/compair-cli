@@ -264,8 +264,12 @@ func ensureDemoSession(client *api.Client, mode string) (*api.Capabilities, erro
 }
 
 func createDemoGroup(client *api.Client, name string) (string, error) {
-	if err := client.CreateGroup(name, "", "", "", ""); err != nil {
+	item, err := client.CreateGroup(name, "", "", "", "")
+	if err != nil {
 		return "", err
+	}
+	if id := groupItemID(item); id != "" {
+		return id, nil
 	}
 	items, err := client.ListGroups(true)
 	if err != nil {

@@ -40,6 +40,7 @@ func init() {
 	hideCommandFlags(pullCmd,
 		"commits",
 		"ext-detail",
+		"reanalyze-existing",
 		"snapshot-mode",
 		"snapshot-max-tree",
 		"snapshot-max-files",

@@ -11,6 +11,7 @@ import (
 
 var initGroup string
 var initInitialSync bool
+var initNoFeedback bool
 var initCommitLimit int
 var initExtDetail bool
 var initUnpublished bool
@@ -37,10 +38,11 @@ var initCmd = &cobra.Command{
 
 		client := api.NewClient(viper.GetString("api.base"))
 		_, err = registerRepoDocument(client, initGroup, remote, root, repoRegistrationOptions{
-			InitialSync: initInitialSync,
-			CommitLimit: initCommitLimit,
-			ExtDetail:   initExtDetail,
-			Unpublished: initUnpublished,
+			InitialSync:       initInitialSync,
+			InitialNoFeedback: initNoFeedback,
+			CommitLimit:       initCommitLimit,
+			ExtDetail:         initExtDetail,
+			Unpublished:       initUnpublished,
 		})
 		return err
 	},
@@ -49,6 +51,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVarP(&initGroup, "group", "g", "", "Group ID to associate")
 	initCmd.Flags().BoolVar(&initInitialSync, "initial-sync", false, "Perform an initial sync after creating the document")
+	initCmd.Flags().BoolVar(&initNoFeedback, "no-feedback", false, "When used with --initial-sync, upload the baseline without generating feedback")
 	initCmd.Flags().IntVar(&initCommitLimit, "commits", 10, "Number of commits for initial sync if no prior sync exists")
 	initCmd.Flags().BoolVar(&initExtDetail, "ext-detail", false, "Include detailed per-commit patches in initial sync")
 	initCmd.Flags().BoolVar(&initUnpublished, "unpublished", false, "Keep the repo document unpublished (default: publish so other repos can reference it)")

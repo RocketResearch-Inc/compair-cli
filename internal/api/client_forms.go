@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -181,6 +182,7 @@ type GroupListResp struct {
 }
 
 func (c *Client) ListGroups(ownOnly bool) ([]GroupItem, error) {
+	const pageSize = 100
 	q := url.Values{}
 	if ownOnly {
 		q.Set("own_groups_only", "true")
@@ -188,18 +190,28 @@ func (c *Client) ListGroups(ownOnly bool) ([]GroupItem, error) {
 	if uid := loadUserIDFromDisk(); uid != "" {
 		q.Set("user_id", uid)
 	}
-	path := "/load_groups"
-	if len(q) > 0 {
-		path += "?" + q.Encode()
+	q.Set("page_size", strconv.Itoa(pageSize))
+
+	var all []GroupItem
+	for page := 1; ; page++ {
+		q.Set("page", strconv.Itoa(page))
+		path := "/load_groups"
+		if len(q) > 0 {
+			path += "?" + q.Encode()
+		}
+		var out GroupListResp
+		if err := c.get(path, &out); err != nil {
+			return nil, err
+		}
+		all = append(all, out.Groups...)
+		if len(out.Groups) == 0 || len(out.Groups) < pageSize || (out.TotalCount > 0 && len(all) >= out.TotalCount) {
+			break
+		}
 	}
-	var out GroupListResp
-	if err := c.get(path, &out); err != nil {
-		return nil, err
-	}
-	return out.Groups, nil
+	return all, nil
 }
 
-func (c *Client) CreateGroup(name, category, description, visibility, imagePath string) error {
+func (c *Client) CreateGroup(name, category, description, visibility, imagePath string) (GroupItem, error) {
 	fields := map[string]string{"name": name}
 	if category != "" {
 		fields["category"] = category
@@ -210,7 +222,21 @@ func (c *Client) CreateGroup(name, category, description, visibility, imagePath 
 	if visibility != "" {
 		fields["visibility"] = visibility
 	}
-	return c.postMultipart("/create_group", fields, "file", imagePath, nil)
+	out := GroupItem{Name: name, Visibility: visibility}
+	err := c.postMultipart("/create_group", fields, "file", imagePath, &out)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return out, nil
+		}
+		return GroupItem{}, err
+	}
+	if strings.TrimSpace(out.Name) == "" {
+		out.Name = name
+	}
+	if strings.TrimSpace(out.Visibility) == "" {
+		out.Visibility = visibility
+	}
+	return out, nil
 }
 
 type GroupUser struct {
@@ -444,11 +470,22 @@ type ProcessDocResp struct {
 	TaskID string `json:"task_id"`
 }
 
+type ProcessDocOptions struct {
+	ChunkMode         string
+	ReanalyzeExisting bool
+}
+
 func (c *Client) ProcessDoc(docID, text string, generateFeedback bool) (ProcessDocResp, error) {
-	return c.ProcessDocWithMode(docID, text, generateFeedback, "")
+	return c.ProcessDocWithOptions(docID, text, generateFeedback, ProcessDocOptions{})
 }
 
 func (c *Client) ProcessDocWithMode(docID, text string, generateFeedback bool, chunkMode string) (ProcessDocResp, error) {
+	return c.ProcessDocWithOptions(docID, text, generateFeedback, ProcessDocOptions{
+		ChunkMode: chunkMode,
+	})
+}
+
+func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool, opts ProcessDocOptions) (ProcessDocResp, error) {
 	data := url.Values{}
 	data.Set("doc_id", docID)
 	data.Set("doc_text_b64", base64.StdEncoding.EncodeToString([]byte(text)))
@@ -457,8 +494,11 @@ func (c *Client) ProcessDocWithMode(docID, text string, generateFeedback bool, c
 	} else {
 		data.Set("generate_feedback", "false")
 	}
-	if strings.TrimSpace(chunkMode) != "" {
-		data.Set("chunk_mode", chunkMode)
+	if strings.TrimSpace(opts.ChunkMode) != "" {
+		data.Set("chunk_mode", opts.ChunkMode)
+	}
+	if opts.ReanalyzeExisting {
+		data.Set("reanalyze_existing", "true")
 	}
 	var out ProcessDocResp
 	if err := c.postForm("/process_doc", data, &out); err != nil {
