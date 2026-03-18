@@ -13,7 +13,7 @@ Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared revi
 - Review changes in the context of the rest of your product
 - Turn high-confidence findings into CI checks when you're ready
 
-## Try It In 5 Minutes
+## Care to Compair? Try It In 5 Minutes
 
 The fastest way to see what Compair does:
 
@@ -36,11 +36,11 @@ compair demo
 
 Choose the path that fits your workflow:
 
-| Path | Use when... |
-| --- | --- |
-| **Homebrew cask (macOS)** | You want the quickest install on macOS. |
-| **Download a release** | You want the fastest setup on macOS, Linux, or Windows. |
-| **Build from source** | You want to inspect the code, hack on the CLI, or run the latest checkout. |
+| Path                      | Use when...                                                                |
+| ------------------------- | -------------------------------------------------------------------------- |
+| **Homebrew cask (macOS)** | You want the quickest install on macOS.                                    |
+| **Download a release**    | You want the fastest setup on macOS, Linux, or Windows.                    |
+| **Build from source**     | You want to inspect the code, hack on the CLI, or run the latest checkout. |
 
 ### Homebrew cask (macOS)
 
@@ -157,11 +157,11 @@ For the full step-by-step workflow, see [docs/cross_repo_workflow.md](docs/cross
 
 ## Feedback Length
 
-| Setting | Use it when... |
-| --- | --- |
-| `brief` | You want a fast, readable signal. Recommended for first full-suite reviews and most daily use. |
-| `detailed` | You want more context and rationale for a smaller number of findings. |
-| `verbose` | You are actively debugging a specific result and want the most supporting detail. |
+| Setting    | Use it when...                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `brief`    | You want a fast, readable signal. Recommended for first full-suite reviews and most daily use. |
+| `detailed` | You want more context and rationale for a smaller number of findings.                          |
+| `verbose`  | You are actively debugging a specific result and want the most supporting detail.              |
 
 ## Add Compair To CI When You're Ready
 
@@ -181,13 +181,13 @@ Tighten rules later as you build trust in the signal.
 
 If the term `gate` is unfamiliar, treat it as the rule that decides whether CI should fail.
 
-| Command | What it does | Use it when... |
-| --- | --- | --- |
-| `compair sync --json` | Advisory only. Produces machine-readable output and a Markdown report, but does not fail CI on its own. | You are introducing Compair and want visibility without disruption. |
-| `compair sync --json --gate api-contract` | Fails CI on high-severity `potential_conflict` notifications. | Best first production preset. |
-| `compair sync --json --gate cross-product` | Fails CI on broader high-severity cross-product issues. | You want more than API contract checks, but still want a conservative threshold. |
-| `compair sync --json --gate review` | Fails CI on high-severity conflicts and review-oriented updates. | You want stronger code-review style enforcement. |
-| `compair sync --json --gate strict` | Fails CI on high and medium issues across a broader set of notification types. | Use on integration or release branches after you trust the signal. |
+| Command                                    | What it does                                                                                            | Use it when...                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `compair sync --json`                      | Advisory only. Produces machine-readable output and a Markdown report, but does not fail CI on its own. | You are introducing Compair and want visibility without disruption.              |
+| `compair sync --json --gate api-contract`  | Fails CI on high-severity `potential_conflict` notifications.                                           | Best first production preset.                                                    |
+| `compair sync --json --gate cross-product` | Fails CI on broader high-severity cross-product issues.                                                 | You want more than API contract checks, but still want a conservative threshold. |
+| `compair sync --json --gate review`        | Fails CI on high-severity conflicts and review-oriented updates.                                        | You want stronger code-review style enforcement.                                 |
+| `compair sync --json --gate strict`        | Fails CI on high and medium issues across a broader set of notification types.                          | Use on integration or release branches after you trust the signal.               |
 
 **Recommended rollout:** start with visibility, then fail only on the highest-confidence issues, then tighten thresholds later.
 
@@ -216,3 +216,7 @@ See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions 
 - [API Mapping](docs/api_mapping.md)
 - [Hook Recipes](docs/hook_recipes.md)
 - [Config Reference](docs/config_reference.md)
+
+### **What will you Compair?**
+
+For any issues create one here or reach out to steven@compair.sh
