@@ -38,8 +38,16 @@ Choose the path that fits your workflow:
 
 | Path | Use when... |
 | --- | --- |
+| **Homebrew cask (macOS)** | You want the quickest install on macOS. |
 | **Download a release** | You want the fastest setup on macOS, Linux, or Windows. |
 | **Build from source** | You want to inspect the code, hack on the CLI, or run the latest checkout. |
+
+### Homebrew cask (macOS)
+
+```bash
+brew tap RocketResearch-Inc/tap
+brew install --cask compair
+```
 
 ### Download a release
 

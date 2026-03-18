@@ -6,7 +6,20 @@ Repository note: the binary and product name are `compair` / "Compair CLI". In t
 
 Looking for the fastest first run? Start with `compair demo` in the README. Use this guide when you want the full command reference and workflow details.
 
-## Install from source
+## Install
+
+### Recommended on macOS
+
+```bash
+brew tap RocketResearch-Inc/tap
+brew install --cask compair
+```
+
+### Download a release
+
+Start from the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page for macOS, Linux, and Windows archives.
+
+### Install from source
 ```bash
 # From source
 go build -o compair .
