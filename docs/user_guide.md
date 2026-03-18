@@ -4,7 +4,9 @@ This guide walks through installing, authenticating, and using the Compair CLI.
 
 Repository note: the binary and product name are `compair` / "Compair CLI". In this workspace, the repository directory is `compair-cli`.
 
-## Install
+Looking for the fastest first run? Start with `compair demo` in the README. Use this guide when you want the full command reference and workflow details.
+
+## Install from source
 ```bash
 # From source
 go build -o compair .

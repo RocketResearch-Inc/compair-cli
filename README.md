@@ -1,95 +1,151 @@
 # Compair CLI
 
-Compair CLI is built for one problem that single-repo AI review does not solve well: cross-repo drift.
+[![CI](https://img.shields.io/github/actions/workflow/status/RocketResearch-Inc/compair-cli/ci.yml?branch=main&label=CI)](https://github.com/RocketResearch-Inc/compair-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/RocketResearch-Inc/compair-cli)](https://github.com/RocketResearch-Inc/compair-cli/releases)
+[![License](https://img.shields.io/github/license/RocketResearch-Inc/compair-cli)](LICENSE)
 
-Track your backend, frontend, SDK, CLI, desktop app, and docs as related documents in the same Compair group. Compair indexes each repo, compares new changes against the rest of the group, and surfaces notifications when it sees contract conflicts, hidden overlap, or information gaps.
+**Compair CLI helps developers catch cross-repo drift from the terminal.**
+Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared review context. Compair compares changes across related repos and surfaces conflicts, hidden overlap, and missing updates before they turn into broken workflows or user-facing issues.
 
-This is the core difference from GitHub-native AI review. A native review bot sees one pull request in one repository. Compair can tell you that a frontend rename, CLI retry policy, or desktop workflow no longer matches the backend or another client.
+**Why it's different:** most AI review tools look at one pull request in one repo. Compair reviews a repo in the context of the other repos it depends on.
 
-## Why teams use it
+- Catch backend/frontend/SDK/docs drift earlier
+- Review changes in the context of the rest of your product
+- Turn high-confidence findings into CI checks when you're ready
 
-- Catch API/UI/SDK drift before it reaches users.
-- Review one repo in the context of the other repos it depends on.
-- Turn high-confidence cross-repo notifications into CI checks that can fail when needed.
-- Keep the same workflow locally, in VS Code, and in GitHub Actions.
+## Try It In 5 Minutes
 
-## Build
+The fastest way to see what Compair does:
+
+```bash
+# 1) Install Compair CLI
+# 2) Run the disposable demo
+compair demo
+```
+
+**What the demo does**
+
+- creates a disposable workspace
+- tracks two small related repos
+- runs a real Compair review
+- shows the kind of cross-repo issues Compair is built to catch
+
+**Start here if:** you want the fastest possible first pass before trying Compair on your own repos.
+
+## Install
+
+Choose the path that fits your workflow:
+
+| Path | Use when... |
+| --- | --- |
+| **Download a release** | You want the fastest setup on macOS, Linux, or Windows. |
+| **Build from source** | You want to inspect the code, hack on the CLI, or run the latest checkout. |
+
+### Download a release
+
+Start from the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page. Release archives are published for macOS, Linux, and Windows.
+
+### Build from source
 
 ```bash
 go build -o compair .
 ```
+
+If you want source-based install details or deeper command reference material, see [docs/user_guide.md](docs/user_guide.md).
 
 ## Choose Your Start
 
-Use whichever path lowers friction for you:
+### Demo
 
-| If you want to... | Use | Best for |
-| --- | --- | --- |
-| Try Compair locally without creating an account | `./compair profile use local` + `./compair core up` | Developers evaluating the open/local workflow |
-| Use a hosted shared service right away | `./compair profile use cloud` + `./compair login` | Teams who want the simplest shared setup |
-
-My recommendation for the front page is to lead with the open/local path and then present Cloud as the easier hosted option. That gives technically skeptical users a low-trust, low-friction way to try the product first, while still keeping the hosted path obvious for teams that do not want to run anything themselves.
-
-## Quick Start
+Use this if you want to see Compair end-to-end in a disposable workspace.
 
 ```bash
-# Build the binary
-go build -o compair .
-
-# Run the disposable demo
-./compair demo
-
-# Try the open/local path first
-./compair profile use local
-./compair core up
-./compair login
-./compair whoami
-
-# Or use the hosted service
-./compair profile use cloud
-./compair login
+compair demo
 ```
 
-If you want the full local Core flow instead, see [docs/core_quickstart.md](docs/core_quickstart.md).
+### Local / self-hosted
 
-## Cross-Repo Self-Test
-
-If you want to test the real Compair value proposition on a multi-repo workspace, use this flow.
+Use this if you want to evaluate Compair locally with managed Core.
 
 ```bash
-# 1. Choose a profile, log in, and create a shared review group
-./compair profile use local
-# or: ./compair profile use cloud
-./compair login
-./compair group create "Product Suite"
-./compair group use "Product Suite"
-./compair self-feedback on
-./compair feedback-length brief
+compair profile use local
+compair core up
+compair login
+```
+
+### Cloud
+
+Use this if you want the simplest shared setup.
+
+```bash
+compair profile use cloud
+compair login
+```
+
+**New here? Start with `compair demo`.**
+**Evaluating open/local? Start with Local.**
+**Working with teammates right away? Start with Cloud.**
+
+## Example
+
+You change an API field name in a backend repo.
+The web app and CLI still reference the old name.
+
+Compair reviews the repos together and flags the mismatch before the change reaches users or turns into a broken workflow.
+
+```text
+Potential Conflict
+backend-api: review response now uses `items`
+web-app / developer-cli: still read `reviews`
+Likely impact: clients show fallback values or missing review data
+```
+
+Compair surfaced a high-confidence drift issue across related repos that would not appear in a single-repo review.
+
+## Try It On Your Own Repo Suite
+
+Use this after you've run the demo and want to test Compair on the repos that make up your actual product surface.
+
+Before you start:
+
+- Put all related repos in one group
+- Upload baselines first
+- Then run one warm review across the group
+
+```bash
+# 1. Choose a profile and create a shared review group
+compair profile use local
+# or: compair profile use cloud
+compair login
+compair group create "Product Suite"
+compair group use "Product Suite"
+compair self-feedback on
+compair feedback-length brief
 
 # 2. First-run bootstrap only:
 # index each related repo before asking for cross-repo feedback
-./compair track ~/code/backend-api --initial-sync --no-feedback
-./compair track ~/code/web-app --initial-sync --no-feedback
-./compair track ~/code/developer-cli --initial-sync --no-feedback
-./compair track ~/code/desktop-client --initial-sync --no-feedback
+compair track ~/code/backend-api --initial-sync --no-feedback
+compair track ~/code/web-app --initial-sync --no-feedback
+compair track ~/code/developer-cli --initial-sync --no-feedback
+compair track ~/code/desktop-client --initial-sync --no-feedback
 # repeat for any other repos in the shared product surface
 
 # 3. Run the warm review pass across the whole group
-./compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
+compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
 
 # 4. Inspect the results
-./compair reports
-./compair notifications
+compair reports
+compair notifications
 ```
 
-Recommended defaults for this workflow:
+After the first run:
 
-- Use `brief` feedback length for the first full-suite pass.
-- Expect the first baseline of larger repos to take the longest.
-- After the group is warmed up, use normal incremental `review` / `sync` runs for day-to-day development.
-- `--initial-sync --no-feedback` is only the one-time bootstrap step that tells Compair to index first and compare second.
+- Start with `brief`
+- Expect the first baseline to take longest
+- After the warm pass, use normal `review` / `sync` cycles day to day
+- Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow
 
-For the full step-by-step workflow, including what to expect and how to simulate CI locally, see [docs/cross_repo_workflow.md](docs/cross_repo_workflow.md).
+For the full step-by-step workflow, see [docs/cross_repo_workflow.md](docs/cross_repo_workflow.md).
 
 ## Feedback Length
 
@@ -99,105 +155,56 @@ For the full step-by-step workflow, including what to expect and how to simulate
 | `detailed` | You want more context and rationale for a smaller number of findings. |
 | `verbose` | You are actively debugging a specific result and want the most supporting detail. |
 
-## CI Checks
+## Add Compair To CI When You're Ready
 
-Once a repo is tracked in a group with its companion repos, the same CLI can also drive CI checks.
+Start in advisory mode:
 
 ```bash
-# Advisory summary
-./compair sync --json
-
-# Conservative failing PR check
-./compair sync --json --gate api-contract
-
-# Custom threshold
-./compair sync --json --fail-on-severity high --fail-on-type potential_conflict
+compair sync --json
 ```
 
-If the term "gate" is unfamiliar, treat it as shorthand for "the rule that decides whether CI should fail."
+Move to a conservative failing check:
+
+```bash
+compair sync --json --gate api-contract
+```
+
+Tighten rules later as you build trust in the signal.
+
+If the term `gate` is unfamiliar, treat it as the rule that decides whether CI should fail.
 
 | Command | What it does | Use it when... |
 | --- | --- | --- |
-| `./compair sync --json` | Advisory only. Produces machine-readable output and a Markdown report, but does not fail CI on its own. | You are introducing Compair and want visibility without disruption. |
-| `./compair sync --json --gate api-contract` | Fails CI on high-severity `potential_conflict` notifications. | Best first production preset. |
-| `./compair sync --json --gate cross-product` | Fails CI on broader high-severity cross-product issues. | You want more than API contract checks, but still want a conservative threshold. |
-| `./compair sync --json --gate review` | Fails CI on high-severity conflicts and review-oriented updates. | You want stronger code-review style enforcement. |
-| `./compair sync --json --gate strict` | Fails CI on high and medium issues across a broader set of notification types. | Use on integration or release branches after you trust the signal. |
+| `compair sync --json` | Advisory only. Produces machine-readable output and a Markdown report, but does not fail CI on its own. | You are introducing Compair and want visibility without disruption. |
+| `compair sync --json --gate api-contract` | Fails CI on high-severity `potential_conflict` notifications. | Best first production preset. |
+| `compair sync --json --gate cross-product` | Fails CI on broader high-severity cross-product issues. | You want more than API contract checks, but still want a conservative threshold. |
+| `compair sync --json --gate review` | Fails CI on high-severity conflicts and review-oriented updates. | You want stronger code-review style enforcement. |
+| `compair sync --json --gate strict` | Fails CI on high and medium issues across a broader set of notification types. | Use on integration or release branches after you trust the signal. |
 
-Recommended rollout:
+**Recommended rollout:** start with visibility, then fail only on the highest-confidence issues, then tighten thresholds later.
 
-- Start with advisory mode and keep the Markdown report as an artifact.
-- Move to `api-contract` first if you want CI to fail on severe issues.
-- Treat medium-severity notifications as review prompts until you trust the signal for that repo set.
+See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions and GitLab CI examples.
 
-See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions and GitLab CI patterns.
+## Docs
 
-## Core And Cloud
+**New users should start with the demo, user guide, or cross-repo workflow.**
+**Maintainers and operators can use the advanced docs below.**
 
-### Core (self-hosted)
+### Start Here
 
-```bash
-./compair core status
-./compair core up
-./compair profile use local
-./compair login
-./compair track
-./compair review
-```
-
-Use your own OpenAI key instead of bundled local providers:
-
-```bash
-./compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
-./compair core up
-```
-
-### Cloud (hosted SaaS)
-
-```bash
-./compair profile use cloud
-./compair login
-./compair group ls
-./compair track
-./compair review
-./compair notifications
-```
-
-Long review runs emit periodic progress lines while waiting on server processing and newly generated feedback. Remaining-time estimates are approximate.
-
-## Profiles
-
-Profiles let you switch between Cloud and Core endpoints without rebuilding the CLI.
-
-```bash
-./compair profile ls
-./compair profile set staging --api-base https://staging.compair.local
-./compair profile use staging
-```
-
-The CLI resolves the API base with the following precedence: `--api-base` flag -> `COMPAIR_API_BASE` -> selected profile (or `COMPAIR_PROFILE`). Capability data is cached per API base; switching profiles clears that cache automatically.
-
-Snapshots index the full repo by default. If you want a lighter baseline for a specific profile, store explicit limits:
-
-```bash
-./compair profile set cloud --snapshot-max-files 80 --snapshot-max-total-bytes 500000
-```
-
-## Documentation Map
-
-Start here:
-
-- [Cross-Repo Workflow](docs/cross_repo_workflow.md)
+- [Try it in 5 minutes](#try-it-in-5-minutes)
 - [User Guide](docs/user_guide.md)
+- [Cross-Repo Workflow](docs/cross_repo_workflow.md)
+- [Core Quickstart](docs/core_quickstart.md)
 - [CI Review Examples](docs/ci_review_examples.md)
 
-Additional docs:
+### Advanced / Maintainer Docs
 
-- [Core Quickstart](docs/core_quickstart.md)
-- [Hook Recipes](docs/hook_recipes.md)
-- [API Mapping](docs/api_mapping.md)
 - [Deployment Guide](docs/deployment_guide.md)
 - [Operator Guide](docs/operator_guide.md)
 - [CI & Release](docs/ci_release.md)
 - [Release Checklist](docs/release_checklist.md)
 - [Release Notes Template](docs/release_notes_template.md)
+- [API Mapping](docs/api_mapping.md)
+- [Hook Recipes](docs/hook_recipes.md)
+- [Config Reference](docs/config_reference.md)

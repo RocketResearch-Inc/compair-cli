@@ -1,6 +1,7 @@
 # Compair Core Quickstart (Self-Hosted)
 
-Use this when you want to run Compair locally against `compair_core` without Compair Cloud.
+Use this path if you want to evaluate Compair locally without creating a cloud account.
+Compair CLI can manage a local Core container for you, so the quickest self-hosted trial is only a few commands.
 
 ## Fastest Path: Managed Single-User Core Container
 

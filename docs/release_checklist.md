@@ -10,6 +10,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] Produce SBOMs if required (e.g., `syft` or `cargo about` equivalent for Go deps)
 - [ ] Attach artifacts + checksums to the GitHub release
 - [ ] Confirm Windows artifacts are zipped and macOS/Linux artifacts are `tar.gz`
+- [ ] Confirm Linux `.deb` and `.rpm` packages are attached to the release
 
 ## API compatibility
 - [ ] `login`, `whoami`, `signup` work against Cloud
@@ -47,6 +48,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] macOS: login, init, sync, review
 - [ ] Windows: login, init, sync, review
 - [ ] Linux: login, init, sync, review
+- [ ] Linux package smoke test: install the generated `.deb` and `.rpm`, then run `compair version`
 
 ## Security & handling
 - [ ] Credentials stored with correct permissions
@@ -64,11 +66,13 @@ Use this as a pre-release checklist for beta/1.0 builds.
 
 ## Manual / external items
 - [ ] Homebrew tap repo exists and release automation has write access
-- [ ] Scoop bucket repo exists and release automation has write access
-- [ ] winget publishing plan confirmed (official repo PRs or your own bucket)
+- [ ] `HOMEBREW_TAP_GITHUB_TOKEN` is configured in GitHub Actions secrets
+- [ ] `RocketResearch-Inc/winget-pkgs` fork exists
+- [ ] `WINGET_GITHUB_TOKEN` is configured in GitHub Actions secrets
+- [ ] The current release created or updated the WinGet PR successfully
 - [ ] CI secrets configured (`COMPAIR_AUTH_TOKEN`, optional group IDs, PR comment tokens)
 - [ ] If PR comments are enabled, repo permissions allow writing comments/status updates
 
 Note:
-- The current repo automation covers GitHub release artifacts + checksums.
-- Homebrew/Scoop/winget are not wired in this repository yet and should be treated as follow-up work, not expected output from the current release workflow.
+- The current repo automation covers GitHub release artifacts, checksums, Linux packages, Homebrew cask publication, and WinGet manifest generation.
+- Homebrew and WinGet still depend on external repos and tokens. See [Package Distribution Setup](package_distribution.md).

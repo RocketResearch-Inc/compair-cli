@@ -5,7 +5,7 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - id: compair
+  - id: compair-linux
     main: .
     env: [CGO_ENABLED=0]
     ldflags:
@@ -13,20 +13,153 @@ builds:
       - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Version={{.Version}}
       - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Commit={{.Commit}}
       - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.BuildDate={{ .Date }}
-    goos: [linux, darwin, windows]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    binary: compair
+  - id: compair-darwin
+    main: .
+    env: [CGO_ENABLED=0]
+    ldflags:
+      - -s -w
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Version={{.Version}}
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Commit={{.Commit}}
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.BuildDate={{ .Date }}
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    binary: compair
+  - id: compair-windows
+    main: .
+    env: [CGO_ENABLED=0]
+    ldflags:
+      - -s -w
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Version={{.Version}}
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.Commit={{.Commit}}
+      - -X github.com/RocketResearch-Inc/compair-cli/cmd/compair.BuildDate={{ .Date }}
+    goos: [windows]
     goarch: [amd64, arm64]
     binary: compair
 archives:
-  - formats:
+  - id: compair-linux-archive
+    ids:
+      - compair-linux
+    formats:
       - tar.gz
     files:
       - LICENSE
       - README.md
       - docs/**
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
+  - id: compair-darwin-archive
+    ids:
+      - compair-darwin
+    formats:
+      - tar.gz
+    files:
+      - LICENSE
+      - README.md
+      - docs/**
+  - id: compair-windows-archive
+    ids:
+      - compair-windows
+    formats:
+      - zip
+    files:
+      - LICENSE
+      - README.md
+      - docs/**
+
+nfpms:
+  - id: compair-linux-packages
+    ids:
+      - compair-linux
+    package_name: compair
+    formats:
+      - deb
+      - rpm
+    vendor: Rocket Research, Inc.
+    homepage: https://compair.sh
+    maintainer: Rocket Research <support@compair.sh>
+    description: |-
+      Compair CLI helps developers catch cross-repo drift from the terminal.
+      Track related repos together and review changes in the context of the
+      backend, frontend, docs, SDKs, and other connected surfaces.
+    license: Apache-2.0
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/compair/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/compair/LICENSE
+
+homebrew_casks:
+  - name: compair
+    ids:
+      - compair-darwin-archive
+    repository:
+      owner: RocketResearch-Inc
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: compair-release-bot
+      email: support@compair.sh
+    directory: Casks
+    binaries:
+      - compair
+    homepage: https://compair.sh
+    description: Cross-repo review from the terminal
+    url:
+      verified: github.com/RocketResearch-Inc/compair-cli/
+    caveats: |-
+      Run `compair demo` for the fastest first run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/compair"]
+          end
+    skip_upload: '{{ or .IsSnapshot (eq .Env.HOMEBREW_TAP_GITHUB_TOKEN "") }}'
+
+winget:
+  - name: compair
+    publisher: Rocket Research, Inc.
+    short_description: Cross-repo review from the terminal
+    description: |-
+      Compair CLI helps developers catch cross-repo drift by reviewing a repo in
+      the context of the backend, frontend, docs, SDKs, and other repos it
+      depends on.
+    license: Apache-2.0
+    publisher_url: https://compair.sh
+    publisher_support_url: https://github.com/RocketResearch-Inc/compair-cli/issues
+    package_identifier: RocketResearchInc.Compair
+    ids:
+      - compair-windows-archive
+    homepage: https://compair.sh
+    license_url: https://github.com/RocketResearch-Inc/compair-cli/blob/main/LICENSE
+    release_notes_url: https://github.com/RocketResearch-Inc/compair-cli/releases/tag/{{ .Tag }}
+    tags:
+      - cli
+      - developer-tools
+      - code-review
+      - productivity
+    repository:
+      owner: RocketResearch-Inc
+      name: winget-pkgs
+      branch: compair-{{ .Version }}
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+    commit_author:
+      name: compair-release-bot
+      email: support@compair.sh
+    skip_upload: '{{ or .IsSnapshot (eq .Env.WINGET_GITHUB_TOKEN "") }}'
+
 checksum:
   name_template: "checksums.txt"
 changelog:
