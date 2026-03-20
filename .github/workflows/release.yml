@@ -11,6 +11,10 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    env:
+      LINUX_PACKAGES_GITHUB_TOKEN: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN }}
+      LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
+      LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -30,15 +34,12 @@ jobs:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
       - name: Install Linux repo tooling
-        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y apt-utils dpkg-dev createrepo-c rpm gnupg
       - name: Import Linux repo signing key
-        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
-        env:
-          LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
-          LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
+        if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |
           export GNUPGHOME="$RUNNER_TEMP/gnupg"
           mkdir -p "$GNUPGHOME"
@@ -47,9 +48,7 @@ jobs:
           printf '%s' "$LINUX_REPO_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/linux-repo-private.key"
           gpg --batch --pinentry-mode loopback --passphrase "$LINUX_REPO_GPG_PASSPHRASE" --import "$RUNNER_TEMP/linux-repo-private.key"
       - name: Checkout Linux package site repo
-        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
-        env:
-          LINUX_PACKAGES_GITHUB_TOKEN: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN }}
+        if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |
           set -euo pipefail
           REPO_URL="https://x-access-token:${LINUX_PACKAGES_GITHUB_TOKEN}@github.com/RocketResearch-Inc/compair-packages.git"
@@ -66,14 +65,13 @@ jobs:
           git -C "$TARGET_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "LINUX_PACKAGES_REPO_DIR=$TARGET_DIR" >> "$GITHUB_ENV"
       - name: Build Linux package site
-        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         env:
-          LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
           LINUX_PACKAGES_BASE_URL: https://rocketresearch-inc.github.io/compair-packages
         run: |
           bash ./scripts/build_linux_pages_repo.sh "$PWD/dist" "$LINUX_PACKAGES_REPO_DIR" "$LINUX_PACKAGES_BASE_URL"
       - name: Publish Linux package site
-        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |
           set -euo pipefail
           cd "$LINUX_PACKAGES_REPO_DIR"
