@@ -15,6 +15,7 @@ jobs:
       LINUX_PACKAGES_GITHUB_TOKEN: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN }}
       LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
       LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
+      WINGET_PUBLISH_ENABLED: ${{ vars.WINGET_PUBLISH_ENABLED || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -32,7 +33,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+          WINGET_GITHUB_TOKEN: ${{ env.WINGET_PUBLISH_ENABLED == 'true' && secrets.WINGET_GITHUB_TOKEN || '' }}
       - name: Install Linux repo tooling
         if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |

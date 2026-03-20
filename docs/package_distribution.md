@@ -75,8 +75,9 @@ This repo is configured to generate a WinGet manifest for package identifier `Ro
 One-time setup:
 
 1. Fork `https://github.com/microsoft/winget-pkgs` into `RocketResearch-Inc/winget-pkgs`.
-2. Create a GitHub token with `Contents: Read and write` and `Pull requests: Read and write` access to that fork.
+2. Create a **classic** GitHub personal access token with the `public_repo` scope.
 3. Add that token to `compair-cli` repo secrets as `WINGET_GITHUB_TOKEN`.
+4. Add the repository variable `WINGET_PUBLISH_ENABLED=true` when you want release automation to start submitting WinGet PRs.
 
 What happens on the next tagged release:
 
@@ -97,6 +98,8 @@ winget install RocketResearchInc.Compair
 
 Notes:
 
+- WinGet publishing is disabled by default in the release workflow. This avoids blocking normal releases while the WinGet automation is still being validated.
+- Use a classic PAT here, not a fine-grained PAT. GoReleaser opens the pull request against the upstream public repo `microsoft/winget-pkgs`, and fine-grained tokens scoped only to `RocketResearch-Inc` are not allowed to create that upstream PR.
 - If the PR automation is not ready, omit `WINGET_GITHUB_TOKEN`. GoReleaser will still generate the manifest into `dist/` without trying to publish it.
 - If the upstream WinGet rules change, the fallback is to submit the generated manifest manually from `dist/`.
 
@@ -208,7 +211,7 @@ Set these in `compair-cli` repository settings:
 | --- | --- | --- |
 | `GITHUB_TOKEN` | GitHub Releases | Provided automatically by GitHub Actions |
 | `HOMEBREW_TAP_GITHUB_TOKEN` | Homebrew cask publishing | Write access to `RocketResearch-Inc/homebrew-tap` |
-| `WINGET_GITHUB_TOKEN` | WinGet PR publishing | Write access to `RocketResearch-Inc/winget-pkgs` fork and PR creation |
+| `WINGET_GITHUB_TOKEN` | WinGet PR publishing | Classic PAT with `public_repo`; required because the PR target is `microsoft/winget-pkgs` |
 | `LINUX_PACKAGES_GITHUB_TOKEN` | Linux Pages repo publishing | Write access to `RocketResearch-Inc/compair-packages` |
 | `LINUX_REPO_GPG_PRIVATE_KEY` | Linux repo signing | Armored private key used to sign APT/RPM metadata |
 | `LINUX_REPO_GPG_PASSPHRASE` | Linux repo signing | Passphrase for the signing key |

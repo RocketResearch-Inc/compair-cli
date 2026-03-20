@@ -65,6 +65,11 @@ What is still external:
 - storing package publisher and signing secrets in repo secrets
 - optional SBOM generation
 
+Important token note:
+- `HOMEBREW_TAP_GITHUB_TOKEN` can be a fine-grained token scoped to `RocketResearch-Inc/homebrew-tap`
+- `WINGET_GITHUB_TOKEN` should be a classic PAT with `public_repo`, because the release job opens a PR against the upstream public repo `microsoft/winget-pkgs`
+- WinGet publishing is disabled by default; set the repository variable `WINGET_PUBLISH_ENABLED=true` when you are ready to turn it on
+
 This repository can now automate the build, archive, package, and publisher-update side. The remaining package-manager work is mostly repository ownership and credentials.
 
 ## Supported installer targets
