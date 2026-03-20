@@ -11,6 +11,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] Attach artifacts + checksums to the GitHub release
 - [ ] Confirm Windows artifacts are zipped and macOS/Linux artifacts are `tar.gz`
 - [ ] Confirm Linux `.deb` and `.rpm` packages are attached to the release
+- [ ] Confirm the GitHub Pages Linux repo updated with the new packages and signed metadata
 
 ## API compatibility
 - [ ] `login`, `whoami`, `signup` work against Cloud
@@ -49,6 +50,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] Windows: login, init, sync, review
 - [ ] Linux: login, init, sync, review
 - [ ] Linux package smoke test: install the generated `.deb` and `.rpm`, then run `compair version`
+- [ ] Linux repo smoke test: install via the Pages-backed APT or DNF repo, then run `compair version`
 
 ## Security & handling
 - [ ] Credentials stored with correct permissions
@@ -70,9 +72,12 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] `RocketResearch-Inc/winget-pkgs` fork exists
 - [ ] `WINGET_GITHUB_TOKEN` is configured in GitHub Actions secrets
 - [ ] The current release created or updated the WinGet PR successfully
+- [ ] `RocketResearch-Inc/compair-packages` exists and Pages serves `gh-pages`
+- [ ] `LINUX_PACKAGES_GITHUB_TOKEN` is configured in GitHub Actions secrets
+- [ ] `LINUX_REPO_GPG_PRIVATE_KEY` and `LINUX_REPO_GPG_PASSPHRASE` are configured in GitHub Actions secrets
 - [ ] CI secrets configured (`COMPAIR_AUTH_TOKEN`, optional group IDs, PR comment tokens)
 - [ ] If PR comments are enabled, repo permissions allow writing comments/status updates
 
 Note:
-- The current repo automation covers GitHub release artifacts, checksums, Linux packages, Homebrew cask publication, and WinGet manifest generation.
-- Homebrew and WinGet still depend on external repos and tokens. See [Package Distribution Setup](package_distribution.md).
+- The current repo automation covers GitHub release artifacts, checksums, Linux packages, the GitHub Pages Linux package repo, Homebrew cask publication, and WinGet manifest generation.
+- Pages, Homebrew, and WinGet still depend on external repos and signing or auth secrets. See [Package Distribution Setup](package_distribution.md).

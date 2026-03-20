@@ -17,6 +17,7 @@ Expose the API base to users via `COMPAIR_API_BASE` or `--api-base`.
 See [CI & Release](ci_release.md). With GitHub Actions + GoReleaser you can:
 - Build macOS/Linux/Windows archives
 - Build Linux `.deb` and `.rpm` packages
+- Publish a Linux APT/RPM repository once `RocketResearch-Inc/compair-packages` exists and Pages is enabled
 - Publish a Homebrew cask once `RocketResearch-Inc/homebrew-tap` exists
 - Publish WinGet manifests once `RocketResearch-Inc/winget-pkgs` exists
 - Generate release notes and optional SBOMs
@@ -24,6 +25,7 @@ See [CI & Release](ci_release.md). With GitHub Actions + GoReleaser you can:
 What this repo can automate directly:
 - Building archives and checksums
 - Building Linux packages
+- Updating the GitHub Pages Linux package repo
 - Embedding CLI version metadata
 - Uploading GitHub release artifacts
 - Updating the Homebrew tap
@@ -31,6 +33,7 @@ What this repo can automate directly:
 - Running Compair review/gate jobs in CI
 
 What still depends on external infrastructure:
+- Linux package repo ownership, GitHub Pages config, and signing secrets
 - Homebrew tap ownership and credentials
 - WinGet fork ownership and credentials
 - CI secrets for `COMPAIR_AUTH_TOKEN` and any PR comment integrations

@@ -7,6 +7,7 @@ The release workflow in this repo now handles:
 - GitHub Releases with macOS, Linux, and Windows archives
 - `checksums.txt`
 - Linux `.deb` and `.rpm` packages
+- Linux APT/RPM repository publishing through GitHub Pages when the repo and signing secrets exist
 - Homebrew cask publishing when the tap repo and token exist
 - WinGet manifest generation and PR creation when the fork repo and token exist
 
@@ -99,17 +100,91 @@ Notes:
 - If the PR automation is not ready, omit `WINGET_GITHUB_TOKEN`. GoReleaser will still generate the manifest into `dist/` without trying to publish it.
 - If the upstream WinGet rules change, the fallback is to submit the generated manifest manually from `dist/`.
 
-## 4. Linux `.deb` and `.rpm`
+## 4. Linux package repo (GitHub Pages)
 
-These packages are generated directly by GoReleaser through nFPM and attached to GitHub Releases. No external package repository is required for the first usable version.
+This repo is configured to publish Debian and RPM package metadata into a dedicated public Pages repository:
 
-What happens on a tagged release:
+- Git repo: `RocketResearch-Inc/compair-packages`
+- Pages branch: `gh-pages`
+- Public URL: `https://rocketresearch-inc.github.io/compair-packages`
 
-- GoReleaser builds Linux binaries
-- nFPM generates `.deb` and `.rpm` packages
-- the packages are uploaded to the GitHub Release alongside the archives
+One-time setup:
 
-How to test them:
+1. Create a public repository named `compair-packages` under `RocketResearch-Inc`.
+2. Create a GitHub token with `Contents: Read and write` access to `RocketResearch-Inc/compair-packages`.
+3. Add that token to `compair-cli` repo secrets as `LINUX_PACKAGES_GITHUB_TOKEN`.
+4. Create a dedicated GPG key for repository signing.
+5. Export the armored private key and add it to `compair-cli` repo secrets as `LINUX_REPO_GPG_PRIVATE_KEY`.
+6. Add the key passphrase to `compair-cli` repo secrets as `LINUX_REPO_GPG_PASSPHRASE`.
+7. Run one tagged `compair-cli` release so the workflow creates and pushes the `gh-pages` branch in `compair-packages`.
+8. In `RocketResearch-Inc/compair-packages`, enable GitHub Pages and set the source to `Deploy from a branch`, branch `gh-pages`, folder `/ (root)`.
+
+Recommended GPG key creation flow:
+
+```bash
+gpg --full-generate-key
+```
+
+Recommended choices:
+
+- key type: `RSA and RSA`
+- key size: `4096`
+- expiration: choose one you are comfortable rotating later
+- name: `Compair Linux Packages`
+- email: `support@compair.sh`
+
+Export the private key for GitHub Actions:
+
+```bash
+gpg --armor --export-secret-keys "Compair Linux Packages" > compair-linux-packages-private.asc
+```
+
+Export the public key for your own reference:
+
+```bash
+gpg --armor --export "Compair Linux Packages" > compair-linux-packages-public.asc
+```
+
+What happens on the next tagged release:
+
+- GoReleaser builds and uploads the `.deb` and `.rpm` assets to the GitHub Release
+- the release workflow clones `RocketResearch-Inc/compair-packages`
+- it copies any new `.deb` and `.rpm` packages into the static repo
+- it regenerates APT metadata and RPM metadata
+- it signs the APT release files and RPM repo metadata with your GPG key
+- it writes helper install files like `install/debian.sh` and `install/compair.repo`
+- it pushes the updated site to `gh-pages`
+
+How to test it after the first publish:
+
+Debian/Ubuntu:
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh | bash
+```
+
+Fedora/RHEL:
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
+sudo dnf install compair
+```
+
+What the generated `.repo` points to:
+
+- `baseurl=https://rocketresearch-inc.github.io/compair-packages/rpm/$basearch`
+- `gpgkey=https://rocketresearch-inc.github.io/compair-packages/gpg.key`
+
+So the `.repo` file is just a small config file that tells `dnf` where the RPM repository lives and where to fetch the signing key.
+
+Notes:
+
+- APT is signed in the standard Debian way via `InRelease` / `Release.gpg`.
+- RPM metadata is signed, but the packages themselves are not individually signed in this first version. The generated `.repo` therefore uses `repo_gpgcheck=1` and `gpgcheck=0`.
+
+## 5. Linux direct downloads from GitHub Releases
+
+These packages are also attached to every GitHub Release even if the Pages repo is not configured yet.
 
 Debian/Ubuntu:
 
@@ -125,11 +200,6 @@ sudo dnf install ./compair-<version>-1.x86_64.rpm
 compair version
 ```
 
-Notes:
-
-- This is enough for direct downloads from Releases.
-- If you later want `apt install compair` or `dnf install compair` from a package repo, add a second distribution layer such as Cloudsmith, Gemfury, or your own apt/yum repository. That is separate from the release generation already configured here.
-
 ## Required GitHub Secrets
 
 Set these in `compair-cli` repository settings:
@@ -139,10 +209,14 @@ Set these in `compair-cli` repository settings:
 | `GITHUB_TOKEN` | GitHub Releases | Provided automatically by GitHub Actions |
 | `HOMEBREW_TAP_GITHUB_TOKEN` | Homebrew cask publishing | Write access to `RocketResearch-Inc/homebrew-tap` |
 | `WINGET_GITHUB_TOKEN` | WinGet PR publishing | Write access to `RocketResearch-Inc/winget-pkgs` fork and PR creation |
+| `LINUX_PACKAGES_GITHUB_TOKEN` | Linux Pages repo publishing | Write access to `RocketResearch-Inc/compair-packages` |
+| `LINUX_REPO_GPG_PRIVATE_KEY` | Linux repo signing | Armored private key used to sign APT/RPM metadata |
+| `LINUX_REPO_GPG_PASSPHRASE` | Linux repo signing | Passphrase for the signing key |
 
 ## Recommended Rollout Order
 
 1. Verify GitHub Releases plus `.deb` / `.rpm` on one test tag.
 2. Create and validate the Homebrew tap.
 3. Create the WinGet fork and validate one PR submission.
-4. After all three work once, add end-user install commands to the front-page README.
+4. Create and validate the `compair-packages` Pages repo.
+5. After all channels work once, add end-user install commands to the front-page README.

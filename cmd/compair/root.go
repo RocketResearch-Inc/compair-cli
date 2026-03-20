@@ -3,11 +3,13 @@ package compair
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/config"
+	cliTelemetry "github.com/RocketResearch-Inc/compair-cli/internal/telemetry"
 )
 
 var rootCmd = &cobra.Command{
@@ -39,7 +41,18 @@ func init() {
 	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	_ = viper.BindPFlag("debug_http", rootCmd.PersistentFlags().Lookup("debug-http"))
 	_ = viper.BindPFlag("no_color", rootCmd.PersistentFlags().Lookup("no-color"))
-	rootCmd.PersistentPreRunE = resolveAPIBase
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := resolveAPIBase(cmd, args); err != nil {
+			return err
+		}
+		if shouldSkipTelemetry(cmd) {
+			return nil
+		}
+		if err := cliTelemetry.MaybeSendDailyHeartbeat(cmd.CommandPath(), resolvedCLIVersion()); err != nil && viper.GetBool("verbose") {
+			fmt.Fprintf(os.Stderr, "telemetry heartbeat skipped: %v\n", err)
+		}
+		return nil
+	}
 }
 
 func flagValue(cmd *cobra.Command, name string) (string, bool) {
@@ -80,4 +93,15 @@ func resolveAPIBase(cmd *cobra.Command, _ []string) error {
 		_ = os.Setenv("COMPAIR_DEBUG_HTTP", "1")
 	}
 	return nil
+}
+
+func shouldSkipTelemetry(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	path := strings.TrimSpace(cmd.CommandPath())
+	if path == "" {
+		return false
+	}
+	return path == "compair telemetry" || strings.HasPrefix(path, "compair telemetry ")
 }

@@ -5,6 +5,7 @@ Automated releases in this repo currently:
 - produce binaries for macOS/Linux/Windows
 - produce Linux `.deb` and `.rpm` packages
 - publish GitHub release artifacts and checksums through GoReleaser
+- publish a Linux APT/RPM repository to GitHub Pages when the package repo and signing secrets are configured
 - embed version metadata into the CLI binary
 - publish a Homebrew cask when the tap repo token is configured
 - generate and publish WinGet manifests when the fork token is configured
@@ -35,6 +36,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+          LINUX_PACKAGES_GITHUB_TOKEN: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN }}
+          LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
+          LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
 ```
 
 ## GoReleaser config (high-level)
@@ -48,6 +52,7 @@ jobs:
 What is wired today:
 - GitHub release artifacts
 - Linux `.deb` / `.rpm` packages
+- Linux package repository publishing to `RocketResearch-Inc/compair-packages`
 - embedded version / commit / build date metadata
 - checksums
 - Homebrew cask generation and publishing to `RocketResearch-Inc/homebrew-tap`
@@ -56,7 +61,8 @@ What is wired today:
 What is still external:
 - creating `RocketResearch-Inc/homebrew-tap`
 - creating `RocketResearch-Inc/winget-pkgs` as a fork of `microsoft/winget-pkgs`
-- storing `HOMEBREW_TAP_GITHUB_TOKEN` and `WINGET_GITHUB_TOKEN` in repo secrets
+- creating `RocketResearch-Inc/compair-packages`
+- storing package publisher and signing secrets in repo secrets
 - optional SBOM generation
 
 This repository can now automate the build, archive, package, and publisher-update side. The remaining package-manager work is mostly repository ownership and credentials.
@@ -64,6 +70,7 @@ This repository can now automate the build, archive, package, and publisher-upda
 ## Supported installer targets
 - **Homebrew cask** (macOS): `brew tap RocketResearch-Inc/tap && brew install --cask compair`
 - **WinGet** (Windows): `winget install RocketResearchInc.Compair`
+- **Linux package repo**: `apt install compair` or `dnf install compair` after adding the generated repo config
 - **Linux direct package install**: download the generated `.deb` or `.rpm` from GitHub Releases
 
 For the exact one-time setup steps, see [Package Distribution Setup](package_distribution.md).

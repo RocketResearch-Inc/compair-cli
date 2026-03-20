@@ -12,6 +12,7 @@ import (
 	"github.com/RocketResearch-Inc/compair-cli/internal/auth"
 	"github.com/RocketResearch-Inc/compair-cli/internal/config"
 	"github.com/RocketResearch-Inc/compair-cli/internal/git"
+	cliTelemetry "github.com/RocketResearch-Inc/compair-cli/internal/telemetry"
 )
 
 var statusCmd = &cobra.Command{
@@ -55,6 +56,8 @@ var statusCmd = &cobra.Command{
 		printRepoStatus()
 		fmt.Println()
 		printSnapshotStatus()
+		fmt.Println()
+		printTelemetryStatusBlock()
 		return nil
 	},
 }
@@ -218,6 +221,22 @@ func printSnapshotStatus() {
 	fmt.Printf("  Per file: %s\n", describeStatusByteLimit(opts.MaxFileBytes, "full file (no cap)"))
 	fmt.Printf("  Read cap: %s\n", describeStatusByteLimit(opts.MaxFileRead, "no read cap"))
 	fmt.Printf("  Tip: use 'compair push --snapshot-max-total-bytes 300000 --snapshot-max-files 60' if a full-repo snapshot is too heavy for a given run.\n")
+}
+
+func printTelemetryStatusBlock() {
+	fmt.Println("Telemetry:")
+	status, err := cliTelemetry.CurrentStatus()
+	if err != nil {
+		fmt.Printf("  Status: unavailable (%s)\n", strings.TrimSpace(err.Error()))
+		return
+	}
+	fmt.Printf("  CLI anonymous heartbeat: %s\n", onOff(status.Enabled))
+	fmt.Printf("  Endpoint: %s\n", status.BaseURL)
+	if strings.TrimSpace(status.LastHeartbeatAt) != "" {
+		fmt.Printf("  Last heartbeat: %s\n", status.LastHeartbeatAt)
+	} else {
+		fmt.Println("  Last heartbeat: (none yet)")
+	}
 }
 
 func describeSnapshotCoverage(opts snapshotOptions) string {

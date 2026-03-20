@@ -100,9 +100,44 @@ compair status    # current auth, active group, repo binding, and snapshot defau
 compair doctor    # validate auth, group bindings, and current repo document health
 compair doctor --json
 compair version   # CLI + target server version/capability identity
+compair telemetry status
+compair telemetry on
+compair telemetry off
 compair feedback-length detailed
 compair whoami    # prints username (and user_id)
 compair logout    # removes stored credentials
+```
+
+## Anonymous CLI telemetry
+
+The CLI now supports a small opt-in usage heartbeat:
+
+```bash
+compair telemetry status
+compair telemetry on
+compair telemetry off
+```
+
+When enabled, the CLI sends at most one anonymous heartbeat per day to `https://app.compair.sh/api` by default. The payload includes:
+
+- a random local install ID
+- CLI version
+- OS and architecture
+- the last command path that ran
+
+It does **not** include repo contents, document text, auth tokens, usernames, or local file paths.
+
+Override the collection endpoint when needed:
+
+```bash
+export COMPAIR_TELEMETRY_BASE="https://app.compair.sh/api"
+```
+
+Compair Cloud admins can inspect a summary with:
+
+```bash
+curl -H "admin-key: $ADMIN_API_KEY" \
+  "https://app.compair.sh/api/admin/client_metrics_summary?days=30"
 ```
 
 ## Local Core runtime

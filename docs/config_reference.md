@@ -11,6 +11,15 @@ workspace.db       # sqlite index for tracked items and aliases
 active_group       # current group id or name
 ```
 
+Telemetry settings are stored in `~/.compair/config.yaml` under:
+
+```yaml
+telemetry:
+  enabled: true
+  install_id: 0123456789abcdef...
+  last_heartbeat_at: "2026-03-18T16:45:00Z"
+```
+
 ## Project file: `.compair/config.yaml`
 ```yaml
 version: 1
@@ -83,6 +92,7 @@ generation_endpoint: ""        # required only when generation_provider=http
 - `COMPAIR_API_BASE` – override API base (`--api-base` flag wins)
 - `COMPAIR_PROFILE` – select a profile by name
 - `COMPAIR_ACTIVE_GROUP` – chosen group (falls back to ~/.compair/active_group)
+- `COMPAIR_TELEMETRY_BASE` – override the anonymous CLI telemetry collection base URL
 - `COMPAIR_OUTPUT` – `text` or `json`
 - `COMPAIR_DEBUG_HTTP` – set to `1` to log HTTP requests
 - `COMPAIR_VERBOSE` – set to `1` to enable verbose output

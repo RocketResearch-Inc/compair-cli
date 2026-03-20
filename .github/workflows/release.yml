@@ -29,3 +29,58 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+      - name: Install Linux repo tooling
+        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils dpkg-dev createrepo-c rpm gnupg
+      - name: Import Linux repo signing key
+        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        env:
+          LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
+          LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          printf '%s' "$LINUX_REPO_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/linux-repo-private.key"
+          gpg --batch --pinentry-mode loopback --passphrase "$LINUX_REPO_GPG_PASSPHRASE" --import "$RUNNER_TEMP/linux-repo-private.key"
+      - name: Checkout Linux package site repo
+        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        env:
+          LINUX_PACKAGES_GITHUB_TOKEN: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO_URL="https://x-access-token:${LINUX_PACKAGES_GITHUB_TOKEN}@github.com/RocketResearch-Inc/compair-packages.git"
+          TARGET_DIR="$RUNNER_TEMP/compair-packages"
+          if git ls-remote --exit-code --heads "$REPO_URL" gh-pages >/dev/null 2>&1; then
+            git clone --branch gh-pages "$REPO_URL" "$TARGET_DIR"
+          else
+            git clone "$REPO_URL" "$TARGET_DIR"
+            cd "$TARGET_DIR"
+            git checkout --orphan gh-pages
+            find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+          git -C "$TARGET_DIR" config user.name "github-actions[bot]"
+          git -C "$TARGET_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "LINUX_PACKAGES_REPO_DIR=$TARGET_DIR" >> "$GITHUB_ENV"
+      - name: Build Linux package site
+        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        env:
+          LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
+          LINUX_PACKAGES_BASE_URL: https://rocketresearch-inc.github.io/compair-packages
+        run: |
+          bash ./scripts/build_linux_pages_repo.sh "$PWD/dist" "$LINUX_PACKAGES_REPO_DIR" "$LINUX_PACKAGES_BASE_URL"
+      - name: Publish Linux package site
+        if: ${{ secrets.LINUX_PACKAGES_GITHUB_TOKEN != '' && secrets.LINUX_REPO_GPG_PRIVATE_KEY != '' && secrets.LINUX_REPO_GPG_PASSPHRASE != '' }}
+        run: |
+          set -euo pipefail
+          cd "$LINUX_PACKAGES_REPO_DIR"
+          if git status --short | grep . >/dev/null 2>&1; then
+            git add .
+            git commit -m "Update Linux package repo for ${GITHUB_REF_NAME}"
+            git push origin gh-pages
+          else
+            echo "No Linux package repo changes to publish."
+          fi
