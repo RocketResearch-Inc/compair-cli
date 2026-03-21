@@ -86,6 +86,8 @@ nfpms:
     bindir: /usr/bin
     section: utils
     priority: optional
+    dependencies:
+      - git
     contents:
       - src: ./README.md
         dst: /usr/share/doc/compair/README.md

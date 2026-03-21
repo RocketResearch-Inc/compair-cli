@@ -36,6 +36,9 @@ var demoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if err := ensureDemoPrereqs(); err != nil {
+			return err
+		}
 		if err := prepareDemoAPI(mode); err != nil {
 			return err
 		}
@@ -515,10 +518,8 @@ func createDemoRepo(root, remote string, files map[string]string) error {
 		{"git", "-C", root, "commit", "-m", "Create demo workspace"},
 	}
 	for _, step := range steps {
-		cmd := exec.Command(step[0], step[1:]...)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("%s: %s", strings.Join(step, " "), strings.TrimSpace(string(out)))
+		if err := runDemoCommand(step); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -577,12 +578,33 @@ export function renderReviewCard(payload: any): string {
 		{"git", "-C", clientRepo, "commit", "-m", "Introduce demo client contract drift"},
 	}
 	for _, step := range steps {
-		cmd := exec.Command(step[0], step[1:]...)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("%s: %s", strings.Join(step, " "), strings.TrimSpace(string(out)))
+		if err := runDemoCommand(step); err != nil {
+			return err
 		}
 	}
 	fmt.Println("Committed an intentional contract regression in", clientRepo)
 	return nil
+}
+
+func ensureDemoPrereqs() error {
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("compair demo requires git on PATH: %w", err)
+	}
+	return nil
+}
+
+func runDemoCommand(step []string) error {
+	if len(step) == 0 {
+		return fmt.Errorf("empty demo command")
+	}
+	cmd := exec.Command(step[0], step[1:]...)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	msg := strings.TrimSpace(string(out))
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("%s: %s", strings.Join(step, " "), msg)
 }
