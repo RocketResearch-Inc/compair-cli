@@ -75,8 +75,11 @@ done
 
 for arch in amd64 arm64; do
   packages_dir="$APT_ROOT/dists/stable/main/binary-$arch"
-  dpkg-scanpackages -a "$arch" "$APT_POOL" /dev/null > "$packages_dir/Packages"
-  gzip -9c "$packages_dir/Packages" > "$packages_dir/Packages.gz"
+  (
+    cd "$APT_ROOT"
+    dpkg-scanpackages -a "$arch" "pool/main/c/$PACKAGE_NAME" /dev/null > "dists/stable/main/binary-$arch/Packages"
+    gzip -9c "dists/stable/main/binary-$arch/Packages" > "dists/stable/main/binary-$arch/Packages.gz"
+  )
 done
 
 cat > "$APT_ROOT/apt-ftparchive.conf" <<EOF
