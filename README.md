@@ -36,11 +36,14 @@ compair demo
 
 Choose the path that fits your workflow:
 
-| Path                      | Use when...                                                                |
-| ------------------------- | -------------------------------------------------------------------------- |
-| **Homebrew cask (macOS)** | You want the quickest install on macOS.                                    |
-| **Download a release**    | You want the fastest setup on macOS, Linux, or Windows.                    |
-| **Build from source**     | You want to inspect the code, hack on the CLI, or run the latest checkout. |
+| Platform | Recommended path | Status |
+| -------- | ---------------- | ------ |
+| macOS | Homebrew cask | Live |
+| Linux (Debian/Ubuntu) | APT repo or GitHub Release | Live |
+| Linux (Fedora/RHEL) | RPM repo or GitHub Release | Live |
+| Windows | GitHub Release zip | Live |
+| Windows | WinGet | Pending upstream approval |
+| Any | Build from source | Live |
 
 ### Homebrew cask (macOS)
 
@@ -49,9 +52,31 @@ brew tap RocketResearch-Inc/tap
 brew install --cask compair
 ```
 
+### Linux package repos
+
+Debian / Ubuntu:
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh | bash
+```
+
+Fedora / RHEL:
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
+sudo dnf install -y compair
+```
+
 ### Download a release
 
 Start from the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page. Release archives are published for macOS, Linux, and Windows.
+
+Windows example:
+
+```powershell
+# Download the latest Windows zip from GitHub Releases, unzip it, then:
+.\compair.exe version
+```
 
 ### Build from source
 
@@ -210,6 +235,7 @@ See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions 
 
 - [Deployment Guide](docs/deployment_guide.md)
 - [Operator Guide](docs/operator_guide.md)
+- [Launch Validation](docs/launch_validation.md)
 - [CI & Release](docs/ci_release.md)
 - [Release Checklist](docs/release_checklist.md)
 - [Release Notes Template](docs/release_notes_template.md)

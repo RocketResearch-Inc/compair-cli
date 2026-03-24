@@ -3,6 +3,8 @@ package compair
 import (
 	"strings"
 	"testing"
+
+	"github.com/RocketResearch-Inc/compair-cli/internal/config"
 )
 
 func TestRunDemoCommandReportsProcessErrorWhenOutputIsEmpty(t *testing.T) {
@@ -25,5 +27,21 @@ func TestRunDemoCommandRejectsEmptyStep(t *testing.T) {
 	}
 	if got := err.Error(); got != "empty demo command" {
 		t.Fatalf("unexpected error %q", got)
+	}
+}
+
+func TestShouldRecommendOpenAIDemo(t *testing.T) {
+	cfg := &config.CoreRuntime{
+		GenerationProvider: "local",
+		EmbeddingProvider:  "local",
+		OpenAIAPIKey:       "sk-demo",
+	}
+	if !shouldRecommendOpenAIDemo(cfg) {
+		t.Fatal("expected recommendation when OpenAI key is present but generation is local")
+	}
+
+	cfg.GenerationProvider = "openai"
+	if shouldRecommendOpenAIDemo(cfg) {
+		t.Fatal("did not expect recommendation when generation is openai and embeddings stay local")
 	}
 }

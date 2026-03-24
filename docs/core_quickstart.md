@@ -35,11 +35,18 @@ compair core down
 
 ## Bring Your Own OpenAI Key
 
-If you want Compair Core to use your own OpenAI credentials instead of the bundled local providers, run:
+Recommended default for `compair demo --mode local`: use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight while producing much better demo-quality feedback.
+
+```bash
+compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"
+compair core restart
+```
+
+If you want Compair Core to use your own OpenAI credentials for both generation and embeddings, run:
 
 ```bash
 compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
-compair core up
+compair core restart
 compair profile use local
 compair login
 ```
@@ -47,7 +54,8 @@ compair login
 Notes:
 - This uses your OpenAI account directly. No Compair subscription is required, but OpenAI usage is billed by OpenAI.
 - `COMPAIR_OPENAI_API_KEY` is the documented configuration surface. There is no first-class `COMPAIR_OPENAI_ACCESS_TOKEN` setting today.
-- If you only want OpenAI for feedback and want to keep local/hash embeddings, omit `COMPAIR_EMBEDDING_PROVIDER=openai`.
+- `--provider openai` switches both generation and embeddings to OpenAI.
+- For local demos, `--generation-provider openai --embedding-provider local` is the recommended starting point.
 
 If you prefer not to save the key into `~/.compair/core_runtime.yaml`, export `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` first and omit `--openai-api-key`.
 

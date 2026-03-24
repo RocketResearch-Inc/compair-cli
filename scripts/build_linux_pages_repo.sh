@@ -129,8 +129,8 @@ cat > "$INSTALL_ROOT/debian.sh" <<EOF
 set -euo pipefail
 curl -fsSL '$BASE_URL/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/compair-archive-keyring.gpg
 echo 'deb [signed-by=/usr/share/keyrings/compair-archive-keyring.gpg] $BASE_URL/apt stable main' | sudo tee /etc/apt/sources.list.d/compair.list >/dev/null
-sudo apt update
-sudo apt install compair
+sudo apt-get update
+sudo apt-get install -y compair
 EOF
 chmod +x "$INSTALL_ROOT/debian.sh"
 
@@ -197,7 +197,7 @@ cat > "$SITE_DIR/index.html" <<EOF
 
       <h2>Fedora / RHEL</h2>
       <pre><code>curl -fsSL '$BASE_URL/install/compair.repo' | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
-sudo dnf install compair</code></pre>
+sudo dnf install -y compair</code></pre>
 
       <h2>Repository files</h2>
       <ul>

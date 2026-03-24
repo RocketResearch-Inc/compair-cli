@@ -1800,7 +1800,7 @@ func repoDisplayLabel(root, remote string) string {
 }
 
 func appendRepoServerResponse(lines *[]string, remoteURL, text string, result any, snapshotUsed bool, options reportRenderOptions) {
-	label := "## Repo: " + remoteURL
+	label := "## Repo: `" + remoteURL + "`"
 	if snapshotUsed {
 		label += " (baseline snapshot)"
 	}
@@ -1863,7 +1863,7 @@ func appendFeedbackContext(entry *[]string, ctx string, options reportRenderOpti
 	if strings.TrimSpace(ctx) == "" || options.DetailLevel < reportDetailDetailed {
 		return
 	}
-	ctx = trimContext(ctx, 8, 360)
+	ctx = trimContext(ctx, 8, 520)
 	*entry = append(*entry, "", "**Context**", "")
 	appendFencedMarkdownBlock(entry, "text", ctx)
 }
@@ -2145,6 +2145,13 @@ func trimContext(s string, maxLines int, maxChars int) string {
 		s = head + "\n...\n" + tail
 	}
 	if len(s) > maxChars {
+		trimmed := strings.TrimSpace(s)
+		if strings.HasPrefix(trimmed, "diff --git ") || strings.HasPrefix(trimmed, "### File:") {
+			if maxChars < 20 {
+				return s[:maxChars] + "..."
+			}
+			return strings.TrimRight(s[:maxChars-4], "\n ") + "\n..."
+		}
 		if maxChars < 20 {
 			return s[:maxChars] + "..."
 		}

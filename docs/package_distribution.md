@@ -99,6 +99,7 @@ winget install RocketResearchInc.Compair
 Notes:
 
 - WinGet publishing is disabled by default in the release workflow. This avoids blocking normal releases while the WinGet automation is still being validated.
+- Treat WinGet as "pending upstream approval" until the package PR merges into `microsoft/winget-pkgs`.
 - Use a classic PAT here, not a fine-grained PAT. GoReleaser opens the pull request against the upstream public repo `microsoft/winget-pkgs`, and fine-grained tokens scoped only to `RocketResearch-Inc` are not allowed to create that upstream PR.
 - If the PR automation is not ready, omit `WINGET_GITHUB_TOKEN`. GoReleaser will still generate the manifest into `dist/` without trying to publish it.
 - If the upstream WinGet rules change, the fallback is to submit the generated manifest manually from `dist/`.
@@ -170,7 +171,7 @@ Fedora/RHEL:
 
 ```bash
 curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
-sudo dnf install compair
+sudo dnf install -y compair
 ```
 
 What the generated `.repo` points to:
@@ -222,4 +223,4 @@ Set these in `compair-cli` repository settings:
 2. Create and validate the Homebrew tap.
 3. Create the WinGet fork and validate one PR submission.
 4. Create and validate the `compair-packages` Pages repo.
-5. After all channels work once, add end-user install commands to the front-page README.
+5. After all channels work once, keep the front-page README and download page aligned with the live install paths.

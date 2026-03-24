@@ -31,6 +31,7 @@ compair login
 
 - [Deployment Guide](deployment_guide.md)
 - [Operator Guide](operator_guide.md)
+- [Launch Validation](launch_validation.md)
 - [CI & Release](ci_release.md)
 - [Package Distribution Setup](package_distribution.md)
 - [Release Checklist](release_checklist.md)

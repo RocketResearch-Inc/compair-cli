@@ -37,7 +37,7 @@ func TestAppendRepoServerResponseUsesMarkdownSections(t *testing.T) {
 	)
 
 	out := strings.Join(lines, "\n")
-	if !strings.Contains(out, "## Repo: git@example.com:demo/repo.git") {
+	if !strings.Contains(out, "## Repo: `git@example.com:demo/repo.git`") {
 		t.Fatalf("expected repo heading, got:\n%s", out)
 	}
 	if !strings.Contains(out, "### Changes") || !strings.Contains(out, "~~~diff") {
@@ -125,6 +125,23 @@ func TestAppendFeedbackContextHonorsVerbosity(t *testing.T) {
 	out := strings.Join(detailed, "\n")
 	if !strings.Contains(out, "**Context**") || !strings.Contains(out, "~~~text") {
 		t.Fatalf("expected context block in detailed mode, got:\n%s", out)
+	}
+}
+
+func TestAppendFeedbackContextPreservesDiffPrefix(t *testing.T) {
+	lines := []string{}
+	ctx := "diff --git a/src/reviewClient.ts b/src/reviewClient.ts\n" +
+		"index d5ffd84..b5dfb4a 100644\n" +
+		"--- a/src/reviewClient.ts\n" +
+		"+++ b/src/reviewClient.ts\n" +
+		strings.Repeat("0123456789", 80)
+	appendFeedbackContext(&lines, ctx, reportRenderOptions{DetailLevel: reportDetailDetailed})
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "diff --git a/src/reviewClient.ts b/src/reviewClient.ts") {
+		t.Fatalf("expected diff header to be preserved, got:\n%s", out)
+	}
+	if strings.Contains(out, "\nff --git a/src/reviewClient.ts") {
+		t.Fatalf("expected diff header not to be truncated mid-token, got:\n%s", out)
 	}
 }
 

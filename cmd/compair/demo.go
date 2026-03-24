@@ -197,6 +197,12 @@ func prepareDemoAPI(mode string) error {
 		if err != nil {
 			return err
 		}
+		if shouldRecommendOpenAIDemo(cfg) {
+			fmt.Println("Tip: for the strongest local demo feedback, use OpenAI generation with local embeddings:")
+			fmt.Println(`  compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"`)
+			fmt.Println("  compair core restart")
+			fmt.Println()
+		}
 		viper.Set("api.base", cfg.APIBase())
 		viper.Set("profile.active", "local")
 		status, err := dockerContainerStatus(cfg.ContainerName)
@@ -205,6 +211,10 @@ func prepareDemoAPI(mode string) error {
 			if err := runCoreUp(); err != nil {
 				return err
 			}
+		}
+		_ = api.ClearCapabilitiesCache()
+		if err := waitForLocalCoreReady(cfg.APIBase(), 60*time.Second); err != nil {
+			return err
 		}
 		return nil
 	case "cloud":
@@ -230,6 +240,36 @@ func prepareDemoAPI(mode string) error {
 	default:
 		return fmt.Errorf("unsupported demo mode %q", mode)
 	}
+}
+
+func waitForLocalCoreReady(apiBase string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		if _, err := fetchCoreHealth(apiBase); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			if lastErr == nil {
+				lastErr = fmt.Errorf("timed out waiting for local Core")
+			}
+			return fmt.Errorf("local Compair Core did not become ready at %s: %w", apiBase, lastErr)
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func shouldRecommendOpenAIDemo(cfg *config.CoreRuntime) bool {
+	if cfg == nil {
+		return false
+	}
+	if strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) == "" {
+		return false
+	}
+	return strings.TrimSpace(strings.ToLower(cfg.GenerationProvider)) != "openai" ||
+		strings.TrimSpace(strings.ToLower(cfg.EmbeddingProvider)) != "local"
 }
 
 func looksLikeLocalAPIBase(base string) bool {

@@ -8,11 +8,32 @@ Looking for the fastest first run? Start with `compair demo` in the README. Use 
 
 ## Install
 
+| Platform | Recommended path | Notes |
+| --- | --- | --- |
+| macOS | Homebrew cask | Fastest install path today |
+| Debian / Ubuntu | Compair APT repo | Falls back to GitHub Release `.deb` if preferred |
+| Fedora / RHEL | Compair RPM repo | Falls back to GitHub Release `.rpm` if preferred |
+| Windows | GitHub Release zip | WinGet is not broadly available until the upstream package PR merges |
+| Any | Source build | Best for contributors and local hacking |
+
 ### Recommended on macOS
 
 ```bash
 brew tap RocketResearch-Inc/tap
 brew install --cask compair
+```
+
+### Recommended on Debian / Ubuntu
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh | bash
+```
+
+### Recommended on Fedora / RHEL
+
+```bash
+curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
+sudo dnf install -y compair
 ```
 
 ### Download a release

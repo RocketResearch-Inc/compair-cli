@@ -488,6 +488,7 @@ func (c *Client) ProcessDocWithMode(docID, text string, generateFeedback bool, c
 func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool, opts ProcessDocOptions) (ProcessDocResp, error) {
 	data := url.Values{}
 	data.Set("doc_id", docID)
+	data.Set("doc_text", text)
 	data.Set("doc_text_b64", base64.StdEncoding.EncodeToString([]byte(text)))
 	if generateFeedback {
 		data.Set("generate_feedback", "true")

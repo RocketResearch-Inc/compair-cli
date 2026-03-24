@@ -84,6 +84,9 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 		if got := values.Get("reanalyze_existing"); got != "true" {
 			t.Fatalf("expected reanalyze_existing=true, got %q", got)
 		}
+		if got := values.Get("doc_text"); got != "hello" {
+			t.Fatalf("expected doc_text=hello, got %q", got)
+		}
 		if got := values.Get("doc_text_b64"); got == "" {
 			t.Fatal("expected doc_text_b64 to be populated")
 		}
