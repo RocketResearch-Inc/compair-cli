@@ -125,7 +125,8 @@ var demoCmd = &cobra.Command{
 
 		fmt.Println()
 		fmt.Println("Running demo review...")
-		if err := runSyncCommand(cmd, roots, syncInvocationMode{}); err != nil {
+		reportLevel := reportDetailDetailed
+		if err := runSyncCommand(cmd, roots, syncInvocationMode{ReportDetailLevel: &reportLevel}); err != nil {
 			return err
 		}
 
@@ -623,7 +624,21 @@ export function renderReviewCard(payload: any): string {
 		}
 	}
 	fmt.Println("Committed an intentional contract regression in", clientRepo)
+	for _, line := range demoDriftRecapLines() {
+		fmt.Println(line)
+	}
 	return nil
+}
+
+func demoDriftRecapLines() []string {
+	return []string{
+		"Seeded drift recap:",
+		`  - demo-api still serves /reviews -> reviews[] with fields "severity", "category", and "rationale".`,
+		`  - demo-client/src/reviewFeed.ts: payload.reviews -> payload.items`,
+		`  - demo-client/src/reviewClient.ts: review.severity/category -> review.priority/type`,
+		`  - demo-client/src/renderReview.ts: render severity/category -> priority/type`,
+		`  - demo-client/README.md is rewritten to describe the wrong client contract on purpose.`,
+	}
 }
 
 func ensureDemoPrereqs() error {

@@ -145,6 +145,80 @@ func TestAppendFeedbackContextPreservesDiffPrefix(t *testing.T) {
 	}
 }
 
+func TestAppendFeedbackEvidenceIncludesGroundedSnippets(t *testing.T) {
+	lines := []string{}
+	appendFeedbackEvidence(&lines, &feedbackNotificationMeta{
+		EvidenceTarget: `return (payload.items ?? []).map((item: any) => renderReviewCard(item));`,
+		EvidencePeer:   `"reviews": [{"severity": "high", "category": "api-contract", "rationale": "..."}]`,
+	}, reportRenderOptions{DetailLevel: reportDetailDetailed})
+
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "**Target Evidence**") || !strings.Contains(out, "payload.items") {
+		t.Fatalf("expected target evidence block, got:\n%s", out)
+	}
+	if !strings.Contains(out, "**Peer Evidence**") || !strings.Contains(out, `"reviews"`) {
+		t.Fatalf("expected peer evidence block, got:\n%s", out)
+	}
+}
+
+func TestAppendFeedbackReferenceExcerptsIncludesReferenceContent(t *testing.T) {
+	lines := []string{}
+	appendFeedbackReferenceExcerpts(&lines, []api.FeedbackReference{
+		{
+			Title:   "demo-api",
+			Content: `"reviews": [{"severity": "high", "category": "api-contract"}]`,
+		},
+	}, "demo-api still returns reviews[] with severity/category", "", nil, reportRenderOptions{DetailLevel: reportDetailDetailed})
+
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "**Reference Excerpts**") {
+		t.Fatalf("expected reference excerpts heading, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Source: demo-api") || !strings.Contains(out, `"reviews"`) {
+		t.Fatalf("expected reference excerpt content, got:\n%s", out)
+	}
+}
+
+func TestAppendFeedbackReferenceExcerptsChoosesRelevantSnapshotSection(t *testing.T) {
+	lines := []string{}
+	refContent := strings.Join([]string{
+		"# Compair baseline snapshot",
+		"- Generated: 2026-03-26T23:26:01-04:00",
+		snapshotChunkDelimiter,
+		"### File: README.md",
+		"The /reviews endpoint returns reviews[] objects.",
+		"The API uses severity, category, and rationale.",
+		snapshotChunkDelimiter,
+		"### File: api/openapi.yaml",
+		"paths:",
+		"  /reviews:",
+		"    get:",
+		"      responses:",
+		"        '200':",
+		"          properties:",
+		"            reviews:",
+		"              items:",
+		"                required: [severity, category, rationale]",
+	}, "\n")
+	appendFeedbackReferenceExcerpts(&lines, []api.FeedbackReference{
+		{
+			Title:   "demo.local:compair/demo-api",
+			Content: refContent,
+		},
+	}, "demo-client now expects items[] and priority/type, while demo-api still defines /reviews returning reviews[] with severity/category/rationale in api/openapi.yaml", "", nil, reportRenderOptions{DetailLevel: reportDetailDetailed})
+
+	out := strings.Join(lines, "\n")
+	if strings.Contains(out, "# Compair baseline snapshot") {
+		t.Fatalf("did not expect snapshot header excerpt, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Source: demo.local:compair/demo-api (api/openapi.yaml)") {
+		t.Fatalf("expected api/openapi.yaml section label, got:\n%s", out)
+	}
+	if !strings.Contains(out, "required: [severity, category, rationale]") {
+		t.Fatalf("expected relevant OpenAPI contract line, got:\n%s", out)
+	}
+}
+
 func TestFeedbackHeadingUsesIntentLabel(t *testing.T) {
 	item := feedbackRenderItem{
 		Meta: &feedbackNotificationMeta{Intent: "hidden_overlap"},

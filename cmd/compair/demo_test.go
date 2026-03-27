@@ -7,6 +7,22 @@ import (
 	"github.com/RocketResearch-Inc/compair-cli/internal/config"
 )
 
+func TestDemoDriftRecapLinesSummarizesInjectedMismatch(t *testing.T) {
+	lines := demoDriftRecapLines()
+	out := strings.Join(lines, "\n")
+	want := []string{
+		"Seeded drift recap:",
+		`payload.reviews -> payload.items`,
+		`review.severity/category -> review.priority/type`,
+		`render severity/category -> priority/type`,
+	}
+	for _, snippet := range want {
+		if !strings.Contains(out, snippet) {
+			t.Fatalf("expected demo drift recap to contain %q, got:\n%s", snippet, out)
+		}
+	}
+}
+
 func TestRunDemoCommandReportsProcessErrorWhenOutputIsEmpty(t *testing.T) {
 	err := runDemoCommand([]string{"compair-definitely-missing-binary"})
 	if err == nil {

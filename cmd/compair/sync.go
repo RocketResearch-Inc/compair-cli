@@ -137,6 +137,7 @@ type syncInvocationMode struct {
 	FetchOnly         bool
 	PushOnly          bool
 	ReanalyzeExisting bool
+	ReportDetailLevel *reportDetailLevel
 }
 
 var syncCmd = &cobra.Command{
@@ -166,6 +167,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	client := api.NewClient(viper.GetString("api.base"))
 	caps, _ := client.Capabilities(10 * time.Minute)
 	reportOptions := resolveReportRenderOptions(client)
+	if modeFlags.ReportDetailLevel != nil {
+		reportOptions.DetailLevel = *modeFlags.ReportDetailLevel
+	}
 	gclient := api.NewClient(viper.GetString("api.base"))
 	group, _, err := groups.ResolveWithAuto(gclient, "", viper.GetString("group"))
 	if err != nil {
@@ -797,6 +801,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						}
 					}
 				}
+				appendFeedbackEvidence(&entry, item.Meta, reportOptions)
 				feedbackSummary.FeedbackCount++
 				if item.Meta != nil {
 					intentKey := strings.TrimSpace(item.Meta.Intent)
@@ -813,6 +818,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					ctx = cmap[fb.ChunkID]
 				}
 				appendFeedbackContext(&entry, ctx, reportOptions)
+				appendFeedbackReferenceExcerpts(&entry, fb.References, fb.Feedback, ctx, item.Meta, reportOptions)
 				entry = append(entry, "**Feedback**", "")
 				entry = append(entry, strings.Split(strings.TrimSpace(fb.Feedback), "\n")...)
 				entry = append(entry, "")
@@ -2220,6 +2226,200 @@ func appendFeedbackContext(entry *[]string, ctx string, options reportRenderOpti
 	ctx = trimContext(ctx, 8, 520)
 	*entry = append(*entry, "", "**Context**", "")
 	appendFencedMarkdownBlock(entry, "text", ctx)
+}
+
+func appendFeedbackEvidence(entry *[]string, meta *feedbackNotificationMeta, options reportRenderOptions) {
+	if meta == nil || options.DetailLevel < reportDetailDetailed {
+		return
+	}
+	if snippet := strings.TrimSpace(meta.EvidenceTarget); snippet != "" {
+		*entry = append(*entry, "", "**Target Evidence**", "")
+		appendFencedMarkdownBlock(entry, "text", snippet)
+	}
+	if snippet := strings.TrimSpace(meta.EvidencePeer); snippet != "" {
+		*entry = append(*entry, "", "**Peer Evidence**", "")
+		appendFencedMarkdownBlock(entry, "text", snippet)
+	}
+}
+
+func appendFeedbackReferenceExcerpts(entry *[]string, refs []api.FeedbackReference, feedbackText string, feedbackContext string, meta *feedbackNotificationMeta, options reportRenderOptions) {
+	if options.DetailLevel < reportDetailDetailed || len(refs) == 0 {
+		return
+	}
+	seen := map[string]struct{}{}
+	added := 0
+	paths := extractReportPaths(feedbackContext, feedbackText, itemMetaEvidenceTarget(meta), itemMetaEvidencePeer(meta))
+	anchors := extractFeedbackAnchors(feedbackContext, feedbackText, itemMetaEvidenceTarget(meta), itemMetaEvidencePeer(meta))
+	tokens := feedbackTokenSet(strings.Join([]string{feedbackText, itemMetaEvidenceTarget(meta), itemMetaEvidencePeer(meta)}, "\n"))
+	for _, ref := range refs {
+		content := strings.TrimSpace(ref.Content)
+		if content == "" {
+			continue
+		}
+		sectionLabel, excerpt := selectRelevantReferenceExcerpt(content, paths, anchors, tokens)
+		if strings.TrimSpace(excerpt) == "" {
+			continue
+		}
+		key := strings.TrimSpace(ref.Title) + "\x00" + strings.TrimSpace(sectionLabel) + "\x00" + excerpt
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		if added == 0 {
+			*entry = append(*entry, "", "**Reference Excerpts**", "")
+		}
+		label := strings.TrimSpace(ref.Title)
+		if label == "" {
+			label = "Reference"
+		}
+		if trimmedSection := strings.TrimSpace(sectionLabel); trimmedSection != "" {
+			label += " (" + trimmedSection + ")"
+		}
+		*entry = append(*entry, "Source: "+label)
+		appendFencedMarkdownBlock(entry, "text", excerpt)
+		added++
+		if added >= 2 {
+			return
+		}
+	}
+}
+
+type referenceSection struct {
+	Path    string
+	Content string
+}
+
+func selectRelevantReferenceExcerpt(content string, paths map[string]struct{}, anchors map[string]struct{}, tokens map[string]struct{}) (string, string) {
+	sections := splitReferenceSections(content)
+	if len(sections) == 0 {
+		return "", trimContext(content, 6, 320)
+	}
+	best := referenceSection{}
+	bestScore := -1
+	for _, section := range sections {
+		score := scoreReferenceSection(section, paths, anchors, tokens)
+		if score > bestScore {
+			bestScore = score
+			best = section
+		}
+	}
+	excerpt := bestReferenceExcerpt(best, anchors, tokens)
+	return best.Path, excerpt
+}
+
+func splitReferenceSections(content string) []referenceSection {
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+	sections := []referenceSection{}
+	current := []string{}
+	currentPath := ""
+	flush := func() {
+		trimmed := strings.TrimSpace(strings.Join(current, "\n"))
+		if trimmed == "" {
+			current = nil
+			currentPath = ""
+			return
+		}
+		sections = append(sections, referenceSection{
+			Path:    currentPath,
+			Content: trimmed,
+		})
+		current = nil
+		currentPath = ""
+	}
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == snapshotChunkDelimiter {
+			flush()
+			continue
+		}
+		if matches := reportFileHeaderPattern.FindStringSubmatch(line); len(matches) > 1 {
+			flush()
+			currentPath = strings.TrimSpace(matches[1])
+		}
+		current = append(current, line)
+	}
+	flush()
+	if len(sections) == 0 && strings.TrimSpace(content) != "" {
+		return []referenceSection{{Content: strings.TrimSpace(content)}}
+	}
+	return sections
+}
+
+func scoreReferenceSection(section referenceSection, paths map[string]struct{}, anchors map[string]struct{}, tokens map[string]struct{}) int {
+	score := 0
+	normalizedPath := normalizeReportPath(section.Path)
+	if normalizedPath != "" {
+		if _, ok := paths[normalizedPath]; ok {
+			score += 120
+		}
+	}
+	sectionText := strings.ToLower(section.Content)
+	for anchor := range anchors {
+		if strings.Contains(sectionText, anchor) {
+			score += 8
+		}
+	}
+	for token := range tokens {
+		if strings.Contains(sectionText, token) {
+			score += 2
+		}
+	}
+	if normalizedPath != "" {
+		base := strings.ToLower(strings.TrimSuffix(filepath.Base(normalizedPath), filepath.Ext(normalizedPath)))
+		if base != "" && strings.Contains(sectionText, base) {
+			score += 6
+		}
+	}
+	return score
+}
+
+func bestReferenceExcerpt(section referenceSection, anchors map[string]struct{}, tokens map[string]struct{}) string {
+	lines := strings.Split(section.Content, "\n")
+	bestIndex := -1
+	bestScore := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || trimmed == snapshotChunkDelimiter {
+			continue
+		}
+		score := 0
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(trimmed, "### File:") {
+			score += 1
+		}
+		for anchor := range anchors {
+			if strings.Contains(lower, anchor) {
+				score += 8
+			}
+		}
+		for token := range tokens {
+			if strings.Contains(lower, token) {
+				score += 2
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestIndex = i
+		}
+	}
+	if bestIndex < 0 {
+		return trimContext(section.Content, 6, 320)
+	}
+	start := bestIndex - 2
+	if start < 0 {
+		start = 0
+	}
+	end := bestIndex + 4
+	if end > len(lines) {
+		end = len(lines)
+	}
+	if section.Path != "" && start > 0 {
+		start--
+		if !strings.HasPrefix(strings.TrimSpace(lines[start]), "### File:") {
+			start++
+		}
+	}
+	return trimContext(strings.Join(lines[start:end], "\n"), 6, 320)
 }
 
 func appendMarkdownHeading(lines *[]string, heading string) {
