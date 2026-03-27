@@ -851,6 +851,46 @@ func (c *Client) ShareNotificationEvent(eventID, note string) error {
 	return c.post("/notification_events/"+url.PathEscape(eventID)+"/share", payload, nil)
 }
 
+type NotificationPreferences struct {
+	PreferencesID                       string   `json:"preferences_id"`
+	EmailDigestEnabled                  bool     `json:"email_digest_enabled"`
+	EmailDigestFrequency                string   `json:"email_digest_frequency"`
+	PushNotificationsEnabled            bool     `json:"push_notifications_enabled"`
+	DigestBucketsEnabled                []string `json:"digest_buckets_enabled"`
+	QuietHoursStart                     string   `json:"quiet_hours_start"`
+	QuietHoursEnd                       string   `json:"quiet_hours_end"`
+	MaxDailyPushEmails                  int      `json:"max_daily_push_emails"`
+	AccountEmail                        string   `json:"account_email"`
+	NotificationDeliveryEmail           string   `json:"notification_delivery_email"`
+	NotificationDeliveryEmailPending    string   `json:"notification_delivery_email_pending"`
+	NotificationDeliveryEmailVerified   bool     `json:"notification_delivery_email_verified"`
+	NotificationDeliveryEmailVerifiedAt string   `json:"notification_delivery_email_verified_at"`
+	NotificationDeliveryEmailEffective  string   `json:"notification_delivery_email_effective"`
+	NotificationDeliveryEmailSource     string   `json:"notification_delivery_email_source"`
+}
+
+type NotificationPreferencesUpdate map[string]any
+
+func (c *Client) GetNotificationPreferences() (NotificationPreferences, error) {
+	var out NotificationPreferences
+	if err := c.get("/notification_preferences", &out); err != nil {
+		return NotificationPreferences{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) UpdateNotificationPreferences(update NotificationPreferencesUpdate) error {
+	return c.post("/notification_preferences", map[string]any(update), nil)
+}
+
+func (c *Client) RequestNotificationDeliveryEmail(email string) error {
+	return c.post("/notification_preferences/delivery_email", map[string]any{"email": email}, nil)
+}
+
+func (c *Client) ClearNotificationDeliveryEmail() error {
+	return c.post("/notification_preferences/delivery_email/clear", map[string]any{}, nil)
+}
+
 func (c *Client) RateFeedback(feedbackID, value string) error {
 	body := map[string]any{}
 	if strings.TrimSpace(value) == "" {

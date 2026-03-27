@@ -323,8 +323,8 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - Built-in presets: `api-contract`, `cross-product`, `review`, `strict` (use `--gate help` to print details)
 - `--fail-on-severity` and `--fail-on-type` use new notification events as the primary CI gate (severity + notification intent/type)
 - `--fail-on-feedback` remains the simpler fallback gate when detailed notification data is unavailable or unsupported
-- On Cloud, saved reports are ordered using ranked notification events when they are available, so higher-severity/higher-certainty items appear first with notification rationale attached
-- On Core, the same report flow works but there is no Cloud notification ranking layer
+- Saved reports are ordered using ranked notification events when they are available, so higher-severity/higher-certainty items appear first with notification rationale attached on both Cloud and Core
+- Core still differs from Cloud on delivery/integration layers such as Google OAuth, billing, and hosted notification delivery
 - Long-running review commands now print periodic progress lines while waiting for server-side processing and while waiting for newly generated feedback; the ETA is approximate
 
 Baseline snapshots now default to full-repo indexing. Add caps only when you want a lighter or faster run:
@@ -416,7 +416,7 @@ compair activity --include-own=false --page 1 --page-size 20
 
 ## Notifications
 ```bash
-# List notification events (Cloud only)
+# List ranked notification events
 compair notifications
 compair notifications --include-ack --include-dismiss --all-groups
 
@@ -424,7 +424,21 @@ compair notifications --include-ack --include-dismiss --all-groups
 compair notifications ack <event_id>
 compair notifications dismiss <event_id>
 compair notifications share <event_id> --note "Please review"
+
+# Show or update hosted delivery preferences
+compair notifications prefs
+compair notifications prefs --digest on --frequency daily
+compair notifications prefs --push on --max-push 1
+compair notifications prefs --all-buckets --clear-quiet-hours
+compair notifications prefs --delivery-email alerts@example.com
+compair notifications prefs --clear-delivery-email
 ```
+
+Notes:
+- Ranked notification events work on both Cloud and Core when the server advertises `features.notification_events=true`.
+- Hosted email delivery remains a Cloud capability. The `prefs` subcommand controls Cloud digests and instant email alerts; on pure Core those settings are mostly informational.
+- Hosted delivery now defaults to explicit opt-in. Digests are off until enabled, and the default cadence when enabled is `daily`.
+- Alternate delivery emails must be verified before Compair will route push/digest mail there. Until verification completes, the current verified address stays active.
 
 ## Feedback controls
 ```bash
@@ -466,6 +480,8 @@ compair watch ~/code/repo1 ~/code/repo2
 compair watch --all
 ```
 - Repeats sync on an interval
+- Watches your local checkout state; it does not subscribe to remote collaborator pushes by itself
+- Remote collaborator changes surface after they land in your local repo or when another client/server process syncs them into Compair
 - Best-effort notifications on macOS/Linux/Windows
 - Hook (`--on-change`) runs a shell command on changes
 

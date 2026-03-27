@@ -9,6 +9,20 @@ import (
 	"github.com/RocketResearch-Inc/compair-cli/internal/printer"
 )
 
+func notificationEventsCapability(caps *api.Capabilities) (available bool, authoritative bool) {
+	if caps == nil {
+		return false, false
+	}
+	if caps.Features.NotificationEvents {
+		return true, true
+	}
+	server := strings.ToLower(strings.TrimSpace(caps.Server))
+	if server == "compair cloud" {
+		return true, false
+	}
+	return false, true
+}
+
 type notificationGateResult struct {
 	Enabled         bool     `json:"enabled"`
 	Available       bool     `json:"available"`

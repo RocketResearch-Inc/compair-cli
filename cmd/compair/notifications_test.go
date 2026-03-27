@@ -64,3 +64,40 @@ func TestRenderNotificationEventsMarkdownIncludesEvidenceAndSummary(t *testing.T
 		}
 	}
 }
+
+func TestParseNotificationToggle(t *testing.T) {
+	value, err := parseNotificationToggle("push", "on")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !value {
+		t.Fatalf("expected toggle to parse as true")
+	}
+	if _, err := parseNotificationToggle("push", "maybe"); err == nil {
+		t.Fatalf("expected invalid toggle value to fail")
+	}
+}
+
+func TestRenderNotificationPreferencesMarkdownIncludesDeliveryNote(t *testing.T) {
+	md := renderNotificationPreferencesMarkdown(api.NotificationPreferences{
+		EmailDigestEnabled:       false,
+		EmailDigestFrequency:     "daily",
+		PushNotificationsEnabled: false,
+		DigestBucketsEnabled:     []string{"conflicts", "updates"},
+		QuietHoursStart:          "22:00",
+		QuietHoursEnd:            "07:00",
+		MaxDailyPushEmails:       1,
+	}, false)
+
+	for _, want := range []string{
+		"Hosted instant email alerts: off.",
+		"Email digests: off (daily).",
+		"conflicts, updates",
+		"22:00 -> 07:00",
+		"hosted transactional delivery is not",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("expected markdown to contain %q, got:\n%s", want, md)
+		}
+	}
+}

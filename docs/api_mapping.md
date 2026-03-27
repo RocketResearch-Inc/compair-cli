@@ -19,6 +19,10 @@
 | `notifications ack <id>` | `POST /notification_events/{event_id}/acknowledge` |
 | `notifications dismiss <id>` | `POST /notification_events/{event_id}/dismiss` |
 | `notifications share <id>` | `POST /notification_events/{event_id}/share` |
+| `notifications prefs` | `GET /notification_preferences` |
+| `notifications prefs --digest/--push/...` | `POST /notification_preferences` (JSON body) |
+| `notifications prefs --delivery-email <email>` | `POST /notification_preferences/delivery_email` (JSON body) |
+| `notifications prefs --clear-delivery-email` | `POST /notification_preferences/delivery_email/clear` |
 | `feedback rate <id>` | `POST /feedback/{feedback_id}/rate` (JSON `{user_feedback}`) |
 | `feedback hide <id>` | `POST /feedback/{feedback_id}/hide` (form: `is_hidden=true|false`) |
 | `notes add <doc_id>` | `POST /documents/{document_id}/notes` |

@@ -33,7 +33,7 @@ type watchRepo struct {
 
 var watchCmd = &cobra.Command{
 	Use:   "watch [PATH ...]",
-	Short: "Continuously sync on an interval and notify on changes",
+	Short: "Continuously sync local repos on an interval and notify on local changes",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := api.NewClient(viper.GetString("api.base"))
 		gid, _, err := groups.ResolveWithAuto(client, "", viper.GetString("group"))

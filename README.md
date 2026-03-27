@@ -169,6 +169,7 @@ compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wa
 # 4. Inspect the results
 compair reports
 compair notifications
+compair notifications prefs
 ```
 
 After the first run:

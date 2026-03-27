@@ -36,8 +36,12 @@ type Capabilities struct {
 		FeedbackPerDay *int `json:"feedback_per_day"`
 	} `json:"limits"`
 	Features struct {
-		OCRUpload    bool `json:"ocr_upload"`
-		ActivityFeed bool `json:"activity_feed"`
+		OCRUpload               bool `json:"ocr_upload"`
+		ActivityFeed            bool `json:"activity_feed"`
+		NotificationEvents      bool `json:"notification_events"`
+		NotificationScoring     bool `json:"notification_scoring"`
+		NotificationPreferences bool `json:"notification_preferences"`
+		NotificationDelivery    bool `json:"notification_delivery"`
 	} `json:"features"`
 	Server       string `json:"server,omitempty"`
 	Version      string `json:"version,omitempty"`

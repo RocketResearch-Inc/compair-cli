@@ -881,7 +881,22 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 		reportPath = outPath
 		printer.Success("Markdown report written to " + outPath)
 	}
-	gateResult, gateErr := evaluateNotificationGate(client, group, gatedDocIDs, startedAt, notificationGateWaitBudget(doUpload))
+	var gateResult notificationGateResult
+	var gateErr error
+	if supported, authoritative := notificationEventsCapability(caps); !supported && authoritative {
+		gateResult = notificationGateResult{
+			Enabled:    detailedNotificationGateEnabled(),
+			Available:  false,
+			Severities: append([]string(nil), syncFailOnSeverity...),
+			Types:      append([]string(nil), syncFailOnType...),
+			Error:      "notification events are unavailable on this server according to /capabilities",
+		}
+		if gateResult.Enabled {
+			gateErr = fmt.Errorf("%s", gateResult.Error)
+		}
+	} else {
+		gateResult, gateErr = evaluateNotificationGate(client, group, gatedDocIDs, startedAt, notificationGateWaitBudget(doUpload))
+	}
 
 	if doFetch && totalFeedback == 0 {
 		printer.Info("No new feedback generated.")

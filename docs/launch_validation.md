@@ -110,7 +110,6 @@ compair track "$COMPAIR_ROOT/compair-ui" --initial-sync --no-feedback
 compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
 compair reports
 
-# Cloud only: ranked notification events are a hosted feature.
 compair notifications
 ```
 
@@ -119,8 +118,7 @@ Success criteria:
 - the first warm pass completes without hanging
 - the report is readable even if it produces zero findings on a clean baseline
 - if no feedback is generated here, continue to Step 4 and use the seeded drift scenario below
-- if you are validating Cloud, `compair notifications` adds useful ranking/rationale instead of duplicating the report text
-- if you are validating Core, skip `compair notifications`; success is based on the report itself, because `/notification_events` is Cloud-only
+- `compair notifications` adds useful ranking/rationale instead of duplicating the report text on both Cloud and Core
 
 ## 4. Local CI simulation
 
