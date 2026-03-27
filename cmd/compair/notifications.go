@@ -3,6 +3,7 @@ package compair
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
 	"github.com/RocketResearch-Inc/compair-cli/internal/groups"
@@ -51,12 +52,11 @@ var notificationsCmd = &cobra.Command{
 			fmt.Println("No notification events found.")
 			return nil
 		}
-		for idx, event := range resp.Events {
-			if idx > 0 {
-				fmt.Println()
-			}
-			printNotificationEvent(event, notificationsAllGroups)
+		rendered, err := renderMarkdown(renderNotificationEventsMarkdown(resp.Events, notificationsAllGroups))
+		if err != nil {
+			return err
 		}
+		fmt.Print(rendered)
 		return nil
 	},
 }
@@ -173,6 +173,71 @@ func notificationStatus(event api.NotificationEvent) string {
 		return "acknowledged"
 	}
 	return "new"
+}
+
+func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGroup bool) string {
+	lines := []string{
+		"Generated: " + time.Now().Format(time.RFC3339),
+		"",
+		"## Summary",
+		"",
+		fmt.Sprintf("- %d notification(s).", len(events)),
+		"",
+	}
+
+	for idx, event := range events {
+		appendMarkdownHeading(&lines, fmt.Sprintf("## Notification %d", idx+1))
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("**Event ID:** `%s`", strings.TrimSpace(event.EventID)))
+		lines = append(lines, fmt.Sprintf("**Time:** %s", fallbackString(formatTimestamp(event.CreatedAt), "unknown")))
+		lines = append(lines, fmt.Sprintf("**Severity:** %s", fallbackString(strings.ToUpper(strings.TrimSpace(event.Severity)), "UNKNOWN")))
+		lines = append(lines, fmt.Sprintf("**Intent:** %s", fallbackString(strings.TrimSpace(event.Intent), "unknown")))
+		lines = append(lines, fmt.Sprintf("**Status:** %s", notificationStatus(event)))
+		if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
+			lines = append(lines, fmt.Sprintf("**Target Doc:** `%s`", docID))
+		}
+		if includeGroup {
+			if groupID := strings.TrimSpace(event.GroupID); groupID != "" {
+				lines = append(lines, fmt.Sprintf("**Group:** `%s`", groupID))
+			}
+		}
+		if delivery := strings.TrimSpace(event.DeliveryAction); delivery != "" {
+			line := "**Delivery:** " + delivery
+			if channel := strings.TrimSpace(event.Channel); channel != "" {
+				line += " via " + channel
+			}
+			lines = append(lines, line)
+		}
+		if len(event.PeerDocIDs) > 0 {
+			lines = append(lines, fmt.Sprintf("**Peer Docs:** `%s`", strings.Join(event.PeerDocIDs, "`, `")))
+		}
+		rationale := nonEmptyLines(event.Rationale)
+		if len(rationale) > 0 {
+			lines = append(lines, "", "**Rationale**", "")
+			for _, line := range rationale {
+				lines = append(lines, "- "+line)
+			}
+		}
+		if snippet := strings.TrimSpace(event.EvidenceTarget); snippet != "" {
+			lines = append(lines, "", "**Target Evidence**", "")
+			appendFencedMarkdownBlock(&lines, "text", snippet)
+		}
+		if snippet := strings.TrimSpace(event.EvidencePeer); snippet != "" {
+			lines = append(lines, "", "**Peer Evidence**", "")
+			appendFencedMarkdownBlock(&lines, "text", snippet)
+		}
+		lines = append(lines, "")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func fallbackString(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func nonEmptyLines(lines []string) []string {

@@ -1,6 +1,7 @@
 package compair
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -38,11 +39,14 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 		path = strings.ToLower(strings.TrimSpace(cmd.CommandPath()))
 	}
 	apiBase := strings.ToLower(strings.TrimSpace(viper.GetString("api.base")))
+	apiHost := normalizeAPIHost(apiBase)
 	profile := strings.ToLower(strings.TrimSpace(viper.GetString("profile.active")))
 	localCore := strings.HasPrefix(path, "compair core") ||
-		strings.Contains(apiBase, "localhost:8000") ||
-		strings.Contains(apiBase, "127.0.0.1:8000") ||
+		apiHost == "localhost" ||
+		apiHost == "127.0.0.1" ||
 		profile == "local"
+	hostedCloud := apiHost == "app.compair.sh"
+	selfHostedRemote := !hostedCloud && !localCore && apiHost != ""
 
 	hints := []string{}
 	add := func(values ...string) {
@@ -69,13 +73,21 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 		"google sign-in",
 		"browser sign-in is not enabled",
 		"password login is not enabled",
-		"401",
-		"403",
-		"unauthorized",
-		"forbidden",
 	) {
 		add("Run 'compair doctor' to check auth, group, and repo binding health.")
 		add("If you just need a fresh session, run 'compair login'.")
+	}
+	if containsAny(msg, "401", "403", "unauthorized", "forbidden") {
+		if localCore {
+			add("Run 'compair core doctor' to confirm the local profile, auth mode, and Core /health endpoint.")
+			add("If this Core install is meant to require auth, run 'compair login'. If it is meant to be single-user, confirm Core is running with authentication disabled.")
+		} else if selfHostedRemote {
+			add("Run 'compair doctor' to confirm the API base, auth, and current repo/group binding.")
+			add("If this is your own Core deployment, confirm whether the server is configured for single-user or full authentication before retrying login.")
+		} else {
+			add("Run 'compair doctor' to check auth, group, and repo binding health.")
+			add("If you just need a fresh session, run 'compair login'.")
+		}
 	}
 
 	if containsAny(msg,
@@ -88,6 +100,8 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 		"document_id missing",
 		"repo document",
 		"repo binding",
+		"one or more requested groups",
+		"no matching groups found for provided ids",
 	) {
 		add("Run 'compair doctor' to verify auth, active group, and repo binding.")
 		add("If the active group is wrong, run 'compair group ls' then 'compair group use <id>'.")
@@ -98,14 +112,17 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 		"processing timeout",
 		"saved processing task",
 		"pending review task",
+		"pending processing task",
 		"ended with status failure",
 		"demo priming failed",
 	) {
 		add("Run 'compair doctor' to inspect pending tasks, repo binding, and current sync state.")
 		if localCore {
 			add("If this is against local Core, run 'compair core doctor' to check Docker, the container, and /health.")
-		} else {
+		} else if hostedCloud {
 			add("If this keeps reproducing on hosted Compair Cloud, send the task id and 'compair doctor --json' output to support@compair.sh.")
+		} else if selfHostedRemote {
+			add("If this is your own server, check the API/worker logs before retrying.")
 		}
 	}
 
@@ -122,9 +139,12 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 	) || hasServerStatus(message) {
 		if localCore {
 			add("Run 'compair core doctor' to check Docker, the local profile, container health, and the Core /health endpoint.")
-		} else {
+		} else if hostedCloud {
 			add("Run 'compair doctor' to confirm the API base, auth, and current repo/group binding.")
 			add("If the API is healthy but hosted Cloud still returns server errors, contact support@compair.sh with the failing command and 'compair doctor --json' output.")
+		} else if selfHostedRemote {
+			add("Run 'compair doctor' to confirm the API base, auth, and current repo/group binding.")
+			add("If this is your own server, check the server logs or ask the server admin to inspect the backend.")
 		}
 	}
 
@@ -166,4 +186,28 @@ func hasServerStatus(message string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeAPIHost(apiBase string) string {
+	value := strings.TrimSpace(apiBase)
+	if value == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err == nil {
+		if host := strings.TrimSpace(parsed.Hostname()); host != "" {
+			return strings.ToLower(host)
+		}
+	}
+	if strings.Contains(value, "://") {
+		return ""
+	}
+	host := value
+	if idx := strings.Index(host, "/"); idx >= 0 {
+		host = host[:idx]
+	}
+	if idx := strings.Index(host, ":"); idx >= 0 {
+		host = host[:idx]
+	}
+	return strings.ToLower(strings.TrimSpace(host))
 }

@@ -85,6 +85,23 @@ type feedbackEvidenceProfile struct {
 	Tokens    map[string]struct{}
 }
 
+type taskProgressMeta struct {
+	Stage               string
+	Message             string
+	StartedAt           time.Time
+	TotalChunks         int
+	NewChunksTotal      int
+	IndexedChunksDone   int
+	IndexedChunksTotal  int
+	FeedbackChunksTotal int
+}
+
+type pendingInitialSync struct {
+	Root   string
+	Label  string
+	Config config.Project
+}
+
 var (
 	reportDiffPathPattern     = regexp.MustCompile(`(?m)^diff --git a/([^\s]+) b/[^\s]+$`)
 	reportFileHeaderPattern   = regexp.MustCompile(`(?m)^### File:\s+([^\n(]+)`)
@@ -229,6 +246,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	sort.Strings(rootList)
 	repoProgress := newRepoProgressTracker(len(rootList))
 
+	if doFetch {
+		if err := waitForPendingInitialSyncs(cmd.Context(), client, group); err != nil {
+			return err
+		}
+	}
+
 	totalFeedback := 0
 	reportPath := ""
 	lines := []string{}
@@ -307,8 +330,8 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			}
 			if doFetch && strings.TrimSpace(r.PendingTaskID) != "" {
 				printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(rootList), repoLabel))
-				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, r.PendingTaskID, func(elapsed time.Duration) {
-					printer.Info(repoProgress.waitingLine(idx+1, repoLabel, elapsed))
+				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, r.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
+					printer.Info(formatTaskProgressLine(idx+1, len(rootList), "Still processing", repoLabel, st, elapsed))
 				})
 				if err != nil {
 					return err
@@ -335,6 +358,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 							),
 						)
 					}); err != nil {
+						clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
 						return err
 					}
 					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
@@ -414,8 +438,8 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				if strings.TrimSpace(resp.TaskID) != "" {
 					printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", idx+1, len(rootList), repoLabel, shortTaskID(resp.TaskID)))
 				}
-				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(elapsed time.Duration) {
-					printer.Info(repoProgress.waitingLine(idx+1, repoLabel, elapsed))
+				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(st api.TaskStatus, elapsed time.Duration) {
+					printer.Info(formatTaskProgressLine(idx+1, len(rootList), "Still processing", repoLabel, st, elapsed))
 				})
 				if err != nil {
 					return err
@@ -425,6 +449,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						"processing timeout after %ds (rerun 'compair sync' to continue waiting without resubmitting this repo; increase with --process-timeout-sec or set 0 to wait indefinitely)",
 						syncProcessTimeoutSec,
 					)
+				}
+				switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+				case "SUCCESS":
+				default:
+					clearPendingRepoTask(root, cfg, r)
+					return fmt.Errorf("processing task %s for %s ended with status %s", shortTaskID(resp.TaskID), repoLabel, st.Status)
 				}
 				if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
 					printer.Info(
@@ -439,6 +469,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						),
 					)
 				}); err != nil {
+					clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
 					return err
 				}
 				appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed, reportOptions)
@@ -844,7 +875,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 		reportPath = outPath
 		printer.Success("Markdown report written to " + outPath)
 	}
-	gateResult, gateErr := evaluateNotificationGate(client, group, gatedDocIDs, startedAt)
+	gateResult, gateErr := evaluateNotificationGate(client, group, gatedDocIDs, startedAt, notificationGateWaitBudget(doUpload))
 
 	if doFetch && totalFeedback == 0 {
 		printer.Info("No new feedback generated.")
@@ -1592,7 +1623,171 @@ func processingDeadline() time.Time {
 	return time.Now().Add(time.Duration(syncProcessTimeoutSec) * time.Second)
 }
 
-func waitForProcessingTask(ctx context.Context, client *api.Client, taskID string, onProgress func(time.Duration)) (api.TaskStatus, bool, error) {
+func taskMetaString(meta map[string]any, key string) string {
+	if len(meta) == 0 {
+		return ""
+	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func taskMetaInt(meta map[string]any, key string) int {
+	if len(meta) == 0 {
+		return 0
+	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return 0
+	}
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float32:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case json.Number:
+		n, _ := typed.Int64()
+		return int(n)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(typed))
+		return n
+	default:
+		n, _ := strconv.Atoi(strings.TrimSpace(fmt.Sprint(typed)))
+		return n
+	}
+}
+
+func parseTaskProgressMeta(st api.TaskStatus) taskProgressMeta {
+	meta := st.Meta
+	startedAt := time.Time{}
+	rawStartedAt := taskMetaString(meta, "started_at")
+	if rawStartedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339Nano, rawStartedAt); err == nil {
+			startedAt = parsed
+		} else if parsed, err := time.Parse(time.RFC3339, rawStartedAt); err == nil {
+			startedAt = parsed
+		}
+	}
+	return taskProgressMeta{
+		Stage:               taskMetaString(meta, "stage"),
+		Message:             taskMetaString(meta, "message"),
+		StartedAt:           startedAt,
+		TotalChunks:         taskMetaInt(meta, "total_chunks"),
+		NewChunksTotal:      taskMetaInt(meta, "new_chunks_total"),
+		IndexedChunksDone:   taskMetaInt(meta, "indexed_chunks_done"),
+		IndexedChunksTotal:  taskMetaInt(meta, "indexed_chunks_total"),
+		FeedbackChunksTotal: taskMetaInt(meta, "feedback_chunks_total"),
+	}
+}
+
+func taskStatusElapsed(st api.TaskStatus, fallbackStartedAt time.Time) time.Duration {
+	progress := parseTaskProgressMeta(st)
+	if !progress.StartedAt.IsZero() {
+		if elapsed := time.Since(progress.StartedAt); elapsed > 0 {
+			return elapsed
+		}
+	}
+	return time.Since(fallbackStartedAt)
+}
+
+func taskProgressSummary(progress taskProgressMeta) string {
+	switch progress.Stage {
+	case "preparing":
+		if progress.Message != "" {
+			return progress.Message
+		}
+		return "preparing document"
+	case "chunking":
+		if progress.TotalChunks > 0 {
+			if progress.NewChunksTotal > 0 {
+				return fmt.Sprintf("prepared %d chunk(s); %d new", progress.TotalChunks, progress.NewChunksTotal)
+			}
+			return fmt.Sprintf("prepared %d chunk(s)", progress.TotalChunks)
+		}
+	case "embedding":
+		if progress.IndexedChunksTotal > 0 {
+			return fmt.Sprintf("creating embeddings for %d chunk(s)", progress.IndexedChunksTotal)
+		}
+	case "indexing":
+		if progress.IndexedChunksTotal > 0 {
+			done := progress.IndexedChunksDone
+			if done < 0 {
+				done = 0
+			}
+			percent := int(float64(done) / float64(progress.IndexedChunksTotal) * 100)
+			if percent < 0 {
+				percent = 0
+			}
+			if percent > 100 {
+				percent = 100
+			}
+			return fmt.Sprintf("indexing %d/%d chunk(s) (%d%%)", done, progress.IndexedChunksTotal, percent)
+		}
+	case "queueing_feedback":
+		if progress.FeedbackChunksTotal > 0 {
+			return fmt.Sprintf("queueing %d feedback task(s)", progress.FeedbackChunksTotal)
+		}
+	case "queued_feedback":
+		if progress.FeedbackChunksTotal > 0 {
+			return fmt.Sprintf("queued %d feedback task(s)", progress.FeedbackChunksTotal)
+		}
+		if progress.IndexedChunksTotal > 0 {
+			return fmt.Sprintf("indexed %d chunk(s); no feedback queued", progress.IndexedChunksTotal)
+		}
+	case "complete":
+		if progress.Message != "" {
+			return progress.Message
+		}
+		return "indexing complete"
+	}
+	if progress.Message != "" {
+		return progress.Message
+	}
+	return ""
+}
+
+func taskProgressRemaining(progress taskProgressMeta, elapsed time.Duration) time.Duration {
+	if progress.IndexedChunksTotal <= 0 || progress.IndexedChunksDone <= 0 || progress.IndexedChunksDone >= progress.IndexedChunksTotal {
+		return 0
+	}
+	perChunk := float64(elapsed) / float64(progress.IndexedChunksDone)
+	if perChunk <= 0 {
+		return 0
+	}
+	remainingChunks := progress.IndexedChunksTotal - progress.IndexedChunksDone
+	return time.Duration(perChunk * float64(remainingChunks))
+}
+
+func formatTaskProgressLine(index int, total int, action string, label string, st api.TaskStatus, elapsed time.Duration) string {
+	progress := parseTaskProgressMeta(st)
+	detail := taskProgressSummary(progress)
+	remaining := taskProgressRemaining(progress, elapsed)
+	if detail != "" {
+		if remaining > 0 {
+			return fmt.Sprintf("[%d/%d] %s %s (%s, %s elapsed, est. %s remaining)", index, total, action, label, detail, humanDuration(elapsed), humanDuration(remaining))
+		}
+		return fmt.Sprintf("[%d/%d] %s %s (%s, %s elapsed)", index, total, action, label, detail, humanDuration(elapsed))
+	}
+	if remaining > 0 {
+		return fmt.Sprintf("[%d/%d] %s %s (%s elapsed, est. %s remaining)", index, total, action, label, humanDuration(elapsed), humanDuration(remaining))
+	}
+	return fmt.Sprintf("[%d/%d] %s %s (%s elapsed)", index, total, action, label, humanDuration(elapsed))
+}
+
+func waitForProcessingTask(ctx context.Context, client *api.Client, taskID string, onProgress func(api.TaskStatus, time.Duration)) (api.TaskStatus, bool, error) {
 	deadline := processingDeadline()
 	startedAt := time.Now()
 	lastProgressAt := time.Time{}
@@ -1621,8 +1816,8 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			return st, true, nil
 		}
-		if onProgress != nil && (lastProgressAt.IsZero() || time.Since(lastProgressAt) >= 30*time.Second) {
-			onProgress(time.Since(startedAt))
+		if onProgress != nil && (lastProgressAt.IsZero() || time.Since(lastProgressAt) >= 15*time.Second) {
+			onProgress(st, taskStatusElapsed(st, startedAt))
 			lastProgressAt = time.Now()
 		}
 		select {
@@ -1656,7 +1851,7 @@ func isRetryableStatusPollError(err error) bool {
 func waitForChunkTasks(ctx context.Context, client *api.Client, result any, label string, onProgress func(int, int, time.Duration)) error {
 	taskIDs := extractChunkTaskIDs(result)
 	for idx, taskID := range taskIDs {
-		st, timedOut, err := waitForProcessingTask(ctx, client, taskID, func(elapsed time.Duration) {
+		st, timedOut, err := waitForProcessingTask(ctx, client, taskID, func(_ api.TaskStatus, elapsed time.Duration) {
 			if onProgress != nil {
 				onProgress(idx+1, len(taskIDs), elapsed)
 			}
@@ -1716,9 +1911,10 @@ func extractChunkTaskIDs(result any) []string {
 }
 
 type repoProgressTracker struct {
-	total         int
-	completed     int
-	totalDuration time.Duration
+	total             int
+	completed         int
+	observedCompleted int
+	totalObservedWait time.Duration
 }
 
 func newRepoProgressTracker(total int) *repoProgressTracker {
@@ -1735,12 +1931,22 @@ func (t *repoProgressTracker) waitingLine(index int, label string, elapsed time.
 
 func (t *repoProgressTracker) completeLine(index int, label string, elapsed time.Duration) string {
 	t.completed++
-	t.totalDuration += elapsed
+	t.observedCompleted++
+	t.totalObservedWait += elapsed
 	eta := t.estimateRemaining(index, 0)
 	if eta > 0 {
 		return fmt.Sprintf("[%d/%d] Completed %s in %s. Est. %s remaining.", index, t.total, label, humanDuration(elapsed), humanDuration(eta))
 	}
 	return fmt.Sprintf("[%d/%d] Completed %s in %s.", index, t.total, label, humanDuration(elapsed))
+}
+
+func (t *repoProgressTracker) alreadyCompleteLine(index int, label string, taskAge time.Duration) string {
+	t.completed++
+	eta := t.estimateRemaining(index, 0)
+	if eta > 0 {
+		return fmt.Sprintf("[%d/%d] %s already completed before this check (submitted %s ago). Est. %s remaining.", index, t.total, label, humanDuration(taskAge), humanDuration(eta))
+	}
+	return fmt.Sprintf("[%d/%d] %s already completed before this check (submitted %s ago).", index, t.total, label, humanDuration(taskAge))
 }
 
 func (t *repoProgressTracker) estimateRemaining(index int, currentElapsed time.Duration) time.Duration {
@@ -1753,13 +1959,13 @@ func (t *repoProgressTracker) estimateRemaining(index int, currentElapsed time.D
 	}
 	var avg time.Duration
 	if currentElapsed > 0 {
-		if t.completed > 0 {
-			avg = (t.totalDuration + currentElapsed) / time.Duration(t.completed+1)
+		if t.observedCompleted > 0 {
+			avg = (t.totalObservedWait + currentElapsed) / time.Duration(t.observedCompleted+1)
 		} else {
 			avg = currentElapsed
 		}
-	} else if t.completed > 0 {
-		avg = t.totalDuration / time.Duration(t.completed)
+	} else if t.observedCompleted > 0 {
+		avg = t.totalObservedWait / time.Duration(t.observedCompleted)
 	}
 	if avg <= 0 {
 		return 0
@@ -1790,6 +1996,154 @@ func shortTaskID(taskID string) string {
 		return value
 	}
 	return value[:8]
+}
+
+func pendingTaskElapsed(startedAt string, fallback time.Time) time.Duration {
+	ts := strings.TrimSpace(startedAt)
+	if ts != "" {
+		if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+			if elapsed := time.Since(parsed); elapsed > 0 {
+				return elapsed
+			}
+		} else if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			if elapsed := time.Since(parsed); elapsed > 0 {
+				return elapsed
+			}
+		}
+	}
+	return time.Since(fallback)
+}
+
+func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group string) error {
+	pending, err := listPendingInitialSyncs(ctx, group)
+	if err != nil || len(pending) == 0 {
+		return err
+	}
+	printer.Info(fmt.Sprintf("Waiting for %d pending initial sync(s) in the active group before generating feedback.", len(pending)))
+	progress := newRepoProgressTracker(len(pending))
+	for idx, item := range pending {
+		cfg := item.Config
+		if len(cfg.Repos) == 0 {
+			continue
+		}
+		repo := &cfg.Repos[0]
+		if strings.TrimSpace(repo.PendingTaskID) == "" {
+			continue
+		}
+		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			return fmt.Errorf(
+				"pending initial sync for %s is stale (%s old; cutoff %s); rerun the baseline sync for that repo before generating feedback",
+				item.Label,
+				humanDuration(age),
+				humanDuration(cutoff),
+			)
+		}
+		waitStartedAt := time.Now()
+		st, timedOut, err := waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
+			printer.Info(formatTaskProgressLine(idx+1, len(pending), "Waiting for initial indexing of", item.Label, st, elapsed))
+		})
+		if err != nil {
+			return err
+		}
+		if timedOut {
+			return fmt.Errorf(
+				"processing timeout after %ds while waiting for pending initial sync of %s (rerun 'compair sync' to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+				syncProcessTimeoutSec,
+				item.Label,
+			)
+		}
+		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+		case "SUCCESS":
+		default:
+			return fmt.Errorf("pending initial sync task %s for %s ended with status %s", shortTaskID(repo.PendingTaskID), item.Label, st.Status)
+		}
+		if err := waitForChunkTasks(ctx, client, st.Result, item.Label, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+			printer.Info(
+				fmt.Sprintf(
+					"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+					idx+1,
+					len(pending),
+					taskIndex,
+					taskTotal,
+					item.Label,
+					humanDuration(elapsed),
+				),
+			)
+		}); err != nil {
+			clearPendingRepoTaskOnTerminalChunkFailure(item.Root, cfg, repo, err)
+			return err
+		}
+		latest := strings.TrimSpace(repo.PendingTaskCommit)
+		localWaitElapsed := time.Since(waitStartedAt)
+		taskAge := pendingTaskElapsed(repo.PendingTaskStartedAt, waitStartedAt)
+		if latest != "" {
+			finalizeRepoSync(item.Root, group, cfg, repo, latest)
+		} else {
+			clearPendingRepoTask(item.Root, cfg, repo)
+		}
+		if localWaitElapsed <= 3*time.Second {
+			printer.Info(progress.alreadyCompleteLine(idx+1, item.Label, taskAge))
+		} else {
+			printer.Info(progress.completeLine(idx+1, item.Label, localWaitElapsed))
+		}
+	}
+	return nil
+}
+
+func clearPendingRepoTaskOnTerminalChunkFailure(root string, cfg config.Project, repo *config.Repo, err error) {
+	if err == nil {
+		return
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "ended with status") {
+		clearPendingRepoTask(root, cfg, repo)
+	}
+}
+
+func listPendingInitialSyncs(ctx context.Context, group string) ([]pendingInitialSync, error) {
+	store, err := db.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	roots, err := store.ListRepoRoots(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pendingInitialSync, 0, len(roots))
+	for _, root := range roots {
+		cfg, err := config.ReadProjectConfig(root)
+		if err != nil || len(cfg.Repos) == 0 {
+			continue
+		}
+		repo := cfg.Repos[0]
+		if strings.TrimSpace(repo.PendingTaskID) == "" {
+			continue
+		}
+		if strings.TrimSpace(repo.LastSyncedCommit) != "" {
+			continue
+		}
+		out = append(out, pendingInitialSync{
+			Root:   root,
+			Label:  repoDisplayLabel(root, repo.RemoteURL),
+			Config: cfg,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := strings.TrimSpace(out[i].Config.Repos[0].PendingTaskStartedAt)
+		right := strings.TrimSpace(out[j].Config.Repos[0].PendingTaskStartedAt)
+		if left == right {
+			return out[i].Label < out[j].Label
+		}
+		if left == "" {
+			return false
+		}
+		if right == "" {
+			return true
+		}
+		return left < right
+	})
+	return out, nil
 }
 
 func repoDisplayLabel(root, remote string) string {

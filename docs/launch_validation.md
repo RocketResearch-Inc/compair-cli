@@ -109,6 +109,8 @@ compair track "$COMPAIR_ROOT/compair-ui" --initial-sync --no-feedback
 
 compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
 compair reports
+
+# Cloud only: ranked notification events are a hosted feature.
 compair notifications
 ```
 
@@ -117,7 +119,8 @@ Success criteria:
 - the first warm pass completes without hanging
 - the report is readable even if it produces zero findings on a clean baseline
 - if no feedback is generated here, continue to Step 4 and use the seeded drift scenario below
-- notifications add useful ranking/rationale instead of duplicating the report text when findings are present
+- if you are validating Cloud, `compair notifications` adds useful ranking/rationale instead of duplicating the report text
+- if you are validating Core, skip `compair notifications`; success is based on the report itself, because `/notification_events` is Cloud-only
 
 ## 4. Local CI simulation
 
@@ -131,6 +134,59 @@ Important:
 - Re-running different gate commands against the exact same unchanged drift will often show zero new feedback, because Compair avoids regenerating feedback for chunks that already have feedback, and the notification gate only evaluates fresh events from the current run.
 - If you want to compare multiple gates, reseed or vary the drift between runs.
 - A non-zero exit is expected when a blocking gate correctly matches the seeded drift. Treat that as a pass for the gate, then restore the file and move on.
+- Use a fresh validation group and fresh worktrees for each seeded scenario. This avoids stale feedback suppression, unrelated local edits in snapshot mode, and duplicate repo documents from partial reruns.
+- When switching between Cloud and Local Core for comparison, start the seeded scenario over in a new group instead of reusing the previous run.
+
+### Recommended isolation recipe
+
+Build and use the current CLI binary for seeded validation:
+
+```bash
+cd "$COMPAIR_ROOT/compair-cli"
+go build -o compair .
+export COMPAIR_BIN="$COMPAIR_ROOT/compair-cli/compair"
+"$COMPAIR_BIN" version
+```
+
+Reusable shell helpers:
+
+```bash
+compair_seed_setup() {
+  export SCENARIO_KEY="$1"
+  export SCENARIO_ROOT="/tmp/compair-${SCENARIO_KEY}"
+  export GROUP_NAME="Compair ${SCENARIO_KEY} $(date +%Y%m%d-%H%M%S)"
+
+  rm -rf "$SCENARIO_ROOT"
+  mkdir -p "$SCENARIO_ROOT"
+
+  git -C "$COMPAIR_ROOT/compair_core" worktree add "$SCENARIO_ROOT/compair_core" HEAD
+  git -C "$COMPAIR_ROOT/compair_cloud" worktree add "$SCENARIO_ROOT/compair_cloud" HEAD
+  git -C "$COMPAIR_ROOT/compair-cli" worktree add "$SCENARIO_ROOT/compair-cli" HEAD
+  git -C "$COMPAIR_ROOT/compair_desktop" worktree add "$SCENARIO_ROOT/compair_desktop" HEAD
+  git -C "$COMPAIR_ROOT/compair_site" worktree add "$SCENARIO_ROOT/compair_site" HEAD
+
+  "$COMPAIR_BIN" group create "$GROUP_NAME"
+  "$COMPAIR_BIN" group use "$GROUP_NAME"
+
+  "$COMPAIR_BIN" track "$SCENARIO_ROOT/compair_core" --initial-sync --no-feedback
+  "$COMPAIR_BIN" track "$SCENARIO_ROOT/compair_cloud" --initial-sync --no-feedback
+  "$COMPAIR_BIN" track "$SCENARIO_ROOT/compair-cli" --initial-sync --no-feedback
+  "$COMPAIR_BIN" track "$SCENARIO_ROOT/compair_desktop" --initial-sync --no-feedback
+  "$COMPAIR_BIN" track "$SCENARIO_ROOT/compair_site" --initial-sync --no-feedback
+}
+
+compair_seed_cleanup() {
+  git -C "$COMPAIR_ROOT/compair_core" worktree remove --force "$SCENARIO_ROOT/compair_core"
+  git -C "$COMPAIR_ROOT/compair_cloud" worktree remove --force "$SCENARIO_ROOT/compair_cloud"
+  git -C "$COMPAIR_ROOT/compair-cli" worktree remove --force "$SCENARIO_ROOT/compair-cli"
+  git -C "$COMPAIR_ROOT/compair_desktop" worktree remove --force "$SCENARIO_ROOT/compair_desktop"
+  git -C "$COMPAIR_ROOT/compair_site" worktree remove --force "$SCENARIO_ROOT/compair_site"
+  rm -rf "$SCENARIO_ROOT"
+  unset SCENARIO_KEY SCENARIO_ROOT GROUP_NAME
+}
+```
+
+Each scenario below assumes you start by running `compair_seed_setup <scenario-name>` and end by running `compair_seed_cleanup`.
 
 ### Scenario A: `api-contract`
 
@@ -139,7 +195,8 @@ Seed a temporary capabilities schema drift in `compair-cli`.
 This change intentionally makes the CLI expect camelCase capability fields, while Core and Cloud still publish snake_case fields from `/capabilities`.
 
 ```bash
-cd "$COMPAIR_ROOT/compair-cli"
+compair_seed_setup scenario-a
+cd "$SCENARIO_ROOT/compair-cli"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -153,8 +210,10 @@ print(f"Seeded temporary drift in {path}")
 PY
 
 git diff -- internal/api/capabilities.go
-compair sync --json --gate api-contract --snapshot-mode snapshot
+"$COMPAIR_BIN" sync --json --gate api-contract --snapshot-mode snapshot --write-md .compair/scenario-a.md
+"$COMPAIR_BIN" reports --file .compair/scenario-a.md
 git restore --source=HEAD -- internal/api/capabilities.go
+compair_seed_cleanup
 ```
 
 Expected rationale:
@@ -170,7 +229,8 @@ Seed a Core-vs-Cloud product-surface drift in `compair-cli` docs.
 This change intentionally claims that Google OAuth is available on pure Core, even though the backend capabilities route and Cloud OAuth implementation keep that path Cloud-only.
 
 ```bash
-cd "$COMPAIR_ROOT/compair-cli"
+compair_seed_setup scenario-b
+cd "$SCENARIO_ROOT/compair-cli"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -186,8 +246,10 @@ print(f"Seeded temporary drift in {path}")
 PY
 
 git diff -- docs/core_quickstart.md
-compair sync --json --gate cross-product --snapshot-mode snapshot
+"$COMPAIR_BIN" sync --json --gate cross-product --snapshot-mode snapshot --write-md .compair/scenario-b.md
+"$COMPAIR_BIN" reports --file .compair/scenario-b.md
 git restore --source=HEAD -- docs/core_quickstart.md
+compair_seed_cleanup
 ```
 
 Expected rationale:
@@ -203,7 +265,8 @@ Seed a CLI docs-to-implementation drift in the API map.
 This change intentionally documents the wrong activity endpoint, while the CLI client, Desktop client, and backend still use `/get_activity_feed`.
 
 ```bash
-cd "$COMPAIR_ROOT/compair-cli"
+compair_seed_setup scenario-c
+cd "$SCENARIO_ROOT/compair-cli"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -219,8 +282,10 @@ print(f"Seeded temporary drift in {path}")
 PY
 
 git diff -- docs/api_mapping.md
-compair sync --json --gate review --snapshot-mode snapshot
+"$COMPAIR_BIN" sync --json --gate review --snapshot-mode snapshot --write-md .compair/scenario-c.md
+"$COMPAIR_BIN" reports --file .compair/scenario-c.md
 git restore --source=HEAD -- docs/api_mapping.md
+compair_seed_cleanup
 ```
 
 Expected rationale:
@@ -229,6 +294,12 @@ Expected rationale:
 - `compair_desktop` still calls `/get_activity_feed`
 - `compair_core` still exposes `/get_activity_feed`
 
+Current note:
+
+- In the current repo state, this scenario may surface a stronger ambient drift in the same file about `sync` / `process_doc` behavior (`task_id` on Cloud vs `null` on Core) before it calls out the seeded activity-endpoint change.
+- Count that as a `review` preset pass, but not as an exact-seed pass.
+- If you need exact-seed validation here, fix the ambient `sync` row drift in `docs/api_mapping.md` first, then rerun this scenario.
+
 ### Scenario D: `strict`
 
 Seed a lower-friction website/install drift in `compair_site`.
@@ -236,7 +307,8 @@ Seed a lower-friction website/install drift in `compair_site`.
 This change intentionally makes the marketing copy claim the opposite of the live CLI install channels.
 
 ```bash
-cd "$COMPAIR_ROOT/compair_site"
+compair_seed_setup scenario-d
+cd "$SCENARIO_ROOT/compair_site"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -252,8 +324,10 @@ print(f"Seeded temporary drift in {path}")
 PY
 
 git diff -- src/content/site.ts
-compair sync --json --gate strict --snapshot-mode snapshot
+"$COMPAIR_BIN" sync --json --gate strict --snapshot-mode snapshot --write-md .compair/scenario-d.md
+"$COMPAIR_BIN" reports --file .compair/scenario-d.md
 git restore --source=HEAD -- src/content/site.ts
+compair_seed_cleanup
 ```
 
 Expected rationale:
@@ -262,13 +336,35 @@ Expected rationale:
 - the download page and package-distribution docs still show Homebrew and Linux repos as live
 - this is the kind of broader launch-surface mismatch that `strict` is meant to catch
 
+Current note:
+
+- In the current repo state, `strict` may surface a broader policy/legal drift in `src/content/site.ts` before it calls out the seeded install-note change.
+- That broader legal mismatch is still a valid `strict` pass if it clearly contradicts the CLI’s documented automation / CI behavior.
+- Replace this scenario later if you want a narrower exact-seed `strict` check with less ambient competition.
+
 ### Manual severity/type threshold
 
 If you want to exercise the low-level flags directly, rerun Scenario A and replace the preset with:
 
 ```bash
-cd "$COMPAIR_ROOT/compair-cli"
-compair sync --json --fail-on-severity high --fail-on-type potential_conflict --snapshot-mode snapshot
+compair_seed_setup scenario-threshold
+cd "$SCENARIO_ROOT/compair-cli"
+
+python3 - <<'PY'
+from pathlib import Path
+
+path = Path("internal/api/capabilities.go")
+text = path.read_text()
+text = text.replace('json:"single_user"', 'json:"singleUser"', 1)
+text = text.replace('json:"activity_feed"', 'json:"activityFeed"', 1)
+path.write_text(text)
+print(f"Seeded temporary drift in {path}")
+PY
+
+"$COMPAIR_BIN" sync --json --fail-on-severity high --fail-on-type potential_conflict --snapshot-mode snapshot --write-md .compair/scenario-threshold.md
+"$COMPAIR_BIN" reports --file .compair/scenario-threshold.md
+git restore --source=HEAD -- internal/api/capabilities.go
+compair_seed_cleanup
 ```
 
 Success criteria:
@@ -285,6 +381,7 @@ Success criteria:
 - `No new changes for ...`: the command probably ran without `--snapshot-mode snapshot`, or the drift was already restored. Re-seed the example, confirm the file still differs in `git diff`, and rerun the same command.
 - `No new feedback generated.`: the unchanged drift was likely analyzed already, or the current repo set did not produce a strong enough mismatch. Reseed or vary the drift, or run the scenario in a fresh validation group.
 - `chunk task ... ended with status FAILURE`: run `compair doctor` for Cloud mode, or `compair core doctor` plus `docker logs compair-core --tail 200` for local Core. If `doctor` still shows a pending review task after a terminal backend failure, reruns may keep resuming that saved task; either wait for the pending-task stale cutoff or remove the `pending_task_*` fields from `.compair/config.yaml` before rerunning.
+- `GET /load_groups ... Internal Server Error` or the hosted API OOMs during baseline tracking: retry only the failed `track` command after the service recovers; do not rerun the entire batch and create duplicate repo documents. If this reproduces on the optimized build, capture API memory graphs/logs and plan an API memory bump.
 - Hosted Cloud failures that reproduce on an unmodified released build are worth escalating. Collect the failing task id, `compair doctor --json`, and any API/worker logs you have, then send that bundle to `support@compair.sh`.
 - Auth, group, or repo-binding errors from `compair doctor` should be fixed before more sync attempts. The `Fix` text in `doctor` is the shortest path in those cases.
 

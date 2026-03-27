@@ -32,9 +32,6 @@ var trackCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := ensureWritableGroup(client, groupID); err != nil {
-			return err
-		}
 
 		remote, root, err := resolveLocalRepo(target, "path")
 		if err != nil {

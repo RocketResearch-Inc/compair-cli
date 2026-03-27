@@ -70,7 +70,12 @@ func IsGitRepo(path string) bool {
 		return false
 	}
 	fi, err := os.Stat(filepath.Join(path, ".git"))
-	return err == nil && fi.IsDir()
+	if err == nil {
+		// Linked worktrees expose .git as a file that points at the shared gitdir.
+		return fi.IsDir() || fi.Mode().IsRegular()
+	}
+	_, err = RepoRootAt(path)
+	return err == nil
 }
 
 func GuessProvider(remote string) string {

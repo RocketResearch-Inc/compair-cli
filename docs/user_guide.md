@@ -402,7 +402,7 @@ compair reports --system
 # Render a specific file
 compair reports --file .compair/latest_feedback_sync.md
 ```
-- Reports live under `.compair/*_feedback_sync.md`
+- Reports saved under `.compair/*.md` are discoverable via `compair reports`
 - Rendering happens in-terminal via a lightweight Markdown renderer with a plain-text fallback
 - When iterating (`--all`), press Enter to move forward, `o` to open the file externally, or `q` to exit
 - On Cloud, report sections are ordered using notification-event ranking when those events exist for the feedback chunks

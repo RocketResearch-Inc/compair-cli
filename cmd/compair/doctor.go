@@ -182,13 +182,13 @@ var doctorCmd = &cobra.Command{
 				if doc.DocType != "" && doc.DocType != "code-repo" {
 					doctorWarn(&report, &summary, emit, "Repo document type", doc.DocType, "This repo is bound to a non-code document type. Re-run 'compair track' if review quality looks wrong.")
 				}
-					if !doc.IsPublished {
-						doctorWarn(&report, &summary, emit, "Repo publish state", "unpublished", "Cross-repo feedback is reduced when repo docs are unpublished. Run 'compair review' or 'compair sync' to auto-publish, or re-track without --unpublished.")
-					} else {
-						doctorOK(&report, emit, "Repo publish state", "published")
-					}
+				if !doc.IsPublished {
+					doctorWarn(&report, &summary, emit, "Repo publish state", "unpublished", "Cross-repo feedback is reduced when repo docs are unpublished. Run 'compair review' or 'compair sync' to auto-publish, or re-track without --unpublished.")
+				} else {
+					doctorOK(&report, emit, "Repo publish state", "published")
 				}
 			}
+		}
 
 		if strings.TrimSpace(repo.LastSyncedCommit) == "" {
 			doctorWarn(&report, &summary, emit, "Last synced commit", "missing", "Run 'compair review' or 'compair sync' to establish the first sync baseline.")
@@ -204,7 +204,7 @@ var doctorCmd = &cobra.Command{
 				&report,
 				&summary,
 				emit,
-				"Pending review task",
+				"Pending processing task",
 				detail,
 				"Rerun 'compair review' or 'compair sync' to continue waiting without resubmitting this repo.",
 			)

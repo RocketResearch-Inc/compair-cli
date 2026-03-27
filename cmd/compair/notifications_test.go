@@ -1,6 +1,7 @@
 package compair
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
@@ -30,5 +31,36 @@ func TestNonEmptyLines(t *testing.T) {
 	}
 	if lines[0] != "first" || lines[1] != "second" {
 		t.Fatalf("unexpected filtered lines: %#v", lines)
+	}
+}
+
+func TestRenderNotificationEventsMarkdownIncludesEvidenceAndSummary(t *testing.T) {
+	md := renderNotificationEventsMarkdown([]api.NotificationEvent{
+		{
+			EventID:        "evt_123",
+			Severity:       "high",
+			Intent:         "potential_conflict",
+			TargetDocID:    "doc_target",
+			PeerDocIDs:     []string{"doc_peer"},
+			DeliveryAction: "digest",
+			Channel:        "email_digest",
+			Rationale:      []string{"Mismatch appears real."},
+			EvidenceTarget: "COMPAIR_TELEMETRY_BASE_URL",
+			EvidencePeer:   "COMPAIR_TELEMETRY_BASE",
+			CreatedAt:      "2026-03-26T03:21:10Z",
+		},
+	}, false)
+
+	for _, want := range []string{
+		"## Summary",
+		"## Notification 1",
+		"**Target Evidence**",
+		"COMPAIR_TELEMETRY_BASE_URL",
+		"**Peer Evidence**",
+		"COMPAIR_TELEMETRY_BASE",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("expected markdown to contain %q, got:\n%s", want, md)
+		}
 	}
 }

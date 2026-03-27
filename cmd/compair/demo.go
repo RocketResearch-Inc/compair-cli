@@ -383,8 +383,8 @@ func primeDemoWorkspace(cmd *cobra.Command, client *api.Client, groupID string, 
 			return err
 		}
 		if strings.TrimSpace(resp.TaskID) != "" {
-			st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(elapsed time.Duration) {
-				fmt.Println(progress.waitingLine(idx+1, repoLabel, elapsed))
+			st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(st api.TaskStatus, elapsed time.Duration) {
+				fmt.Println(formatTaskProgressLine(idx+1, len(roots), "Still processing", repoLabel, st, elapsed))
 			})
 			if err != nil {
 				return err

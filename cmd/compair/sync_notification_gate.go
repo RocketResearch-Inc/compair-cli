@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
+	"github.com/RocketResearch-Inc/compair-cli/internal/printer"
 )
 
 type notificationGateResult struct {
@@ -23,7 +24,7 @@ func detailedNotificationGateEnabled() bool {
 	return len(syncFailOnSeverity) > 0 || len(syncFailOnType) > 0
 }
 
-func evaluateNotificationGate(client *api.Client, groupID string, targetDocIDs map[string]struct{}, startedAt time.Time) (notificationGateResult, error) {
+func evaluateNotificationGate(client *api.Client, groupID string, targetDocIDs map[string]struct{}, startedAt time.Time, waitBudget time.Duration) (notificationGateResult, error) {
 	result := notificationGateResult{
 		Enabled:    detailedNotificationGateEnabled(),
 		Severities: append([]string(nil), syncFailOnSeverity...),
@@ -33,22 +34,69 @@ func evaluateNotificationGate(client *api.Client, groupID string, targetDocIDs m
 		return result, nil
 	}
 
-	resp, err := client.ListNotificationEvents(api.NotificationEventsOptions{
-		GroupID:  groupID,
-		Page:     1,
-		PageSize: 100,
-	})
-	if err != nil {
-		result.Error = err.Error()
-		return result, err
+	fetch := func() (notificationGateResult, error) {
+		resp, err := client.ListNotificationEvents(api.NotificationEventsOptions{
+			GroupID:  groupID,
+			Page:     1,
+			PageSize: 100,
+		})
+		if err != nil {
+			result.Error = err.Error()
+			return result, err
+		}
+		return collectNotificationGateResult(resp.Events, result, targetDocIDs, startedAt), nil
 	}
 
+	if waitBudget <= 0 {
+		return fetch()
+	}
+
+	deadline := time.Now().Add(waitBudget)
+	pollStartedAt := time.Now()
+	lastProgressAt := time.Time{}
+	lastConsidered := -1
+	stablePolls := 0
+
+	for {
+		current, err := fetch()
+		if err != nil {
+			return current, err
+		}
+		result = current
+
+		if result.ConsideredCount == lastConsidered {
+			stablePolls++
+		} else {
+			stablePolls = 0
+			lastConsidered = result.ConsideredCount
+		}
+		if result.ConsideredCount > 0 && stablePolls >= 2 {
+			return result, nil
+		}
+		if time.Now().After(deadline) {
+			return result, nil
+		}
+		if lastProgressAt.IsZero() || time.Since(lastProgressAt) >= 15*time.Second {
+			printer.Info(
+				fmt.Sprintf(
+					"Waiting for notification scoring for gated documents (%s elapsed, %d event(s) considered so far)",
+					humanDuration(time.Since(pollStartedAt)),
+					result.ConsideredCount,
+				),
+			)
+			lastProgressAt = time.Now()
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func collectNotificationGateResult(events []api.NotificationEvent, result notificationGateResult, targetDocIDs map[string]struct{}, startedAt time.Time) notificationGateResult {
 	result.Available = true
 	severitySet := normalizedSet(syncFailOnSeverity)
 	typeSet := normalizedSet(syncFailOnType)
 	since := startedAt.Add(-30 * time.Second)
 
-	for _, event := range resp.Events {
+	for _, event := range events {
 		createdAt, ok := timestampAsTime(event.CreatedAt)
 		if !ok || createdAt.Before(since) {
 			continue
@@ -79,7 +127,18 @@ func evaluateNotificationGate(client *api.Client, groupID string, targetDocIDs m
 		}
 	}
 
-	return result, nil
+	return result
+}
+
+func notificationGateWaitBudget(uploaded bool) time.Duration {
+	if !uploaded || !detailedNotificationGateEnabled() || feedbackWaitSec <= 0 {
+		return 0
+	}
+	seconds := feedbackWaitSec
+	if seconds < 60 {
+		seconds = 60
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func notificationMatchesFilters(event api.NotificationEvent, severitySet map[string]struct{}, typeSet map[string]struct{}) bool {

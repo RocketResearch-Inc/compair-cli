@@ -509,9 +509,10 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 }
 
 type TaskStatus struct {
-	Status  string      `json:"status"` // PENDING|SUCCESS|FAILED
-	Result  interface{} `json:"result,omitempty"`
-	Message string      `json:"message,omitempty"`
+	Status  string         `json:"status"` // PENDING|STARTED|PROGRESS|SUCCESS|FAILED
+	Result  interface{}    `json:"result,omitempty"`
+	Message string         `json:"message,omitempty"`
+	Meta    map[string]any `json:"meta,omitempty"`
 }
 
 // ---- Feedback & Documents ----

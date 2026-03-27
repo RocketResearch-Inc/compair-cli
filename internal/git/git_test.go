@@ -49,6 +49,35 @@ func TestCollectChangeTextAtWithLimitWithoutSinceSHA(t *testing.T) {
 	}
 }
 
+func TestIsGitRepoSupportsLinkedWorktree(t *testing.T) {
+	root := initTestRepo(t)
+	writeFile(t, filepath.Join(root, "demo.txt"), "hello\n")
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "initial commit")
+
+	worktree := filepath.Join(t.TempDir(), "linked-worktree")
+	runGit(t, root, "worktree", "add", "-b", "linked-worktree", worktree)
+
+	if !IsGitRepo(worktree) {
+		t.Fatalf("expected linked worktree to be recognized as a git repo")
+	}
+	got, err := RepoRootAt(worktree)
+	if err != nil {
+		t.Fatalf("RepoRootAt(worktree): %v", err)
+	}
+	wantReal, err := filepath.EvalSymlinks(worktree)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(worktree): %v", err)
+	}
+	gotReal, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(RepoRootAt(worktree)): %v", err)
+	}
+	if gotReal != wantReal {
+		t.Fatalf("expected RepoRootAt(worktree) to resolve to %q, got %q", wantReal, gotReal)
+	}
+}
+
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

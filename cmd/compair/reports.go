@@ -79,7 +79,7 @@ func discoverReports() ([]feedbackReport, error) {
 	reports := make([]feedbackReport, 0, len(entries))
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.HasSuffix(name, "_feedback_sync.md") {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(name), ".md") {
 			continue
 		}
 		info, err := e.Info()

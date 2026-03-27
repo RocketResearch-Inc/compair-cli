@@ -150,3 +150,44 @@ func TestListGroupsFetchesMultiplePages(t *testing.T) {
 		t.Fatalf("unexpected groups: first=%#v last=%#v", groups[0], groups[len(groups)-1])
 	}
 }
+
+func TestGetTaskStatusIncludesMeta(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/status/task_123" {
+			t.Fatalf("expected /status/task_123, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"task_id":"task_123",
+			"status":"PROGRESS",
+			"result":"Task is running.",
+			"message":"Indexing chunks",
+			"meta":{
+				"stage":"indexing",
+				"indexed_chunks_done":12,
+				"indexed_chunks_total":48
+			}
+		}`)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.http = server.Client()
+
+	status, err := client.GetTaskStatus("task_123")
+	if err != nil {
+		t.Fatalf("GetTaskStatus returned error: %v", err)
+	}
+	if status.Status != "PROGRESS" {
+		t.Fatalf("expected PROGRESS status, got %q", status.Status)
+	}
+	if status.Message != "Indexing chunks" {
+		t.Fatalf("expected message to round-trip, got %q", status.Message)
+	}
+	if got := status.Meta["stage"]; got != "indexing" {
+		t.Fatalf("expected meta.stage=indexing, got %#v", got)
+	}
+	if got := status.Meta["indexed_chunks_total"]; got != float64(48) {
+		t.Fatalf("expected indexed_chunks_total to decode as 48, got %#v", got)
+	}
+}

@@ -51,9 +51,6 @@ var groupAddRepoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := ensureWritableGroup(client, groupID); err != nil {
-			return err
-		}
 		remote, root, err := resolveRemoteAndRoot(repoArg, repoPath)
 		if err != nil {
 			return err
@@ -167,26 +164,6 @@ func resolveLocalRepo(pathValue, label string) (string, string, error) {
 	return remote, root, nil
 }
 
-func ensureWritableGroup(client *api.Client, groupID string) error {
-	items, err := client.ListGroups(true)
-	if err != nil {
-		return err
-	}
-	for _, g := range items {
-		id := g.ID
-		if id == "" {
-			id = g.GroupID
-		}
-		if id == groupID {
-			return nil
-		}
-	}
-	return fmt.Errorf(
-		"group '%s' is not available to the current user. This usually means the local binding is stale after an account reset or the repo is pointed at a group you no longer belong to. Run 'compair group ls' and use a current group ID.",
-		groupID,
-	)
-}
-
 func registerRepoDocument(client *api.Client, groupID, remote, root string, opts repoRegistrationOptions) (string, error) {
 	title := git.ShortenRemote(remote)
 	doc, err := client.CreateDoc(title, "code-repo", "", groupID, !opts.Unpublished)
@@ -251,13 +228,24 @@ func registerRepoDocument(client *api.Client, groupID, remote, root string, opts
 		} else {
 			resp, err = client.ProcessDoc(doc.DocumentID, text, generateFeedback)
 		}
-		if err == nil {
-			_ = resp
+		if err != nil {
+			upsertRepoWorkspaceBinding(root, groupID, doc.DocumentID, "", opts.Unpublished)
+			return doc.DocumentID, err
 		}
-		cfg.Repos[0].LastSyncedCommit = latest
-		_ = config.WriteProjectConfig(root, cfg)
+		if strings.TrimSpace(resp.TaskID) != "" {
+			persistPendingRepoTask(root, cfg, &cfg.Repos[0], resp.TaskID, latest, 0)
+			upsertRepoWorkspaceBinding(root, groupID, doc.DocumentID, "", opts.Unpublished)
+			printer.Info(
+				"Initial sync submitted for " + title + "; indexing continues in the background as server task " + shortTaskID(resp.TaskID),
+			)
+			printer.Info("Run 'compair sync' or 'compair review' later and Compair will wait for unfinished baseline indexing before feedback.")
+			return doc.DocumentID, nil
+		}
+		finalizeRepoSync(root, groupID, cfg, &cfg.Repos[0], latest)
+		printer.Success("Initial sync completed for " + title)
+		return doc.DocumentID, nil
 	}
-	upsertRepoWorkspaceBinding(root, groupID, doc.DocumentID, latest, opts.Unpublished)
+	finalizeRepoSync(root, groupID, cfg, &cfg.Repos[0], latest)
 	return doc.DocumentID, nil
 }
 

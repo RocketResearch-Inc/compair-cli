@@ -200,7 +200,7 @@ func printRepoStatus() {
 		fmt.Println("  Last synced commit: (none yet)")
 	}
 	if strings.TrimSpace(repo.PendingTaskID) != "" {
-		fmt.Printf("  Pending review task: %s\n", repo.PendingTaskID)
+		fmt.Printf("  Pending processing task: %s\n", repo.PendingTaskID)
 		if strings.TrimSpace(repo.PendingTaskCommit) != "" {
 			fmt.Printf("  Pending task commit: %s\n", shortSHA(repo.PendingTaskCommit))
 		}
