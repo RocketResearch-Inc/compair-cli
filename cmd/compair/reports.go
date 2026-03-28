@@ -11,10 +11,12 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 var reportsAll bool
@@ -24,6 +26,18 @@ var reportsFile string
 type feedbackReport struct {
 	Path    string
 	ModTime int64
+}
+
+var stdoutIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+var markdownRenderFunc = func(md string) (string, error) {
+	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
+	if err != nil {
+		return "", err
+	}
+	return renderer.Render(md)
 }
 
 var reportsCmd = &cobra.Command{
@@ -136,16 +150,52 @@ func renderInteractive(reports []feedbackReport) error {
 
 func renderMarkdown(md string) (string, error) {
 	if shouldRenderPlainMarkdown() {
-		if strings.HasSuffix(md, "\n") {
-			return md, nil
-		}
-		return md + "\n", nil
+		return plainMarkdown(md), nil
 	}
-	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
-	if err != nil {
-		return "", err
+
+	timeout := markdownRenderTimeout()
+	if timeout <= 0 {
+		return markdownRenderFunc(md)
 	}
-	return renderer.Render(md)
+
+	type renderResult struct {
+		out string
+		err error
+	}
+	done := make(chan renderResult, 1)
+	go func() {
+		out, err := markdownRenderFunc(md)
+		done <- renderResult{out: out, err: err}
+	}()
+
+	select {
+	case result := <-done:
+		return result.out, result.err
+	case <-time.After(timeout):
+		return plainMarkdown(md), nil
+	}
+}
+
+func plainMarkdown(md string) string {
+	if strings.HasSuffix(md, "\n") {
+		return md
+	}
+	return md + "\n"
+}
+
+func markdownRenderTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("COMPAIR_MARKDOWN_RENDER_TIMEOUT_MS"))
+	if raw == "" {
+		return 2 * time.Second
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err == nil {
+		return parsed
+	}
+	if ms, err := time.ParseDuration(raw + "ms"); err == nil {
+		return ms
+	}
+	return 2 * time.Second
 }
 
 func shouldRenderPlainMarkdown() bool {
@@ -153,6 +203,12 @@ func shouldRenderPlainMarkdown() bool {
 		return true
 	}
 	if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
+		return true
+	}
+	if !stdoutIsTerminal() {
 		return true
 	}
 	if runtime.GOOS != "windows" {

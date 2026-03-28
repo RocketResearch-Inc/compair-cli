@@ -883,13 +883,16 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	}
 	var gateResult notificationGateResult
 	var gateErr error
-	if supported, authoritative := notificationEventsCapability(caps); !supported && authoritative {
+	if available, capErr := notificationEventsAvailable(client, caps, group); !available {
 		gateResult = notificationGateResult{
 			Enabled:    detailedNotificationGateEnabled(),
 			Available:  false,
 			Severities: append([]string(nil), syncFailOnSeverity...),
 			Types:      append([]string(nil), syncFailOnType...),
 			Error:      "notification events are unavailable on this server according to /capabilities",
+		}
+		if capErr != nil {
+			gateResult.Error = capErr.Error()
 		}
 		if gateResult.Enabled {
 			gateErr = fmt.Errorf("%s", gateResult.Error)

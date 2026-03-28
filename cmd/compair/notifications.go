@@ -92,9 +92,6 @@ var notificationsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := api.NewClient(viper.GetString("api.base"))
 		caps, _ := client.Capabilities(10 * time.Minute)
-		if supported, authoritative := notificationEventsCapability(caps); !supported && authoritative {
-			return fmt.Errorf("notification events are unavailable on this server according to /capabilities")
-		}
 		groupID := ""
 		if !notificationsAllGroups {
 			var err error
@@ -102,6 +99,12 @@ var notificationsCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+		}
+		if available, err := notificationEventsAvailable(client, caps, groupID); !available {
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("notification events are unavailable on this server according to /capabilities")
 		}
 		opts := api.NotificationEventsOptions{
 			GroupID:             groupID,

@@ -117,12 +117,16 @@ func printAuthStatus(client *api.Client, caps *api.Capabilities) {
 		fmt.Printf("  Feedback per day: %s\n", formatCapabilityLimit(caps.Limits.FeedbackPerDay))
 		fmt.Printf("  Document slots: %s\n", formatCapabilityLimit(caps.Limits.Docs))
 	}
-	if userInfoLoaded && userInfo.IncludeOwnDocumentsInFeedback != nil {
+	if !userInfoLoaded {
+		fmt.Println("  Self-feedback: unavailable (could not load the current user profile from the server)")
+	} else if userInfo.IncludeOwnDocumentsInFeedback != nil {
 		fmt.Printf("  Self-feedback: %s\n", onOff(*userInfo.IncludeOwnDocumentsInFeedback))
 	} else {
 		fmt.Println("  Self-feedback: unavailable (server has not exposed this field yet)")
 	}
-	if userInfoLoaded && strings.TrimSpace(userInfo.PreferredFeedbackLength) != "" {
+	if !userInfoLoaded {
+		fmt.Println("  Feedback length: unavailable (could not load the current user profile from the server)")
+	} else if strings.TrimSpace(userInfo.PreferredFeedbackLength) != "" {
 		fmt.Printf("  Feedback length: %s\n", userInfo.PreferredFeedbackLength)
 	} else {
 		fmt.Println("  Feedback length: unavailable (server has not exposed this field yet)")

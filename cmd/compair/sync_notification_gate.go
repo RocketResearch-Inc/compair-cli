@@ -23,6 +23,38 @@ func notificationEventsCapability(caps *api.Capabilities) (available bool, autho
 	return false, true
 }
 
+func notificationEventsAvailable(client *api.Client, caps *api.Capabilities, groupID string) (bool, error) {
+	supported, authoritative := notificationEventsCapability(caps)
+	if supported {
+		return true, nil
+	}
+	if !authoritative {
+		return true, nil
+	}
+	if client == nil {
+		return false, nil
+	}
+	_, err := client.ListNotificationEvents(api.NotificationEventsOptions{
+		GroupID:             groupID,
+		Page:                1,
+		PageSize:            1,
+		IncludeAcknowledged: true,
+		IncludeDismissed:    true,
+	})
+	if err == nil {
+		_ = api.ClearCapabilitiesCache()
+		return true, nil
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if strings.Contains(msg, "404") ||
+		strings.Contains(msg, "not found") ||
+		strings.Contains(msg, "501") ||
+		strings.Contains(msg, "only available") {
+		return false, nil
+	}
+	return false, err
+}
+
 type notificationGateResult struct {
 	Enabled         bool     `json:"enabled"`
 	Available       bool     `json:"available"`
