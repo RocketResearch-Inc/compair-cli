@@ -81,16 +81,22 @@ func evaluateNotificationGate(client *api.Client, groupID string, targetDocIDs m
 	}
 
 	fetch := func() (notificationGateResult, error) {
+		current := notificationGateResult{
+			Enabled:    result.Enabled,
+			Available:  result.Available,
+			Severities: append([]string(nil), result.Severities...),
+			Types:      append([]string(nil), result.Types...),
+		}
 		resp, err := client.ListNotificationEvents(api.NotificationEventsOptions{
 			GroupID:  groupID,
 			Page:     1,
 			PageSize: 100,
 		})
 		if err != nil {
-			result.Error = err.Error()
-			return result, err
+			current.Error = err.Error()
+			return current, err
 		}
-		return collectNotificationGateResult(resp.Events, result, targetDocIDs, startedAt), nil
+		return collectNotificationGateResult(resp.Events, current, targetDocIDs, startedAt), nil
 	}
 
 	if waitBudget <= 0 {
