@@ -141,8 +141,9 @@ type syncInvocationMode struct {
 }
 
 var syncCmd = &cobra.Command{
-	Use:   "sync [PATH ...]",
-	Short: "Process recent changes and/or fetch feedback",
+	Use:          "sync [PATH ...]",
+	Short:        "Process recent changes and/or fetch feedback",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSyncCommand(cmd, args, syncInvocationMode{
 			FetchOnly: fetchOnly,

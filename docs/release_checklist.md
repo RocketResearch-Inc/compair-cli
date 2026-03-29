@@ -25,6 +25,8 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] `core status`, `core doctor`, and `core up` verified on a clean machine
 - [ ] `core logs` and `core restart` behave as expected
 - [ ] `demo` works in both `--mode local` and `--mode cloud`
+- [ ] Local Core no-key path is clearly caveated as functional but lower-fidelity than Cloud in setup-facing docs and CLI output
+- [ ] Local Core with your own OpenAI key is smoke-tested and materially better than the bundled no-key path
 - [ ] First-time repo baseline snapshot works (no `last_synced_commit`)
 - [ ] Subsequent sync uses diffs and updates `last_synced_commit`
 - [ ] `review` runs a full review and writes the latest report
@@ -44,6 +46,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] `docs/config_reference.md` includes profiles + snapshot caps
 - [ ] `docs/ci_review_examples.md` matches the current review/report path
 - [ ] Troubleshooting section updated (if applicable)
+- [ ] README / launch-facing copy honestly positions Cloud as the strongest out-of-the-box experience and self-hosted Core as the bring-your-own-key path for higher review quality
 
 ## Cross-platform smoke tests
 - [ ] macOS: login, init, sync, review

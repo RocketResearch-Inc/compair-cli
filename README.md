@@ -13,6 +13,8 @@ Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared revi
 - Review changes in the context of the rest of your product
 - Turn high-confidence findings into CI checks when you're ready
 
+**Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, especially if you want to pair it with your own OpenAI key.
+
 ## Care to Compair? Try It In 5 Minutes
 
 The fastest way to see what Compair does:
@@ -106,6 +108,8 @@ compair core up
 compair login
 ```
 
+If you stay fully local with the bundled no-key providers, expect functional but simpler summaries than Cloud. If you want local review quality closer to Cloud, point Core at your own OpenAI key.
+
 ### Cloud
 
 Use this if you want the simplest shared setup.
@@ -114,6 +118,8 @@ Use this if you want the simplest shared setup.
 compair profile use cloud
 compair login
 ```
+
+Cloud is the best default when you want the strongest first impression, the least setup friction, and the best shared team workflow.
 
 **New here? Start with `compair demo`.**
 **Evaluating open/local? Start with Local.**

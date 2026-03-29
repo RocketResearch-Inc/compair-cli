@@ -60,6 +60,8 @@ export HOME="$(mktemp -d)"
 compair demo --mode local
 ```
 
+Treat this as a functionality and UX check, not the primary proof point for review quality. The bundled no-key local path should work and stay readable, but Cloud or OpenAI-backed local Core is still the stronger demo-quality experience.
+
 ### Local Core demo with OpenAI generation and local embeddings
 
 ```bash
@@ -82,6 +84,7 @@ Success criteria:
 
 - Cloud asks for the expected login flow and then completes
 - Local Core stays in single-user mode unless you explicitly switch auth
+- The no-key local demo is functional, but any launch screenshots or external examples should come from Cloud or OpenAI-backed local Core instead
 - The OpenAI-backed local demo produces natural feedback text instead of fallback reference dumps
 
 ## 3. Real cross-repo suite review
@@ -119,6 +122,7 @@ Success criteria:
 - the report is readable even if it produces zero findings on a clean baseline
 - if no feedback is generated here, continue to Step 4 and use the seeded drift scenario below
 - `compair notifications` adds useful ranking/rationale instead of duplicating the report text on both Cloud and Core
+- if you are preparing launch screenshots or examples, prefer Cloud or OpenAI-backed local runs over the bundled no-key local fallback
 
 ## 4. Local CI simulation
 

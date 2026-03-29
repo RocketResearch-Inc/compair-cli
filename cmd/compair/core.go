@@ -391,6 +391,11 @@ func runCoreStatus() error {
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
 	}
+	if usesBundledLocalProviders(cfg) {
+		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
+	} else if cfg.UsesOpenAI() {
+		fmt.Println("  Review quality: OpenAI-backed local Core")
+	}
 	fmt.Println()
 
 	fmt.Println("Docker:")
@@ -430,6 +435,11 @@ func runCoreConfigShow() error {
 		fmt.Printf("  OpenAI API key: %s\n", presence(cfg.ResolvedOpenAIAPIKey()))
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
+	}
+	if usesBundledLocalProviders(cfg) {
+		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
+	} else if cfg.UsesOpenAI() {
+		fmt.Println("  Review quality: OpenAI-backed local Core")
 	}
 	return nil
 }
@@ -627,6 +637,15 @@ func runCoreUp() error {
 	fmt.Println("Next steps:")
 	fmt.Println("  compair profile use local")
 	fmt.Println("  compair login")
+	if usesBundledLocalProviders(cfg) {
+		fmt.Println()
+		fmt.Println("Note: the bundled no-key local providers are functional, but review quality is lower-fidelity than Cloud.")
+		if strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) != "" {
+			fmt.Println("For stronger local review quality, switch Core to your OpenAI-backed setup with 'compair core config set --provider openai' or 'compair core config set --generation-provider openai --embedding-provider local', then run 'compair core restart'.")
+		} else {
+			fmt.Println("For stronger local review quality, configure your own OpenAI key with 'compair core config set --generation-provider openai --embedding-provider local --openai-api-key <key>' and then run 'compair core restart'.")
+		}
+	}
 	return nil
 }
 
@@ -653,6 +672,15 @@ func orNone(v string) string {
 		return "(none)"
 	}
 	return strings.TrimSpace(v)
+}
+
+func usesBundledLocalProviders(cfg *config.CoreRuntime) bool {
+	if cfg == nil {
+		return false
+	}
+	gen := strings.TrimSpace(strings.ToLower(cfg.GenerationProvider))
+	embed := strings.TrimSpace(strings.ToLower(cfg.EmbeddingProvider))
+	return (gen == "local" || gen == "fallback") && embed == "local"
 }
 
 func coreDoctorOK(report *coreDoctorReport, emit bool, label, detail string) {

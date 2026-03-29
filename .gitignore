@@ -7,6 +7,7 @@ core/compose/.env
 /compair-cli
 /compair.exe
 /compair-cli.exe
+/compair-matrix
 
 # Common build/test artifacts
 /bin/

@@ -16,6 +16,8 @@ compair login
 compair status
 ```
 
+If you stay on the bundled no-key local providers, expect functional but simpler summaries than Cloud. For the strongest self-hosted first impression, keep embeddings local and bring your own OpenAI key for generation.
+
 From inside a repo:
 
 ```bash
@@ -79,6 +81,8 @@ compair login
 ## Auth Modes
 
 Core supports two main auth modes:
+
+By default, local Core runs in single-user mode unless you explicitly turn authentication on.
 
 1. `COMPAIR_REQUIRE_AUTHENTICATION=false`
 - best for quick local evaluation
