@@ -110,7 +110,7 @@ func (c *Client) postForm(path string, data url.Values, out any) error {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	applyDefaultHeaders(req)
 	start := time.Now()
-	resp, err := c.http.Do(req)
+	resp, err := c.clientForPath(path).Do(req)
 	if err != nil {
 		logHTTP(http.MethodPost, path, 0, time.Since(start), "", err)
 		return err

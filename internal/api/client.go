@@ -22,6 +22,8 @@ const (
 	defaultUserAgent  = "compair-cli"
 	clientHeaderName  = "X-Compair-Client"
 	clientHeaderValue = "cli"
+	defaultHTTPTimeout = 30 * time.Second
+	processDocTimeout  = 10 * time.Minute
 )
 
 func NewClient(base string) *Client {
@@ -30,8 +32,22 @@ func NewClient(base string) *Client {
 	}
 	return &Client{
 		BaseURL: base,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: defaultHTTPTimeout},
 	}
+}
+
+func (c *Client) clientForPath(path string) *http.Client {
+	if c == nil || c.http == nil {
+		return &http.Client{Timeout: defaultHTTPTimeout}
+	}
+	if path != "/process_doc" {
+		return c.http
+	}
+	clone := *c.http
+	if clone.Timeout <= 0 || clone.Timeout < processDocTimeout {
+		clone.Timeout = processDocTimeout
+	}
+	return &clone
 }
 
 func (c *Client) get(path string, out any) error {

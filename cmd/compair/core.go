@@ -93,6 +93,9 @@ var coreConfigSetCmd = &cobra.Command{
 			return err
 		}
 		fmt.Println("Saved local Compair Core runtime config.")
+		if err := maybeWarnCoreRestartNeeded(cfg); err != nil {
+			return err
+		}
 		return runCoreConfigShow()
 	},
 }
@@ -441,6 +444,27 @@ func runCoreConfigShow() error {
 	} else if cfg.UsesOpenAI() {
 		fmt.Println("  Review quality: OpenAI-backed local Core")
 	}
+	return nil
+}
+
+func maybeWarnCoreRestartNeeded(cfg *config.CoreRuntime) error {
+	if cfg == nil {
+		return nil
+	}
+	if err := ensureDockerAvailable(); err != nil {
+		return nil
+	}
+	status, err := dockerContainerStatus(cfg.ContainerName)
+	if err != nil {
+		return nil
+	}
+	if status != "running" {
+		return nil
+	}
+	fmt.Println()
+	fmt.Println("Note: the local Core container is already running.")
+	fmt.Println("Config changes are saved, but they do not apply to the running container until you restart it.")
+	fmt.Println("Run 'compair core restart' before evaluating the new provider settings.")
 	return nil
 }
 
