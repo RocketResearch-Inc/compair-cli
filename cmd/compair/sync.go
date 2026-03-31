@@ -35,6 +35,8 @@ type feedbackNotificationMeta struct {
 	Severity       string
 	DeliveryAction string
 	CreatedAt      string
+	ParseMode      string
+	Model          string
 	Rationale      []string
 	DedupeKey      string
 	EvidenceTarget string
@@ -790,6 +792,13 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					if strings.TrimSpace(item.Meta.CreatedAt) != "" {
 						entry = append(entry, "**Notification Time:** "+item.Meta.CreatedAt)
 					}
+					if parseMode := strings.TrimSpace(item.Meta.ParseMode); parseMode != "" {
+						scoring := "**Scoring Parse Mode:** " + parseMode
+						if model := strings.TrimSpace(item.Meta.Model); model != "" && parseMode != "heuristic" {
+							scoring += " (`" + model + "`)"
+						}
+						entry = append(entry, scoring)
+					}
 					if len(item.Meta.PeerDocIDs) > 0 {
 						entry = append(entry, "**Peer Docs:** "+strings.Join(item.Meta.PeerDocIDs, ", "))
 					}
@@ -974,6 +983,8 @@ func buildNotificationIndex(client *api.Client, group string) map[string]*feedba
 			Severity:       strings.TrimSpace(event.Severity),
 			DeliveryAction: strings.TrimSpace(event.DeliveryAction),
 			CreatedAt:      formatTimestamp(event.CreatedAt),
+			ParseMode:      strings.TrimSpace(event.ParseMode),
+			Model:          strings.TrimSpace(event.Model),
 			Rationale:      event.Rationale,
 			DedupeKey:      strings.TrimSpace(event.DedupeKey),
 			EvidenceTarget: strings.TrimSpace(event.EvidenceTarget),

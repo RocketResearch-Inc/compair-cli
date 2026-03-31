@@ -233,6 +233,13 @@ func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
 		}
 		fmt.Println(line)
 	}
+	if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
+		line := "  Scoring parse mode: " + parseMode
+		if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
+			line += " (" + model + ")"
+		}
+		fmt.Println(line)
+	}
 	if len(event.PeerDocIDs) > 0 {
 		fmt.Println("  Peer docs:", strings.Join(event.PeerDocIDs, ", "))
 	}
@@ -291,6 +298,13 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 			line := "**Delivery:** " + delivery
 			if channel := strings.TrimSpace(event.Channel); channel != "" {
 				line += " via " + channel
+			}
+			lines = append(lines, line)
+		}
+		if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
+			line := "**Scoring Parse Mode:** " + parseMode
+			if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
+				line += fmt.Sprintf(" (`%s`)", model)
 			}
 			lines = append(lines, line)
 		}
