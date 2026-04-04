@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
+	"github.com/spf13/viper"
 )
 
 func TestNotificationStatus(t *testing.T) {
@@ -35,6 +36,10 @@ func TestNonEmptyLines(t *testing.T) {
 }
 
 func TestRenderNotificationEventsMarkdownIncludesEvidenceAndSummary(t *testing.T) {
+	prevVerbose := viper.GetBool("verbose")
+	viper.Set("verbose", false)
+	defer viper.Set("verbose", prevVerbose)
+
 	md := renderNotificationEventsMarkdown([]api.NotificationEvent{
 		{
 			EventID:        "evt_123",
@@ -42,6 +47,8 @@ func TestRenderNotificationEventsMarkdownIncludesEvidenceAndSummary(t *testing.T
 			Intent:         "potential_conflict",
 			TargetDocID:    "doc_target",
 			PeerDocIDs:     []string{"doc_peer"},
+			ParseMode:      "json",
+			Model:          "gpt-5",
 			DeliveryAction: "digest",
 			Channel:        "email_digest",
 			Rationale:      []string{"Mismatch appears real."},
@@ -61,6 +68,46 @@ func TestRenderNotificationEventsMarkdownIncludesEvidenceAndSummary(t *testing.T
 	} {
 		if !strings.Contains(md, want) {
 			t.Fatalf("expected markdown to contain %q, got:\n%s", want, md)
+		}
+	}
+	for _, unwanted := range []string{
+		"**Event ID:**",
+		"**Target Doc:**",
+		"**Scoring Parse Mode:**",
+		"**Peer Docs:**",
+	} {
+		if strings.Contains(md, unwanted) {
+			t.Fatalf("did not expect markdown to contain %q without verbose mode, got:\n%s", unwanted, md)
+		}
+	}
+}
+
+func TestRenderNotificationEventsMarkdownIncludesDebugMetadataWhenVerbose(t *testing.T) {
+	prevVerbose := viper.GetBool("verbose")
+	viper.Set("verbose", true)
+	defer viper.Set("verbose", prevVerbose)
+
+	md := renderNotificationEventsMarkdown([]api.NotificationEvent{
+		{
+			EventID:     "evt_123",
+			Severity:    "high",
+			Intent:      "potential_conflict",
+			TargetDocID: "doc_target",
+			PeerDocIDs:  []string{"doc_peer"},
+			ParseMode:   "json",
+			Model:       "gpt-5",
+			CreatedAt:   "2026-03-26T03:21:10Z",
+		},
+	}, false)
+
+	for _, want := range []string{
+		"**Event ID:** `evt_123`",
+		"**Target Doc:** `doc_target`",
+		"**Scoring Parse Mode:** json (`gpt-5`)",
+		"**Peer Docs:** `doc_peer`",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("expected verbose markdown to contain %q, got:\n%s", want, md)
 		}
 	}
 }

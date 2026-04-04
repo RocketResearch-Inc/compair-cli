@@ -792,15 +792,17 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					if strings.TrimSpace(item.Meta.CreatedAt) != "" {
 						entry = append(entry, "**Notification Time:** "+item.Meta.CreatedAt)
 					}
-					if parseMode := strings.TrimSpace(item.Meta.ParseMode); parseMode != "" {
-						scoring := "**Scoring Parse Mode:** " + parseMode
-						if model := strings.TrimSpace(item.Meta.Model); model != "" && parseMode != "heuristic" {
-							scoring += " (`" + model + "`)"
+					if includeReportDebugMetadata(reportOptions) {
+						if parseMode := strings.TrimSpace(item.Meta.ParseMode); parseMode != "" {
+							scoring := "**Scoring Parse Mode:** " + parseMode
+							if model := strings.TrimSpace(item.Meta.Model); model != "" && parseMode != "heuristic" {
+								scoring += " (`" + model + "`)"
+							}
+							entry = append(entry, scoring)
 						}
-						entry = append(entry, scoring)
-					}
-					if len(item.Meta.PeerDocIDs) > 0 {
-						entry = append(entry, "**Peer Docs:** "+strings.Join(item.Meta.PeerDocIDs, ", "))
+						if len(item.Meta.PeerDocIDs) > 0 {
+							entry = append(entry, "**Peer Docs:** "+strings.Join(item.Meta.PeerDocIDs, ", "))
+						}
 					}
 					if len(item.Meta.Rationale) > 0 {
 						entry = append(entry, "", "**Notification Rationale**")
@@ -811,6 +813,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						}
 					}
 				}
+				appendFeedbackComparedFiles(&entry, item, reportOptions)
 				appendFeedbackEvidence(&entry, item.Meta, reportOptions)
 				feedbackSummary.FeedbackCount++
 				if item.Meta != nil {
@@ -866,7 +869,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			cache[docID] = seen
 			feedbackSummary.DocumentCount++
 			appendMarkdownHeading(&lines, "## Document: "+title)
-			lines = append(lines, "Document ID: `"+docID+"`", "")
+			if includeReportDebugMetadata(reportOptions) {
+				lines = append(lines, "Document ID: `"+docID+"`", "")
+			}
 			lines = append(lines, newLines...)
 		}
 		if err := saveFeedbackCache(cachePath, cache); err != nil {
@@ -938,10 +943,14 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	if gateResult.Enabled && gateErr == nil {
 		if gateResult.MatchedCount > 0 {
 			return fmt.Errorf(
-				"notification gate matched %d event(s): %s",
+				"%s\nnotification gate matched %d event(s): %s",
+				notificationGateBlockedHeadline(gateResult),
 				gateResult.MatchedCount,
 				strings.Join(gateResult.Matches, ", "),
 			)
+		}
+		if !syncJSON {
+			printer.Success("PASS: no gated notifications matched.")
 		}
 		return nil
 	}
@@ -1124,6 +1133,87 @@ func pluralizeCount(count int, singular string, plural string) string {
 		return fmt.Sprintf("1 %s", singular)
 	}
 	return fmt.Sprintf("%d %s", count, plural)
+}
+
+func includeReportDebugMetadata(options reportRenderOptions) bool {
+	return options.IncludeDebug || options.DetailLevel >= reportDetailVerbose
+}
+
+func feedbackComparedFiles(item feedbackRenderItem) []string {
+	paths := map[string]struct{}{}
+	addPaths := func(values ...string) {
+		for path := range extractReportPaths(values...) {
+			paths[path] = struct{}{}
+		}
+	}
+	addPaths(
+		strings.TrimSpace(item.Feedback.ChunkContent),
+		strings.TrimSpace(item.Feedback.Feedback),
+		itemMetaEvidenceTarget(item.Meta),
+		itemMetaEvidencePeer(item.Meta),
+	)
+	for _, ref := range item.Feedback.References {
+		addPaths(strings.TrimSpace(ref.Title), strings.TrimSpace(ref.Content))
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(paths))
+	for path := range paths {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func appendFeedbackComparedFiles(entry *[]string, item feedbackRenderItem, options reportRenderOptions) {
+	files := feedbackComparedFiles(item)
+	if len(files) == 0 {
+		return
+	}
+	limit := len(files)
+	switch options.DetailLevel {
+	case reportDetailBrief:
+		if limit > 5 {
+			limit = 5
+		}
+	default:
+		if limit > 8 {
+			limit = 8
+		}
+	}
+	*entry = append(*entry, "", "**Compared Files**")
+	for _, path := range files[:limit] {
+		*entry = append(*entry, "- `"+path+"`")
+	}
+	if len(files) > limit {
+		*entry = append(*entry, fmt.Sprintf("- ... +%d more", len(files)-limit))
+	}
+	*entry = append(*entry, "")
+}
+
+func notificationGateBlockedHeadline(result notificationGateResult) string {
+	if result.MatchedCount == 1 && len(result.Matches) > 0 {
+		match := strings.TrimSpace(result.Matches[0])
+		match = strings.SplitN(match, "@", 2)[0]
+		severity := ""
+		intent := ""
+		if left, right, ok := strings.Cut(match, "/"); ok {
+			severity = strings.ToLower(strings.TrimSpace(left))
+			intent = strings.TrimSpace(right)
+		}
+		parts := []string{}
+		if severity != "" {
+			parts = append(parts, severity+"-severity")
+		}
+		if label := strings.ToLower(strings.TrimSpace(humanizeIntentLabel(intent))); label != "" {
+			parts = append(parts, label)
+		}
+		if len(parts) > 0 {
+			return "BLOCKED: " + strings.Join(parts, " ")
+		}
+	}
+	return fmt.Sprintf("BLOCKED: %s matched the notification gate", pluralizeCount(result.MatchedCount, "event", "events"))
 }
 
 func collapseDuplicateFeedbackItems(items []feedbackRenderItem) ([]feedbackRenderItem, int) {

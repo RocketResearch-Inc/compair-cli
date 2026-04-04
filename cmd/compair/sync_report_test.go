@@ -219,12 +219,69 @@ func TestAppendFeedbackReferenceExcerptsChoosesRelevantSnapshotSection(t *testin
 	}
 }
 
+func TestAppendFeedbackComparedFilesIncludesNormalizedPaths(t *testing.T) {
+	lines := []string{}
+	item := feedbackRenderItem{
+		Feedback: api.FeedbackEntry{
+			ChunkContent: "diff --git a/internal/api/capabilities.go b/internal/api/capabilities.go\n" +
+				"--- a/internal/api/capabilities.go\n+++ b/internal/api/capabilities.go\n",
+			Feedback: "Update `docs/core_quickstart.md`, `cmd/compair/core.go`, `server/routers/capabilities.py`, `desktop/src/session.ts`, and `site/src/pages/core.astro` to match `internal/api/capabilities.go`.",
+			References: []api.FeedbackReference{
+				{Content: "### File: api/schema/openapi.yaml\n/components/schemas/Capabilities"},
+			},
+		},
+		Meta: &feedbackNotificationMeta{
+			EvidenceTarget: "`docs/core_quickstart.md` still references `internal/api/capabilities.go`.",
+			EvidencePeer:   "`server/routers/capabilities.py` drives the capability response.",
+		},
+	}
+
+	appendFeedbackComparedFiles(&lines, item, reportRenderOptions{DetailLevel: reportDetailBrief})
+	out := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"**Compared Files**",
+		"- `api/schema/openapi.yaml`",
+		"- `cmd/compair/core.go`",
+		"- `desktop/src/session.ts`",
+		"- `docs/core_quickstart.md`",
+		"- `internal/api/capabilities.go`",
+		"- ... +2 more",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected compared files output to contain %q, got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "site/src/pages/core.astro") {
+		t.Fatalf("expected brief mode to cap compared files, got:\n%s", out)
+	}
+}
+
 func TestFeedbackHeadingUsesIntentLabel(t *testing.T) {
 	item := feedbackRenderItem{
 		Meta: &feedbackNotificationMeta{Intent: "hidden_overlap"},
 	}
 	if got := feedbackHeading(item, 2); got != "### Hidden Overlap 2" {
 		t.Fatalf("unexpected heading: %s", got)
+	}
+}
+
+func TestNotificationGateBlockedHeadlineUsesHumanSummary(t *testing.T) {
+	result := notificationGateResult{
+		MatchedCount: 1,
+		Matches:      []string{"high/potential_conflict@doc_123"},
+	}
+	if got := notificationGateBlockedHeadline(result); got != "BLOCKED: high-severity potential conflict" {
+		t.Fatalf("unexpected blocked headline: %s", got)
+	}
+}
+
+func TestNotificationGateBlockedHeadlineFallsBackForMultipleMatches(t *testing.T) {
+	result := notificationGateResult{
+		MatchedCount: 2,
+		Matches:      []string{"high/potential_conflict@doc_123", "medium/relevant_update@doc_456"},
+	}
+	if got := notificationGateBlockedHeadline(result); got != "BLOCKED: 2 events matched the notification gate" {
+		t.Fatalf("unexpected fallback blocked headline: %s", got)
 	}
 }
 

@@ -205,11 +205,12 @@ func init() {
 }
 
 func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
+	includeDebug := viper.GetBool("verbose")
 	severity := strings.ToUpper(strings.TrimSpace(event.Severity))
 	if severity == "" {
 		severity = "UNKNOWN"
 	}
-	intent := strings.TrimSpace(event.Intent)
+	intent := strings.TrimSpace(humanizeIntentLabel(event.Intent))
 	if intent == "" {
 		intent = "unknown"
 	}
@@ -217,9 +218,16 @@ func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
 	if created == "" {
 		created = "unknown"
 	}
-	fmt.Printf("%s  %s  %s  %s  %s\n", event.EventID, severity, intent, notificationStatus(event), created)
-	if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
-		fmt.Println("  Doc:", docID)
+	fmt.Printf("%s  %s  %s  %s\n", severity, intent, notificationStatus(event), created)
+	if includeDebug {
+		if eventID := strings.TrimSpace(event.EventID); eventID != "" {
+			fmt.Println("  Event ID:", eventID)
+		}
+	}
+	if includeDebug {
+		if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
+			fmt.Println("  Doc:", docID)
+		}
 	}
 	if includeGroup {
 		if groupID := strings.TrimSpace(event.GroupID); groupID != "" {
@@ -233,14 +241,16 @@ func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
 		}
 		fmt.Println(line)
 	}
-	if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
-		line := "  Scoring parse mode: " + parseMode
-		if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
-			line += " (" + model + ")"
+	if includeDebug {
+		if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
+			line := "  Scoring parse mode: " + parseMode
+			if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
+				line += " (" + model + ")"
+			}
+			fmt.Println(line)
 		}
-		fmt.Println(line)
 	}
-	if len(event.PeerDocIDs) > 0 {
+	if includeDebug && len(event.PeerDocIDs) > 0 {
 		fmt.Println("  Peer docs:", strings.Join(event.PeerDocIDs, ", "))
 	}
 	rationale := nonEmptyLines(event.Rationale)
@@ -269,6 +279,7 @@ func notificationStatus(event api.NotificationEvent) string {
 }
 
 func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGroup bool) string {
+	includeDebug := viper.GetBool("verbose")
 	lines := []string{
 		"Generated: " + time.Now().Format(time.RFC3339),
 		"",
@@ -281,13 +292,19 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 	for idx, event := range events {
 		appendMarkdownHeading(&lines, fmt.Sprintf("## Notification %d", idx+1))
 		lines = append(lines, "")
-		lines = append(lines, fmt.Sprintf("**Event ID:** `%s`", strings.TrimSpace(event.EventID)))
 		lines = append(lines, fmt.Sprintf("**Time:** %s", fallbackString(formatTimestamp(event.CreatedAt), "unknown")))
 		lines = append(lines, fmt.Sprintf("**Severity:** %s", fallbackString(strings.ToUpper(strings.TrimSpace(event.Severity)), "UNKNOWN")))
-		lines = append(lines, fmt.Sprintf("**Intent:** %s", fallbackString(strings.TrimSpace(event.Intent), "unknown")))
+		lines = append(lines, fmt.Sprintf("**Intent:** %s", fallbackString(strings.TrimSpace(humanizeIntentLabel(event.Intent)), "unknown")))
 		lines = append(lines, fmt.Sprintf("**Status:** %s", notificationStatus(event)))
-		if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
-			lines = append(lines, fmt.Sprintf("**Target Doc:** `%s`", docID))
+		if includeDebug {
+			if eventID := strings.TrimSpace(event.EventID); eventID != "" {
+				lines = append(lines, fmt.Sprintf("**Event ID:** `%s`", eventID))
+			}
+		}
+		if includeDebug {
+			if docID := strings.TrimSpace(event.TargetDocID); docID != "" {
+				lines = append(lines, fmt.Sprintf("**Target Doc:** `%s`", docID))
+			}
 		}
 		if includeGroup {
 			if groupID := strings.TrimSpace(event.GroupID); groupID != "" {
@@ -301,14 +318,16 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 			}
 			lines = append(lines, line)
 		}
-		if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
-			line := "**Scoring Parse Mode:** " + parseMode
-			if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
-				line += fmt.Sprintf(" (`%s`)", model)
+		if includeDebug {
+			if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
+				line := "**Scoring Parse Mode:** " + parseMode
+				if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
+					line += fmt.Sprintf(" (`%s`)", model)
+				}
+				lines = append(lines, line)
 			}
-			lines = append(lines, line)
 		}
-		if len(event.PeerDocIDs) > 0 {
+		if includeDebug && len(event.PeerDocIDs) > 0 {
 			lines = append(lines, fmt.Sprintf("**Peer Docs:** `%s`", strings.Join(event.PeerDocIDs, "`, `")))
 		}
 		rationale := nonEmptyLines(event.Rationale)
