@@ -13,8 +13,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "compair",
-	Short: "Compair CLI for code-aware insights",
+	Use:           "compair",
+	Short:         "Compair CLI for code-aware insights",
+	SilenceErrors: true,
 }
 
 func Execute() {

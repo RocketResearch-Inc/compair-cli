@@ -256,6 +256,31 @@ func TestAppendFeedbackComparedFilesIncludesNormalizedPaths(t *testing.T) {
 	}
 }
 
+func TestFeedbackComparedFilesRejectsShellTemplatesAndEndpoints(t *testing.T) {
+	item := feedbackRenderItem{
+		Feedback: api.FeedbackEntry{
+			ChunkContent: "GET /activity_feed should match the peer mapping in `${base}/group/${gid}` and `cmd/compair/core.go`.",
+			Feedback:     "Compare `/notification_events`, `${accum}/${part}`, `.npmignore`, and `docs/core_quickstart.md`.",
+			References: []api.FeedbackReference{
+				{Content: "### File: .npmignore\n### File: docs/core_quickstart.md\n"},
+			},
+		},
+	}
+
+	got := feedbackComparedFiles(item)
+	out := strings.Join(got, "\n")
+	for _, want := range []string{".npmignore", "docs/core_quickstart.md", "cmd/compair/core.go"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected compared files to contain %q, got %#v", want, got)
+		}
+	}
+	for _, unwanted := range []string{"/activity_feed", "/notification_events", "${base}/group/${gid}", "${accum}/${part}"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("did not expect compared files to contain %q, got %#v", unwanted, got)
+		}
+	}
+}
+
 func TestFeedbackHeadingUsesIntentLabel(t *testing.T) {
 	item := feedbackRenderItem{
 		Meta: &feedbackNotificationMeta{Intent: "hidden_overlap"},

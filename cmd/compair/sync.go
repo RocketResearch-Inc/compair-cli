@@ -109,6 +109,19 @@ var (
 	reportFileHeaderPattern   = regexp.MustCompile(`(?m)^### File:\s+([^\n(]+)`)
 	reportBacktickCodePattern = regexp.MustCompile("`([^`\\n]+)`")
 	reportTokenPattern        = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]{2,}`)
+	reportSpecialPathNames    = map[string]struct{}{
+		".compairignore": {},
+		".dockerignore":  {},
+		".env":           {},
+		".gitattributes": {},
+		".gitignore":     {},
+		".npmignore":     {},
+		"dockerfile":     {},
+		"license":        {},
+		"makefile":       {},
+		"readme":         {},
+		"readme.md":      {},
+	}
 )
 
 var writeMD string
@@ -1431,7 +1444,14 @@ func normalizeReportPath(value string) string {
 	if candidate == "" {
 		return ""
 	}
-	candidate = strings.Trim(candidate, "`'\"()[]{}<>.,;")
+	candidate = strings.Trim(candidate, "`'\"()[]{}<>")
+	candidate = strings.TrimRight(candidate, ".,;")
+	if candidate == "" {
+		return ""
+	}
+	if strings.Contains(candidate, "${") || strings.Contains(candidate, "$(") || strings.Contains(candidate, "://") || strings.Contains(candidate, "@") {
+		return ""
+	}
 	if strings.Contains(candidate, ":") {
 		head, _, _ := strings.Cut(candidate, ":")
 		if strings.Contains(head, "/") || strings.Contains(head, "\\") || filepath.Ext(head) != "" {
@@ -1449,10 +1469,23 @@ func normalizeReportPath(value string) string {
 	if candidate == "" {
 		return ""
 	}
-	if !strings.Contains(candidate, "/") && filepath.Ext(candidate) == "" {
+	if strings.HasPrefix(candidate, "/") && filepath.Ext(candidate) == "" {
 		return ""
 	}
-	return strings.ToLower(candidate)
+	base := strings.ToLower(filepath.Base(candidate))
+	if strings.HasSuffix(candidate, "/") {
+		return ""
+	}
+	if base == "" || base == "." || base == ".." {
+		return ""
+	}
+	if _, ok := reportSpecialPathNames[base]; ok {
+		return strings.ToLower(candidate)
+	}
+	if filepath.Ext(base) != "" {
+		return strings.ToLower(candidate)
+	}
+	return ""
 }
 
 func extractFeedbackReferenceKeys(item feedbackRenderItem) map[string]struct{} {
