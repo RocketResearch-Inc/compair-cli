@@ -1449,7 +1449,13 @@ func normalizeReportPath(value string) string {
 	if candidate == "" {
 		return ""
 	}
-	if strings.Contains(candidate, "${") || strings.Contains(candidate, "$(") || strings.Contains(candidate, "://") || strings.Contains(candidate, "@") {
+	lowerCandidate := strings.ToLower(candidate)
+	if strings.Contains(candidate, "${") ||
+		strings.Contains(candidate, "$(") ||
+		strings.Contains(candidate, "://") ||
+		strings.Contains(candidate, "@") ||
+		strings.Contains(candidate, "%") ||
+		strings.ContainsAny(candidate, "*?") {
 		return ""
 	}
 	if strings.Contains(candidate, ":") {
@@ -1473,6 +1479,7 @@ func normalizeReportPath(value string) string {
 		return ""
 	}
 	base := strings.ToLower(filepath.Base(candidate))
+	dir := filepath.ToSlash(strings.TrimSpace(filepath.Dir(candidate)))
 	if strings.HasSuffix(candidate, "/") {
 		return ""
 	}
@@ -1483,6 +1490,15 @@ func normalizeReportPath(value string) string {
 		return strings.ToLower(candidate)
 	}
 	if filepath.Ext(base) != "" {
+		if dir == "." && !strings.Contains(candidate, "/") && !strings.HasPrefix(base, ".") {
+			return ""
+		}
+		if strings.HasPrefix(base, ".") && !strings.Contains(base[1:], ".") {
+			return ""
+		}
+		if strings.HasPrefix(lowerCandidate, "package/") && strings.Count(candidate, "/") < 2 {
+			return ""
+		}
 		return strings.ToLower(candidate)
 	}
 	return ""

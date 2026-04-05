@@ -260,7 +260,7 @@ func TestFeedbackComparedFilesRejectsShellTemplatesAndEndpoints(t *testing.T) {
 	item := feedbackRenderItem{
 		Feedback: api.FeedbackEntry{
 			ChunkContent: "GET /activity_feed should match the peer mapping in `${base}/group/${gid}` and `cmd/compair/core.go`.",
-			Feedback:     "Compare `/notification_events`, `${accum}/${part}`, `.npmignore`, and `docs/core_quickstart.md`.",
+			Feedback:     "Compare `/notification_events`, `${accum}/${part}`, `.npmignore`, `docs/core_quickstart.md`, `%appdata%\\\\sh.compair.desktop`, `*.log`, and `.app`.",
 			References: []api.FeedbackReference{
 				{Content: "### File: .npmignore\n### File: docs/core_quickstart.md\n"},
 			},
@@ -275,6 +275,11 @@ func TestFeedbackComparedFilesRejectsShellTemplatesAndEndpoints(t *testing.T) {
 		}
 	}
 	for _, unwanted := range []string{"/activity_feed", "/notification_events", "${base}/group/${gid}", "${accum}/${part}"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("did not expect compared files to contain %q, got %#v", unwanted, got)
+		}
+	}
+	for _, unwanted := range []string{"%appdata%\\\\sh.compair.desktop", "*.log", ".app"} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("did not expect compared files to contain %q, got %#v", unwanted, got)
 		}
