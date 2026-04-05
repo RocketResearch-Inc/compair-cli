@@ -333,6 +333,20 @@ compair sync --snapshot-max-files 80 --snapshot-max-total-bytes 500000
 compair push --snapshot-max-total-bytes 300000 --snapshot-max-files 60
 ```
 
+What tends to produce the strongest cross-repo signal:
+
+- focused edits beat large mixed rewrites
+- one concrete route/field/config change is easier to ground than several unrelated changes in the same chunk
+- docs, API maps, and config tables are easiest to compare when the changed rows stay close to the implementation or companion docs they affect
+
+What tends to be harder:
+
+- tiny structured renames buried inside a much larger rewritten chunk
+- many unrelated edits in the same file during snapshot review
+- broad prose rewrites where the old and new behavior are both only implied
+
+This is one reason smaller, more coherent diffs usually work better with Compair, in addition to being good general git hygiene.
+
 ## First-time multi-repo review
 For a shared group of repos you own, the recommended pattern is:
 

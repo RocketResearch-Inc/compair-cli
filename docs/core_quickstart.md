@@ -61,6 +61,26 @@ Notes:
 
 If you prefer not to save the key into `~/.compair/core_runtime.yaml`, export `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` first and omit `--openai-api-key`.
 
+## Review Quality Notes
+
+Local Core is strongest on focused, evidence-rich changes. In practice, that means:
+
+- smaller, coherent edits outperform large mixed rewrites
+- one route/field/config change per chunk is easier to ground than several unrelated edits in the same file
+- docs and API table updates are easier to compare when the changed rows stay close to the implementation or companion docs they affect
+
+This does not mean you need to change your git workflow for Compair, but classical good diff hygiene helps:
+
+- prefer smaller pull requests when possible
+- keep unrelated edits in separate commits or files
+- avoid bundling a tiny API/config rename into a large surrounding docs rewrite if you want the strongest cross-repo signal
+
+How to interpret misses:
+
+- Cloud is still the strongest out-of-the-box review path today
+- Local Core can miss or soften very small structured renames inside larger chunks, especially when embeddings or references surface the right neighborhood but not the exact prior value
+- Using your own OpenAI key for generation improves local output substantially; using OpenAI for both generation and embeddings can improve retrieval further when you need the closest local behavior to Cloud
+
 ## Manual container path
 
 ```bash
