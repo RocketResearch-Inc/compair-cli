@@ -240,19 +240,20 @@ func TestAppendFeedbackComparedFilesIncludesNormalizedPaths(t *testing.T) {
 	out := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"**Compared Files**",
-		"- `api/schema/openapi.yaml`",
 		"- `cmd/compair/core.go`",
-		"- `desktop/src/session.ts`",
 		"- `docs/core_quickstart.md`",
 		"- `internal/api/capabilities.go`",
-		"- ... +2 more",
+		"- ... +1 more",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compared files output to contain %q, got:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "site/src/pages/core.astro") {
-		t.Fatalf("expected brief mode to cap compared files, got:\n%s", out)
+	if strings.Contains(out, "api/schema/openapi.yaml") {
+		t.Fatalf("expected brief mode to prioritize explicit finding paths over low-signal reference-only paths, got:\n%s", out)
+	}
+	if !strings.Contains(out, "desktop/src/session.ts") && !strings.Contains(out, "site/src/pages/core.astro") {
+		t.Fatalf("expected one of the lower-priority explicit compared files to remain in the capped output, got:\n%s", out)
 	}
 }
 
@@ -282,6 +283,29 @@ func TestFeedbackComparedFilesRejectsShellTemplatesAndEndpoints(t *testing.T) {
 	for _, unwanted := range []string{"%appdata%\\\\sh.compair.desktop", "*.log", ".app"} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("did not expect compared files to contain %q, got %#v", unwanted, got)
+		}
+	}
+}
+
+func TestFeedbackComparedFilesDropsReferenceOnlyNoiseWithoutAnchorOverlap(t *testing.T) {
+	item := feedbackRenderItem{
+		Feedback: api.FeedbackEntry{
+			ChunkContent: "diff --git a/src/content/site.ts b/src/content/site.ts\n--- a/src/content/site.ts\n+++ b/src/content/site.ts\n",
+			Feedback:     "The note in `src/content/site.ts` now says WinGet is live while Homebrew/Linux repos are still planned.",
+			References: []api.FeedbackReference{
+				{Content: "### File: .env\n### File: .env.example\n### File: .github/workflows/desktop-release.yml\n### File: src/content/site.ts\n"},
+			},
+		},
+	}
+
+	got := feedbackComparedFiles(item)
+	out := strings.Join(got, "\n")
+	if !strings.Contains(out, "src/content/site.ts") {
+		t.Fatalf("expected actual compared file to remain, got %#v", got)
+	}
+	for _, unwanted := range []string{".env", ".env.example", ".github/workflows/desktop-release.yml"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("did not expect noisy reference-only path %q, got %#v", unwanted, got)
 		}
 	}
 }

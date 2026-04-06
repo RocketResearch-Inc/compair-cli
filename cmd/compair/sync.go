@@ -1153,29 +1153,65 @@ func includeReportDebugMetadata(options reportRenderOptions) bool {
 }
 
 func feedbackComparedFiles(item feedbackRenderItem) []string {
-	paths := map[string]struct{}{}
-	addPaths := func(values ...string) {
-		for path := range extractReportPaths(values...) {
-			paths[path] = struct{}{}
+	pathScores := map[string]float64{}
+	anchorTokens := feedbackTokenSet(strings.Join([]string{
+		strings.TrimSpace(item.Feedback.ChunkContent),
+		strings.TrimSpace(item.Feedback.Feedback),
+		itemMetaEvidenceTarget(item.Meta),
+		itemMetaEvidencePeer(item.Meta),
+	}, "\n"))
+	addWeightedPaths := func(weight float64, values ...string) {
+		for _, value := range values {
+			for path := range extractReportPaths(value) {
+				score := weight
+				if overlap := reportPathTokenOverlap(path, anchorTokens); overlap > 0 {
+					score += float64(overlap) * 0.75
+				}
+				pathScores[path] += score
+			}
 		}
 	}
-	addPaths(
+	addWeightedPaths(
+		6.0,
 		strings.TrimSpace(item.Feedback.ChunkContent),
+	)
+	addWeightedPaths(
+		5.0,
 		strings.TrimSpace(item.Feedback.Feedback),
 		itemMetaEvidenceTarget(item.Meta),
 		itemMetaEvidencePeer(item.Meta),
 	)
 	for _, ref := range item.Feedback.References {
-		addPaths(strings.TrimSpace(ref.Title), strings.TrimSpace(ref.Content))
+		addWeightedPaths(1.0, strings.TrimSpace(ref.Title))
+		addWeightedPaths(2.0, strings.TrimSpace(ref.Content))
 	}
-	if len(paths) == 0 {
+	if len(pathScores) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(paths))
-	for path := range paths {
-		out = append(out, path)
+	type scoredPath struct {
+		Path  string
+		Score float64
 	}
-	sort.Strings(out)
+	scored := make([]scoredPath, 0, len(pathScores))
+	for path, score := range pathScores {
+		if score < 3.0 {
+			continue
+		}
+		scored = append(scored, scoredPath{Path: path, Score: score})
+	}
+	if len(scored) == 0 {
+		return nil
+	}
+	sort.Slice(scored, func(i, j int) bool {
+		if scored[i].Score == scored[j].Score {
+			return scored[i].Path < scored[j].Path
+		}
+		return scored[i].Score > scored[j].Score
+	})
+	out := make([]string, 0, len(scored))
+	for _, item := range scored {
+		out = append(out, item.Path)
+	}
 	return out
 }
 
@@ -1502,6 +1538,40 @@ func normalizeReportPath(value string) string {
 		return strings.ToLower(candidate)
 	}
 	return ""
+}
+
+func reportPathTokenOverlap(path string, anchors map[string]struct{}) int {
+	if len(anchors) == 0 {
+		return 0
+	}
+	candidate := strings.TrimSpace(filepath.ToSlash(path))
+	if candidate == "" {
+		return 0
+	}
+	rawParts := strings.FieldsFunc(candidate, func(r rune) bool {
+		switch r {
+		case '/', '\\', '.', '-', '_':
+			return true
+		default:
+			return false
+		}
+	})
+	seen := map[string]struct{}{}
+	overlap := 0
+	for _, part := range rawParts {
+		token := strings.ToLower(strings.TrimSpace(part))
+		if len(token) < 3 {
+			continue
+		}
+		if _, ok := seen[token]; ok {
+			continue
+		}
+		seen[token] = struct{}{}
+		if _, ok := anchors[token]; ok {
+			overlap++
+		}
+	}
+	return overlap
 }
 
 func extractFeedbackReferenceKeys(item feedbackRenderItem) map[string]struct{} {
