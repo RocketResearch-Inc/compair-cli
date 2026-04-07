@@ -23,7 +23,10 @@ var (
 	coreEmbeddingProvider     string
 	coreOpenAIAPIKey          string
 	coreOpenAIModel           string
+	coreOpenAICodeModel       string
+	coreOpenAINotifModel      string
 	coreOpenAIEmbedModel      string
+	coreOpenAIBaseURL         string
 	coreGenerationEndpoint    string
 	coreAuthMode              string
 	corePort                  int
@@ -220,6 +223,13 @@ var coreDoctorCmd = &cobra.Command{
 			} else {
 				coreDoctorOK(&report, emit, "OpenAI API key", "present")
 			}
+			if baseURL := strings.TrimSpace(cfg.ResolvedOpenAIBaseURL()); baseURL != "" {
+				coreDoctorInfo(&report, emit, "OpenAI base URL", baseURL)
+			}
+			coreDoctorInfo(&report, emit, "OpenAI model", cfg.OpenAIModel)
+			coreDoctorInfo(&report, emit, "OpenAI code model", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
+			coreDoctorInfo(&report, emit, "OpenAI notification model", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
+			coreDoctorInfo(&report, emit, "OpenAI embed model", cfg.OpenAIEmbedModel)
 		}
 		if cfg.GenerationProvider == "http" {
 			if strings.TrimSpace(cfg.GenerationEndpoint) == "" {
@@ -356,7 +366,10 @@ func init() {
 	coreConfigSetCmd.Flags().StringVar(&coreEmbeddingProvider, "embedding-provider", "", "Embedding provider: local, openai")
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIAPIKey, "openai-api-key", "", "OpenAI API key to save for the local Core runtime")
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIModel, "openai-model", "", "OpenAI generation model")
+	coreConfigSetCmd.Flags().StringVar(&coreOpenAICodeModel, "openai-code-model", "", "OpenAI code-review generation model for local Core")
+	coreConfigSetCmd.Flags().StringVar(&coreOpenAINotifModel, "openai-notif-model", "", "OpenAI notification scoring model for local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIEmbedModel, "openai-embed-model", "", "OpenAI embedding model")
+	coreConfigSetCmd.Flags().StringVar(&coreOpenAIBaseURL, "openai-base-url", "", "OpenAI-compatible base URL for local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
 	coreConfigSetCmd.Flags().StringVar(&coreAuthMode, "auth", "", "Auth mode: single-user or accounts")
 	coreConfigSetCmd.Flags().IntVar(&corePort, "port", 0, "Local host port for the Core API")
@@ -391,7 +404,10 @@ func runCoreStatus() error {
 	}
 	if cfg.UsesOpenAI() {
 		fmt.Printf("  OpenAI API key: %s\n", presence(cfg.ResolvedOpenAIAPIKey()))
+		fmt.Printf("  OpenAI base URL: %s\n", orNone(cfg.ResolvedOpenAIBaseURL()))
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
+		fmt.Printf("  OpenAI code model: %s\n", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
+		fmt.Printf("  OpenAI notification model: %s\n", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
 	}
 	if usesBundledLocalProviders(cfg) {
@@ -436,7 +452,10 @@ func runCoreConfigShow() error {
 	}
 	if cfg.UsesOpenAI() {
 		fmt.Printf("  OpenAI API key: %s\n", presence(cfg.ResolvedOpenAIAPIKey()))
+		fmt.Printf("  OpenAI base URL: %s\n", orNone(cfg.ResolvedOpenAIBaseURL()))
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
+		fmt.Printf("  OpenAI code model: %s\n", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
+		fmt.Printf("  OpenAI notification model: %s\n", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
 	}
 	if usesBundledLocalProviders(cfg) {
@@ -497,8 +516,17 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	if v, ok := getStringFlagIfChanged(cmd, "openai-model"); ok {
 		cfg.OpenAIModel = strings.TrimSpace(v)
 	}
+	if v, ok := getStringFlagIfChanged(cmd, "openai-code-model"); ok {
+		cfg.OpenAICodeModel = strings.TrimSpace(v)
+	}
+	if v, ok := getStringFlagIfChanged(cmd, "openai-notif-model"); ok {
+		cfg.OpenAINotifModel = strings.TrimSpace(v)
+	}
 	if v, ok := getStringFlagIfChanged(cmd, "openai-embed-model"); ok {
 		cfg.OpenAIEmbedModel = strings.TrimSpace(v)
+	}
+	if v, ok := getStringFlagIfChanged(cmd, "openai-base-url"); ok {
+		cfg.OpenAIBaseURL = strings.TrimSpace(v)
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "generation-endpoint"); ok {
 		cfg.GenerationEndpoint = strings.TrimSpace(v)
@@ -637,6 +665,15 @@ func runCoreUp() error {
 		"-e", "COMPAIR_OPENAI_MODEL=" + cfg.OpenAIModel,
 		"-e", "COMPAIR_OPENAI_EMBED_MODEL=" + cfg.OpenAIEmbedModel,
 	}
+	if strings.TrimSpace(cfg.OpenAICodeModel) != "" {
+		args = append(args, "-e", "COMPAIR_OPENAI_CODE_MODEL="+strings.TrimSpace(cfg.OpenAICodeModel))
+	}
+	if strings.TrimSpace(cfg.OpenAINotifModel) != "" {
+		args = append(args, "-e", "COMPAIR_OPENAI_NOTIF_MODEL="+strings.TrimSpace(cfg.OpenAINotifModel))
+	}
+	if baseURL := strings.TrimSpace(cfg.ResolvedOpenAIBaseURL()); baseURL != "" && cfg.UsesOpenAI() {
+		args = append(args, "-e", "COMPAIR_OPENAI_BASE_URL="+baseURL)
+	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) != "" {
 		args = append(args, "-e", "COMPAIR_GENERATION_ENDPOINT="+strings.TrimSpace(cfg.GenerationEndpoint))
 	}
@@ -694,6 +731,20 @@ func presence(v string) string {
 func orNone(v string) string {
 	if strings.TrimSpace(v) == "" {
 		return "(none)"
+	}
+	return strings.TrimSpace(v)
+}
+
+func orInherited(v string, inherited string) string {
+	if strings.TrimSpace(v) == "" {
+		return "(inherits " + strings.TrimSpace(inherited) + ")"
+	}
+	return strings.TrimSpace(v)
+}
+
+func orDefault(v string, fallback string) string {
+	if strings.TrimSpace(v) == "" {
+		return "(default " + strings.TrimSpace(fallback) + ")"
 	}
 	return strings.TrimSpace(v)
 }

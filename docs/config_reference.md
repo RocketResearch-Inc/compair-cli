@@ -84,7 +84,10 @@ generation_provider: local     # local, openai, http, fallback
 embedding_provider: local      # local or openai
 openai_api_key: ""             # optional; 0600 file permissions
 openai_model: gpt-5-nano
+openai_code_model: ""          # optional; defaults to openai_model
+openai_notif_model: ""         # optional; defaults to backend scorer default
 openai_embed_model: text-embedding-3-small
+openai_base_url: ""            # optional; for OpenAI-compatible endpoints
 generation_endpoint: ""        # required only when generation_provider=http
 ```
 
@@ -97,5 +100,6 @@ generation_endpoint: ""        # required only when generation_provider=http
 - `COMPAIR_DEBUG_HTTP` – set to `1` to log HTTP requests
 - `COMPAIR_VERBOSE` – set to `1` to enable verbose output
 - `COMPAIR_OPENAI_API_KEY` / `OPENAI_API_KEY` – fallback key source for `compair core` when you do not save the key into `core_runtime.yaml`
+- `COMPAIR_OPENAI_BASE_URL` / `OPENAI_BASE_URL` – optional OpenAI-compatible base URL for local Core
 - Hook environment (watch):
   - `COMPAIR_COMMITS`, `COMPAIR_FEEDBACK_COUNT`, `COMPAIR_SYNC_JSON`

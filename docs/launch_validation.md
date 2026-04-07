@@ -87,6 +87,22 @@ Success criteria:
 - The no-key local demo is functional, but any launch screenshots or external examples should come from Cloud or OpenAI-backed local Core instead
 - The OpenAI-backed local demo produces natural feedback text instead of fallback reference dumps
 
+### Current macOS local-Core validation snapshot
+
+These results reflect the current seeded-drift suite on macOS using Local Core. Use them to choose the recommended launch path and to set expectations in docs or demos.
+
+| Local Core configuration | Scenario A | Scenario B | Scenario C | Scenario D | Current read |
+| --- | --- | --- | --- | --- | --- |
+| `embedding=openai`, `generation=openai` | pass | pass | pass | strict-pass, softer than ideal | Best local-Core quality path tested so far |
+| `embedding=local`, `generation=openai` | pass | pass | pass | unstable / soft | Good default bring-your-own-key path |
+| `embedding=local`, `generation=local` | miss | miss | miss | miss | Functional fallback only; not a strong review-quality proof point |
+
+Recommended launch framing:
+
+- Cloud remains the strongest out-of-the-box experience.
+- Local Core with OpenAI-backed generation is the recommended self-hosted quality path.
+- Fully local no-key mode is launchable as a privacy-first, zero-cost, functional fallback, but it should be described as lower-fidelity and should not be the source of launch screenshots, benchmark claims, or primary review-quality examples.
+
 ## 3. Real cross-repo suite review
 
 This is the highest-value validation outside the demo swimlane.
@@ -298,9 +314,8 @@ Expected rationale:
 
 Current note:
 
-- In the current repo state, this scenario may surface a stronger ambient drift in the same file about `sync` / `process_doc` behavior (`task_id` on Cloud vs `null` on Core) before it calls out the seeded activity-endpoint change.
-- Count that as a `review` preset pass, but not as an exact-seed pass.
-- If you need exact-seed validation here, fix the ambient `sync` row drift in `docs/api_mapping.md` first, then rerun this scenario.
+- On the current OpenAI-backed local-Core paths, this scenario now lands as an exact-seed pass and correctly calls out `/get_activity_feed` vs `/activity_feed`.
+- On the fully local no-key path, this scenario is still not reliable enough to use as a quality benchmark.
 
 ### Scenario D: `strict`
 
@@ -340,9 +355,9 @@ Expected rationale:
 
 Current note:
 
-- In the current repo state, `strict` may surface a broader policy/legal drift in `src/content/site.ts` before it calls out the seeded install-note change.
-- That broader legal mismatch is still a valid `strict` pass if it clearly contradicts the CLI’s documented automation / CI behavior.
-- Replace this scenario later if you want a narrower exact-seed `strict` check with less ambient competition.
+- This scenario remains the softest of the seeded set.
+- OpenAI-backed local-Core runs can still surface the seeded install-note drift or another legitimate `strict`-worthy mismatch in the same surface area, but the exact classification is less stable than A, B, or C.
+- Treat this as a useful launch-surface sanity check, not the primary benchmark for exact-seed precision.
 
 ### Manual severity/type threshold
 

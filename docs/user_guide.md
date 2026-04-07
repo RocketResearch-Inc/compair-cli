@@ -201,6 +201,8 @@ compair core down --purge
 Notes:
 - `compair core up` runs the published `compairsteven/compair-core` container on the configured localhost port and updates the `local` CLI profile automatically.
 - `--provider openai` sets both generation and embeddings to OpenAI.
+- `--openai-code-model` and `--openai-notif-model` let you tune local Core review generation and notification scoring separately.
+- `--openai-base-url` lets local Core talk to an OpenAI-compatible endpoint instead of the default OpenAI base URL.
 - `--provider fallback` keeps local embeddings but disables model-generated feedback in favor of reference-only fallback behavior.
 - If you prefer to source the key from the shell, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` and omit `--openai-api-key`.
 - `compair core doctor` validates Docker, the local profile, container state, the Core `/health` endpoint, and auth-mode alignment.

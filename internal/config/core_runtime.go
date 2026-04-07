@@ -19,6 +19,7 @@ const (
 	defaultEmbeddingProvider  = "local"
 	defaultOpenAIModel        = "gpt-5-nano"
 	defaultOpenAIEmbedModel   = "text-embedding-3-small"
+	defaultOpenAINotifModel   = "gpt-5"
 )
 
 type CoreRuntime struct {
@@ -31,7 +32,10 @@ type CoreRuntime struct {
 	EmbeddingProvider  string `yaml:"embedding_provider"`
 	OpenAIAPIKey       string `yaml:"openai_api_key,omitempty"`
 	OpenAIModel        string `yaml:"openai_model,omitempty"`
+	OpenAICodeModel    string `yaml:"openai_code_model,omitempty"`
+	OpenAINotifModel   string `yaml:"openai_notif_model,omitempty"`
 	OpenAIEmbedModel   string `yaml:"openai_embed_model,omitempty"`
+	OpenAIBaseURL      string `yaml:"openai_base_url,omitempty"`
 	GenerationEndpoint string `yaml:"generation_endpoint,omitempty"`
 }
 
@@ -116,9 +120,12 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 	if strings.TrimSpace(cfg.OpenAIModel) == "" {
 		cfg.OpenAIModel = defaultOpenAIModel
 	}
+	cfg.OpenAICodeModel = strings.TrimSpace(cfg.OpenAICodeModel)
+	cfg.OpenAINotifModel = strings.TrimSpace(cfg.OpenAINotifModel)
 	if strings.TrimSpace(cfg.OpenAIEmbedModel) == "" {
 		cfg.OpenAIEmbedModel = defaultOpenAIEmbedModel
 	}
+	cfg.OpenAIBaseURL = strings.TrimSpace(cfg.OpenAIBaseURL)
 	cfg.GenerationEndpoint = strings.TrimSpace(cfg.GenerationEndpoint)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
 	return cfg
@@ -170,4 +177,31 @@ func (c *CoreRuntime) ResolvedOpenAIAPIKey() string {
 		return val
 	}
 	return strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+}
+
+func (c *CoreRuntime) ResolvedOpenAIBaseURL() string {
+	cfg := normalizeCoreRuntime(c)
+	if cfg.OpenAIBaseURL != "" {
+		return cfg.OpenAIBaseURL
+	}
+	if val := strings.TrimSpace(os.Getenv("COMPAIR_OPENAI_BASE_URL")); val != "" {
+		return val
+	}
+	return strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+}
+
+func (c *CoreRuntime) ResolvedOpenAICodeModel() string {
+	cfg := normalizeCoreRuntime(c)
+	if cfg.OpenAICodeModel != "" {
+		return cfg.OpenAICodeModel
+	}
+	return cfg.OpenAIModel
+}
+
+func (c *CoreRuntime) ResolvedOpenAINotifModel() string {
+	cfg := normalizeCoreRuntime(c)
+	if cfg.OpenAINotifModel != "" {
+		return cfg.OpenAINotifModel
+	}
+	return defaultOpenAINotifModel
 }

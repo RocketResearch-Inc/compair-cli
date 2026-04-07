@@ -807,11 +807,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					}
 					if includeReportDebugMetadata(reportOptions) {
 						if parseMode := strings.TrimSpace(item.Meta.ParseMode); parseMode != "" {
-							scoring := "**Scoring Parse Mode:** " + parseMode
-							if model := strings.TrimSpace(item.Meta.Model); model != "" && parseMode != "heuristic" {
-								scoring += " (`" + model + "`)"
-							}
-							entry = append(entry, scoring)
+							entry = append(entry, "**Scoring Parse Mode:** "+parseMode)
 						}
 						if len(item.Meta.PeerDocIDs) > 0 {
 							entry = append(entry, "**Peer Docs:** "+strings.Join(item.Meta.PeerDocIDs, ", "))

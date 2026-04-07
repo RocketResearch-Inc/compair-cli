@@ -7,6 +7,9 @@
 **Compair CLI helps developers catch cross-repo drift from the terminal.**
 Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared review context. Compair compares changes across related repos and surfaces conflicts, hidden overlap, and missing updates before they turn into broken workflows or user-facing issues.
 
+**Compair is a context manager for teams.**
+Instead of asking one model call to hold your whole product in working memory, Compair keeps a shared, persistent cross-repo context for the team, narrows attention to the changed surface, and brings in the few related snippets that actually matter.
+
 **Why it's different:** most AI review tools look at one pull request in one repo. Compair reviews a repo in the context of the other repos it depends on.
 
 - Catch backend/frontend/SDK/docs drift earlier
@@ -14,6 +17,21 @@ Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared revi
 - Turn high-confidence findings into CI checks when you're ready
 
 **Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, especially if you want to pair it with your own OpenAI key.
+
+## Why This Isn't Just RAG
+
+Traditional RAG is good at answering questions from retrieved snippets. Repo-scoped AI review is good at helping inside one repo or one pull request.
+
+Compair is built for a different problem:
+
+- start from what changed, not from a free-form query
+- search across the other repos that make up the product surface
+- look for contradictions, drift, hidden overlap, and missing downstream updates
+- turn high-confidence findings into notifications and CI gates
+
+This matters because larger context windows do not mean every token is equally weighted, inspected, or analyzed. Important evidence still gets lost when it is buried inside a huge prompt, especially once instructions, history, and output budget are sharing that same window. Compair improves signal by focusing attention on the changed chunk and the most relevant cross-repo evidence instead of asking the model to reason over the whole product at once.
+
+The practical takeaway is simple: Compair wins less by stuffing everything into one prompt and more by repeatedly compressing a large shared code and document surface into a small grounded evidence pack around each change.
 
 ## Care to Compair? Try It In 5 Minutes
 

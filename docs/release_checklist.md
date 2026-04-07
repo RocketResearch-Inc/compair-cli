@@ -27,6 +27,7 @@ Use this as a pre-release checklist for beta/1.0 builds.
 - [ ] `demo` works in both `--mode local` and `--mode cloud`
 - [ ] Local Core no-key path is clearly caveated as functional but lower-fidelity than Cloud in setup-facing docs and CLI output
 - [ ] Local Core with your own OpenAI key is smoke-tested and materially better than the bundled no-key path
+- [ ] Seeded scenario results are captured in `docs/launch_validation.md`, including the recommendation that OpenAI-backed generation is the preferred local quality path
 - [ ] First-time repo baseline snapshot works (no `last_synced_commit`)
 - [ ] Subsequent sync uses diffs and updates `last_synced_commit`
 - [ ] `review` runs a full review and writes the latest report

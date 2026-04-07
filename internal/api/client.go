@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,12 +21,31 @@ type Client struct {
 }
 
 const (
-	defaultUserAgent  = "compair-cli"
-	clientHeaderName  = "X-Compair-Client"
-	clientHeaderValue = "cli"
+	defaultUserAgent   = "compair-cli"
+	clientHeaderName   = "X-Compair-Client"
+	clientHeaderValue  = "cli"
 	defaultHTTPTimeout = 30 * time.Second
 	processDocTimeout  = 10 * time.Minute
 )
+
+func envDurationSeconds(defaultValue time.Duration, names ...string) time.Duration {
+	for _, name := range names {
+		raw := strings.TrimSpace(os.Getenv(name))
+		if raw == "" {
+			continue
+		}
+		seconds, err := strconv.ParseFloat(raw, 64)
+		if err != nil || seconds <= 0 {
+			continue
+		}
+		return time.Duration(seconds * float64(time.Second))
+	}
+	return defaultValue
+}
+
+func processDocHTTPTimeout() time.Duration {
+	return envDurationSeconds(processDocTimeout, "COMPAIR_PROCESS_DOC_HTTP_TIMEOUT_SEC", "PROCESS_DOC_HTTP_TIMEOUT_SEC")
+}
 
 func NewClient(base string) *Client {
 	if base == "" {
@@ -44,8 +65,9 @@ func (c *Client) clientForPath(path string) *http.Client {
 		return c.http
 	}
 	clone := *c.http
-	if clone.Timeout <= 0 || clone.Timeout < processDocTimeout {
-		clone.Timeout = processDocTimeout
+	processTimeout := processDocHTTPTimeout()
+	if clone.Timeout <= 0 || clone.Timeout < processTimeout {
+		clone.Timeout = processTimeout
 	}
 	return &clone
 }

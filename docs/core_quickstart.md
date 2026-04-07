@@ -61,6 +61,28 @@ Notes:
 
 If you prefer not to save the key into `~/.compair/core_runtime.yaml`, export `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` first and omit `--openai-api-key`.
 
+You can also tune the local Core OpenAI-backed path more precisely:
+
+```bash
+# Use different models for general review and notification scoring
+compair core config set \
+  --generation-provider openai \
+  --embedding-provider local \
+  --openai-model gpt-5-mini \
+  --openai-code-model gpt-5 \
+  --openai-notif-model gpt-5-mini
+
+# Point local Core at an OpenAI-compatible endpoint instead of api.openai.com
+compair core config set \
+  --provider openai \
+  --openai-base-url http://localhost:8001/v1
+```
+
+Notes:
+- `--openai-code-model` only affects the code/doc review generation path inside local Core.
+- `--openai-notif-model` only affects local Core notification scoring.
+- `--openai-base-url` is intended for OpenAI-compatible servers. Cloud behavior is unchanged.
+
 ## Review Quality Notes
 
 Local Core is strongest on focused, evidence-rich changes. In practice, that means:

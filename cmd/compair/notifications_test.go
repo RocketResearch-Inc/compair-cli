@@ -103,12 +103,15 @@ func TestRenderNotificationEventsMarkdownIncludesDebugMetadataWhenVerbose(t *tes
 	for _, want := range []string{
 		"**Event ID:** `evt_123`",
 		"**Target Doc:** `doc_target`",
-		"**Scoring Parse Mode:** json (`gpt-5`)",
+		"**Scoring Parse Mode:** json",
 		"**Peer Docs:** `doc_peer`",
 	} {
 		if !strings.Contains(md, want) {
 			t.Fatalf("expected verbose markdown to contain %q, got:\n%s", want, md)
 		}
+	}
+	if strings.Contains(md, "gpt-5") {
+		t.Fatalf("did not expect verbose markdown to expose backend model names, got:\n%s", md)
 	}
 }
 

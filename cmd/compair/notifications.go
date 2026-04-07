@@ -320,11 +320,7 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 		}
 		if includeDebug {
 			if parseMode := strings.TrimSpace(event.ParseMode); parseMode != "" {
-				line := "**Scoring Parse Mode:** " + parseMode
-				if model := strings.TrimSpace(event.Model); model != "" && parseMode != "heuristic" {
-					line += fmt.Sprintf(" (`%s`)", model)
-				}
-				lines = append(lines, line)
+				lines = append(lines, "**Scoring Parse Mode:** "+parseMode)
 			}
 		}
 		if includeDebug && len(event.PeerDocIDs) > 0 {

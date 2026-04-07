@@ -3,6 +3,8 @@
 Compair CLI brings cross-repo review to the terminal.
 Use this docs hub to choose the fastest path: run the demo, set up local Core, connect to Cloud, or move toward CI.
 
+Think of Compair as a context manager for teams: it keeps a shared cross-repo memory of your product surface, then focuses model attention on the changed area and the few related snippets that matter instead of relying on one giant prompt.
+
 ![Architecture](assets/architecture.png)
 
 ## Quick Start
