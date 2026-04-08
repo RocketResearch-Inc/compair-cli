@@ -37,6 +37,8 @@ type CoreRuntime struct {
 	OpenAIBaseURL                 string `yaml:"openai_base_url,omitempty"`
 	NotificationScoringTimeoutS   int    `yaml:"notification_scoring_timeout_s,omitempty"`
 	NotificationScoringMaxRetries int    `yaml:"notification_scoring_max_retries,omitempty"`
+	ReferenceTrace                bool   `yaml:"reference_trace,omitempty"`
+	ReferenceTraceMaxCandidates   int    `yaml:"reference_trace_max_candidates,omitempty"`
 	GenerationEndpoint            string `yaml:"generation_endpoint,omitempty"`
 }
 
@@ -132,6 +134,9 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 	}
 	if cfg.NotificationScoringMaxRetries < 0 {
 		cfg.NotificationScoringMaxRetries = 0
+	}
+	if cfg.ReferenceTraceMaxCandidates < 0 {
+		cfg.ReferenceTraceMaxCandidates = 0
 	}
 	cfg.GenerationEndpoint = strings.TrimSpace(cfg.GenerationEndpoint)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)

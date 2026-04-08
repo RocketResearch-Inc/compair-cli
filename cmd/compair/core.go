@@ -29,6 +29,8 @@ var (
 	coreOpenAIBaseURL                 string
 	coreNotificationScoringTimeoutS   int
 	coreNotificationScoringMaxRetries int
+	coreReferenceTrace                bool
+	coreReferenceTraceMaxCandidates   int
 	coreGenerationEndpoint            string
 	coreAuthMode                      string
 	corePort                          int
@@ -380,6 +382,8 @@ func init() {
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIBaseURL, "openai-base-url", "", "OpenAI-compatible base URL for local Core")
 	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringTimeoutS, "notification-scoring-timeout-s", 0, "Notification scoring timeout in seconds for local Core (0 keeps backend default)")
 	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringMaxRetries, "notification-scoring-max-retries", 0, "Notification scoring retry count for local Core (0 keeps backend default)")
+	coreConfigSetCmd.Flags().BoolVar(&coreReferenceTrace, "reference-trace", false, "Enable detailed reference candidate tracing in local Core logs")
+	coreConfigSetCmd.Flags().IntVar(&coreReferenceTraceMaxCandidates, "reference-trace-max-candidates", 0, "Max candidate records to emit per source chunk when reference tracing is enabled (0 = all)")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
 	coreConfigSetCmd.Flags().StringVar(&coreAuthMode, "auth", "", "Auth mode: single-user or accounts")
 	coreConfigSetCmd.Flags().IntVar(&corePort, "port", 0, "Local host port for the Core API")
@@ -426,11 +430,12 @@ func runCoreStatus() error {
 	if cfg.NotificationScoringMaxRetries > 0 {
 		fmt.Printf("  Notification scoring retries: %d\n", cfg.NotificationScoringMaxRetries)
 	}
-	if cfg.NotificationScoringTimeoutS > 0 {
-		fmt.Printf("  Notification scoring timeout: %ds\n", cfg.NotificationScoringTimeoutS)
-	}
-	if cfg.NotificationScoringMaxRetries > 0 {
-		fmt.Printf("  Notification scoring retries: %d\n", cfg.NotificationScoringMaxRetries)
+	if cfg.ReferenceTrace {
+		limit := "all"
+		if cfg.ReferenceTraceMaxCandidates > 0 {
+			limit = strconv.Itoa(cfg.ReferenceTraceMaxCandidates)
+		}
+		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
 	}
 	if usesBundledLocalProviders(cfg) {
 		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
@@ -484,6 +489,13 @@ func runCoreConfigShow() error {
 		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
 	} else if cfg.UsesOpenAI() {
 		fmt.Println("  Review quality: OpenAI-backed local Core")
+	}
+	if cfg.ReferenceTrace {
+		limit := "all"
+		if cfg.ReferenceTraceMaxCandidates > 0 {
+			limit = strconv.Itoa(cfg.ReferenceTraceMaxCandidates)
+		}
+		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
 	}
 	return nil
 }
@@ -555,6 +567,12 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	}
 	if v, ok := getIntFlagIfChanged(cmd, "notification-scoring-max-retries"); ok {
 		cfg.NotificationScoringMaxRetries = v
+	}
+	if cmd.Flags().Changed("reference-trace") {
+		cfg.ReferenceTrace = coreReferenceTrace
+	}
+	if v, ok := getIntFlagIfChanged(cmd, "reference-trace-max-candidates"); ok {
+		cfg.ReferenceTraceMaxCandidates = v
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "generation-endpoint"); ok {
 		cfg.GenerationEndpoint = strings.TrimSpace(v)
@@ -707,6 +725,12 @@ func runCoreUp() error {
 	}
 	if cfg.NotificationScoringMaxRetries > 0 {
 		args = append(args, "-e", "COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES="+strconv.Itoa(cfg.NotificationScoringMaxRetries))
+	}
+	if cfg.ReferenceTrace {
+		args = append(args, "-e", "COMPAIR_REFERENCE_TRACE=1")
+	}
+	if cfg.ReferenceTraceMaxCandidates > 0 {
+		args = append(args, "-e", "COMPAIR_REFERENCE_TRACE_MAX_CANDIDATES="+strconv.Itoa(cfg.ReferenceTraceMaxCandidates))
 	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) != "" {
 		args = append(args, "-e", "COMPAIR_GENERATION_ENDPOINT="+strings.TrimSpace(cfg.GenerationEndpoint))
