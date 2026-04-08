@@ -228,7 +228,7 @@ var coreDoctorCmd = &cobra.Command{
 			}
 			coreDoctorInfo(&report, emit, "OpenAI model", cfg.OpenAIModel)
 			coreDoctorInfo(&report, emit, "OpenAI code model", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
-			coreDoctorInfo(&report, emit, "OpenAI notification model", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
+			coreDoctorInfo(&report, emit, "OpenAI notification model", orInherited(cfg.OpenAINotifModel, cfg.OpenAIModel))
 			coreDoctorInfo(&report, emit, "OpenAI embed model", cfg.OpenAIEmbedModel)
 		}
 		if cfg.GenerationProvider == "http" {
@@ -407,7 +407,7 @@ func runCoreStatus() error {
 		fmt.Printf("  OpenAI base URL: %s\n", orNone(cfg.ResolvedOpenAIBaseURL()))
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
 		fmt.Printf("  OpenAI code model: %s\n", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
-		fmt.Printf("  OpenAI notification model: %s\n", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
+		fmt.Printf("  OpenAI notification model: %s\n", orInherited(cfg.OpenAINotifModel, cfg.OpenAIModel))
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
 	}
 	if usesBundledLocalProviders(cfg) {
@@ -455,7 +455,7 @@ func runCoreConfigShow() error {
 		fmt.Printf("  OpenAI base URL: %s\n", orNone(cfg.ResolvedOpenAIBaseURL()))
 		fmt.Printf("  OpenAI model: %s\n", cfg.OpenAIModel)
 		fmt.Printf("  OpenAI code model: %s\n", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
-		fmt.Printf("  OpenAI notification model: %s\n", orDefault(cfg.OpenAINotifModel, cfg.ResolvedOpenAINotifModel()))
+		fmt.Printf("  OpenAI notification model: %s\n", orInherited(cfg.OpenAINotifModel, cfg.OpenAIModel))
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
 	}
 	if usesBundledLocalProviders(cfg) {

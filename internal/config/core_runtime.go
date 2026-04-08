@@ -19,7 +19,6 @@ const (
 	defaultEmbeddingProvider  = "local"
 	defaultOpenAIModel        = "gpt-5-nano"
 	defaultOpenAIEmbedModel   = "text-embedding-3-small"
-	defaultOpenAINotifModel   = "gpt-5"
 )
 
 type CoreRuntime struct {
@@ -203,5 +202,5 @@ func (c *CoreRuntime) ResolvedOpenAINotifModel() string {
 	if cfg.OpenAINotifModel != "" {
 		return cfg.OpenAINotifModel
 	}
-	return defaultOpenAINotifModel
+	return cfg.OpenAIModel
 }

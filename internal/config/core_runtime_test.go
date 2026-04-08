@@ -41,7 +41,7 @@ func TestCoreRuntimeResolvedOpenAIModelDefaults(t *testing.T) {
 	if got := cfg.ResolvedOpenAICodeModel(); got != "gpt-5-mini" {
 		t.Fatalf("expected code model to inherit primary model, got %q", got)
 	}
-	if got := cfg.ResolvedOpenAINotifModel(); got != defaultOpenAINotifModel {
-		t.Fatalf("expected notif model default %q, got %q", defaultOpenAINotifModel, got)
+	if got := cfg.ResolvedOpenAINotifModel(); got != "gpt-5-mini" {
+		t.Fatalf("expected notif model to inherit primary model, got %q", got)
 	}
 }
