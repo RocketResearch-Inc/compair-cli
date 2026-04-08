@@ -18,26 +18,28 @@ import (
 )
 
 var (
-	coreProviderPreset        string
-	coreGenerationProvider    string
-	coreEmbeddingProvider     string
-	coreOpenAIAPIKey          string
-	coreOpenAIModel           string
-	coreOpenAICodeModel       string
-	coreOpenAINotifModel      string
-	coreOpenAIEmbedModel      string
-	coreOpenAIBaseURL         string
-	coreGenerationEndpoint    string
-	coreAuthMode              string
-	corePort                  int
-	coreImage                 string
-	coreContainerName         string
-	coreDataVolume            string
-	coreClearOpenAIAPIKey     bool
-	coreDownPurge             bool
-	coreLogsFollow            bool
-	coreLogsTail              string
-	coreDoctorJSON            bool
+	coreProviderPreset                string
+	coreGenerationProvider            string
+	coreEmbeddingProvider             string
+	coreOpenAIAPIKey                  string
+	coreOpenAIModel                   string
+	coreOpenAICodeModel               string
+	coreOpenAINotifModel              string
+	coreOpenAIEmbedModel              string
+	coreOpenAIBaseURL                 string
+	coreNotificationScoringTimeoutS   int
+	coreNotificationScoringMaxRetries int
+	coreGenerationEndpoint            string
+	coreAuthMode                      string
+	corePort                          int
+	coreImage                         string
+	coreContainerName                 string
+	coreDataVolume                    string
+	coreClearOpenAIAPIKey             bool
+	coreDownPurge                     bool
+	coreLogsFollow                    bool
+	coreLogsTail                      string
+	coreDoctorJSON                    bool
 )
 
 var coreCmd = &cobra.Command{
@@ -51,7 +53,7 @@ var coreCmd = &cobra.Command{
 var coreStatusCmd = &cobra.Command{
 	Use:     "status",
 	Aliases: []string{"show"},
-	Short: "Show local Compair Core runtime config and Docker status",
+	Short:   "Show local Compair Core runtime config and Docker status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runCoreStatus()
 	},
@@ -106,7 +108,7 @@ var coreConfigSetCmd = &cobra.Command{
 var coreUpCmd = &cobra.Command{
 	Use:     "up",
 	Aliases: []string{"start"},
-	Short: "Start or recreate the local Compair Core container",
+	Short:   "Start or recreate the local Compair Core container",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runCoreUp()
 	},
@@ -115,7 +117,7 @@ var coreUpCmd = &cobra.Command{
 var coreDownCmd = &cobra.Command{
 	Use:     "down",
 	Aliases: []string{"stop"},
-	Short: "Stop and remove the local Compair Core container",
+	Short:   "Stop and remove the local Compair Core container",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadCoreRuntime()
 		if err != nil {
@@ -230,6 +232,12 @@ var coreDoctorCmd = &cobra.Command{
 			coreDoctorInfo(&report, emit, "OpenAI code model", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
 			coreDoctorInfo(&report, emit, "OpenAI notification model", orInherited(cfg.OpenAINotifModel, cfg.OpenAIModel))
 			coreDoctorInfo(&report, emit, "OpenAI embed model", cfg.OpenAIEmbedModel)
+			if cfg.NotificationScoringTimeoutS > 0 {
+				coreDoctorInfo(&report, emit, "Notification scoring timeout", fmt.Sprintf("%ds", cfg.NotificationScoringTimeoutS))
+			}
+			if cfg.NotificationScoringMaxRetries > 0 {
+				coreDoctorInfo(&report, emit, "Notification scoring retries", strconv.Itoa(cfg.NotificationScoringMaxRetries))
+			}
 		}
 		if cfg.GenerationProvider == "http" {
 			if strings.TrimSpace(cfg.GenerationEndpoint) == "" {
@@ -370,6 +378,8 @@ func init() {
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAINotifModel, "openai-notif-model", "", "OpenAI notification scoring model for local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIEmbedModel, "openai-embed-model", "", "OpenAI embedding model")
 	coreConfigSetCmd.Flags().StringVar(&coreOpenAIBaseURL, "openai-base-url", "", "OpenAI-compatible base URL for local Core")
+	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringTimeoutS, "notification-scoring-timeout-s", 0, "Notification scoring timeout in seconds for local Core (0 keeps backend default)")
+	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringMaxRetries, "notification-scoring-max-retries", 0, "Notification scoring retry count for local Core (0 keeps backend default)")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
 	coreConfigSetCmd.Flags().StringVar(&coreAuthMode, "auth", "", "Auth mode: single-user or accounts")
 	coreConfigSetCmd.Flags().IntVar(&corePort, "port", 0, "Local host port for the Core API")
@@ -409,6 +419,18 @@ func runCoreStatus() error {
 		fmt.Printf("  OpenAI code model: %s\n", orInherited(cfg.OpenAICodeModel, cfg.OpenAIModel))
 		fmt.Printf("  OpenAI notification model: %s\n", orInherited(cfg.OpenAINotifModel, cfg.OpenAIModel))
 		fmt.Printf("  OpenAI embed model: %s\n", cfg.OpenAIEmbedModel)
+	}
+	if cfg.NotificationScoringTimeoutS > 0 {
+		fmt.Printf("  Notification scoring timeout: %ds\n", cfg.NotificationScoringTimeoutS)
+	}
+	if cfg.NotificationScoringMaxRetries > 0 {
+		fmt.Printf("  Notification scoring retries: %d\n", cfg.NotificationScoringMaxRetries)
+	}
+	if cfg.NotificationScoringTimeoutS > 0 {
+		fmt.Printf("  Notification scoring timeout: %ds\n", cfg.NotificationScoringTimeoutS)
+	}
+	if cfg.NotificationScoringMaxRetries > 0 {
+		fmt.Printf("  Notification scoring retries: %d\n", cfg.NotificationScoringMaxRetries)
 	}
 	if usesBundledLocalProviders(cfg) {
 		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
@@ -527,6 +549,12 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "openai-base-url"); ok {
 		cfg.OpenAIBaseURL = strings.TrimSpace(v)
+	}
+	if v, ok := getIntFlagIfChanged(cmd, "notification-scoring-timeout-s"); ok {
+		cfg.NotificationScoringTimeoutS = v
+	}
+	if v, ok := getIntFlagIfChanged(cmd, "notification-scoring-max-retries"); ok {
+		cfg.NotificationScoringMaxRetries = v
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "generation-endpoint"); ok {
 		cfg.GenerationEndpoint = strings.TrimSpace(v)
@@ -673,6 +701,12 @@ func runCoreUp() error {
 	}
 	if baseURL := strings.TrimSpace(cfg.ResolvedOpenAIBaseURL()); baseURL != "" && cfg.UsesOpenAI() {
 		args = append(args, "-e", "COMPAIR_OPENAI_BASE_URL="+baseURL)
+	}
+	if cfg.NotificationScoringTimeoutS > 0 {
+		args = append(args, "-e", "COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S="+strconv.Itoa(cfg.NotificationScoringTimeoutS))
+	}
+	if cfg.NotificationScoringMaxRetries > 0 {
+		args = append(args, "-e", "COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES="+strconv.Itoa(cfg.NotificationScoringMaxRetries))
 	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) != "" {
 		args = append(args, "-e", "COMPAIR_GENERATION_ENDPOINT="+strings.TrimSpace(cfg.GenerationEndpoint))

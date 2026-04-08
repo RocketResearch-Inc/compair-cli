@@ -22,20 +22,22 @@ const (
 )
 
 type CoreRuntime struct {
-	Image              string `yaml:"image"`
-	ContainerName      string `yaml:"container_name"`
-	DataVolume         string `yaml:"data_volume"`
-	Port               int    `yaml:"port"`
-	AuthMode           string `yaml:"auth_mode"`
-	GenerationProvider string `yaml:"generation_provider"`
-	EmbeddingProvider  string `yaml:"embedding_provider"`
-	OpenAIAPIKey       string `yaml:"openai_api_key,omitempty"`
-	OpenAIModel        string `yaml:"openai_model,omitempty"`
-	OpenAICodeModel    string `yaml:"openai_code_model,omitempty"`
-	OpenAINotifModel   string `yaml:"openai_notif_model,omitempty"`
-	OpenAIEmbedModel   string `yaml:"openai_embed_model,omitempty"`
-	OpenAIBaseURL      string `yaml:"openai_base_url,omitempty"`
-	GenerationEndpoint string `yaml:"generation_endpoint,omitempty"`
+	Image                         string `yaml:"image"`
+	ContainerName                 string `yaml:"container_name"`
+	DataVolume                    string `yaml:"data_volume"`
+	Port                          int    `yaml:"port"`
+	AuthMode                      string `yaml:"auth_mode"`
+	GenerationProvider            string `yaml:"generation_provider"`
+	EmbeddingProvider             string `yaml:"embedding_provider"`
+	OpenAIAPIKey                  string `yaml:"openai_api_key,omitempty"`
+	OpenAIModel                   string `yaml:"openai_model,omitempty"`
+	OpenAICodeModel               string `yaml:"openai_code_model,omitempty"`
+	OpenAINotifModel              string `yaml:"openai_notif_model,omitempty"`
+	OpenAIEmbedModel              string `yaml:"openai_embed_model,omitempty"`
+	OpenAIBaseURL                 string `yaml:"openai_base_url,omitempty"`
+	NotificationScoringTimeoutS   int    `yaml:"notification_scoring_timeout_s,omitempty"`
+	NotificationScoringMaxRetries int    `yaml:"notification_scoring_max_retries,omitempty"`
+	GenerationEndpoint            string `yaml:"generation_endpoint,omitempty"`
 }
 
 func defaultCoreRuntime() *CoreRuntime {
@@ -125,6 +127,12 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 		cfg.OpenAIEmbedModel = defaultOpenAIEmbedModel
 	}
 	cfg.OpenAIBaseURL = strings.TrimSpace(cfg.OpenAIBaseURL)
+	if cfg.NotificationScoringTimeoutS < 0 {
+		cfg.NotificationScoringTimeoutS = 0
+	}
+	if cfg.NotificationScoringMaxRetries < 0 {
+		cfg.NotificationScoringMaxRetries = 0
+	}
 	cfg.GenerationEndpoint = strings.TrimSpace(cfg.GenerationEndpoint)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
 	return cfg
