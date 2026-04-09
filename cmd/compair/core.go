@@ -455,6 +455,20 @@ func runCoreStatus() error {
 	fmt.Printf("  Container status: %s\n", status)
 	if status == "not created" {
 		fmt.Println("  Tip: run 'compair core up' to start the local Core runtime.")
+		return nil
+	}
+	if status == "running" {
+		env, err := dockerContainerEnv(cfg.ContainerName)
+		if err == nil {
+			mismatches := runtimeConfigMismatches(cfg, env)
+			if len(mismatches) > 0 {
+				fmt.Println("  Runtime/config mismatch:")
+				for _, mismatch := range mismatches {
+					fmt.Printf("    - %s\n", mismatch)
+				}
+				fmt.Println("  Tip: run 'compair core restart' and re-check this status output.")
+			}
+		}
 	}
 	return nil
 }
@@ -677,6 +691,89 @@ func dockerContainerStatus(name string) (string, error) {
 		return "unknown", nil
 	}
 	return strings.TrimSpace(out), nil
+}
+
+func dockerContainerEnv(name string) (map[string]string, error) {
+	if err := ensureDockerAvailable(); err != nil {
+		return nil, err
+	}
+	out, err := runDocker("inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", name)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such object") || strings.Contains(strings.ToLower(err.Error()), "no such container") {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	env := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		key := strings.TrimSpace(parts[0])
+		val := ""
+		if len(parts) == 2 {
+			val = parts[1]
+		}
+		if key != "" {
+			env[key] = val
+		}
+	}
+	return env, nil
+}
+
+func dockerEnvEnabled(env map[string]string, key string) bool {
+	v := strings.TrimSpace(strings.ToLower(env[key]))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []string {
+	if cfg == nil || len(env) == 0 {
+		return nil
+	}
+	var mismatches []string
+	if got := strings.TrimSpace(env["COMPAIR_GENERATION_PROVIDER"]); got != "" && got != cfg.GenerationProvider {
+		mismatches = append(mismatches, fmt.Sprintf("generation provider saved=%s running=%s", cfg.GenerationProvider, got))
+	}
+	if got := strings.TrimSpace(env["COMPAIR_EMBEDDING_PROVIDER"]); got != "" && got != cfg.EmbeddingProvider {
+		mismatches = append(mismatches, fmt.Sprintf("embedding provider saved=%s running=%s", cfg.EmbeddingProvider, got))
+	}
+	if cfg.UsesOpenAI() {
+		if got := strings.TrimSpace(env["COMPAIR_OPENAI_MODEL"]); got != "" && got != cfg.OpenAIModel {
+			mismatches = append(mismatches, fmt.Sprintf("OpenAI model saved=%s running=%s", cfg.OpenAIModel, got))
+		}
+		if strings.TrimSpace(cfg.OpenAINotifModel) != "" {
+			if got := strings.TrimSpace(env["COMPAIR_OPENAI_NOTIF_MODEL"]); got != cfg.OpenAINotifModel {
+				mismatches = append(mismatches, fmt.Sprintf("OpenAI notification model saved=%s running=%s", cfg.OpenAINotifModel, orNone(got)))
+			}
+		}
+	}
+	if cfg.NotificationScoringTimeoutS > 0 {
+		want := strconv.Itoa(cfg.NotificationScoringTimeoutS)
+		if got := strings.TrimSpace(env["COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S"]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("notification scoring timeout saved=%ss running=%s", want, orNone(got)))
+		}
+	}
+	if cfg.NotificationScoringMaxRetries > 0 {
+		want := strconv.Itoa(cfg.NotificationScoringMaxRetries)
+		if got := strings.TrimSpace(env["COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES"]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("notification scoring retries saved=%s running=%s", want, orNone(got)))
+		}
+	}
+	if cfg.ReferenceTrace && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_TRACE") {
+		mismatches = append(mismatches, "reference trace saved=on running=off")
+	}
+	if !cfg.ReferenceTrace && dockerEnvEnabled(env, "COMPAIR_REFERENCE_TRACE") {
+		mismatches = append(mismatches, "reference trace saved=off running=on")
+	}
+	if cfg.ReferenceTrace && cfg.ReferenceTraceMaxCandidates > 0 {
+		want := strconv.Itoa(cfg.ReferenceTraceMaxCandidates)
+		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_TRACE_MAX_CANDIDATES"]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("reference trace max candidates saved=%s running=%s", want, orNone(got)))
+		}
+	}
+	return mismatches
 }
 
 func runCoreUp() error {
