@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +32,8 @@ var (
 	coreNotificationScoringMaxRetries int
 	coreReferenceTrace                bool
 	coreReferenceTraceMaxCandidates   int
+	coreReferenceReranker             bool
+	coreReferenceRerankerModelPath    string
 	coreGenerationEndpoint            string
 	coreAuthMode                      string
 	corePort                          int
@@ -43,6 +46,8 @@ var (
 	coreLogsTail                      string
 	coreDoctorJSON                    bool
 )
+
+const coreReferenceRerankerContainerPath = "/opt/compair/reference_reranker.json"
 
 var coreCmd = &cobra.Command{
 	Use:   "core",
@@ -240,6 +245,10 @@ var coreDoctorCmd = &cobra.Command{
 			if cfg.NotificationScoringMaxRetries > 0 {
 				coreDoctorInfo(&report, emit, "Notification scoring retries", strconv.Itoa(cfg.NotificationScoringMaxRetries))
 			}
+			if cfg.ReferenceReranker {
+				coreDoctorInfo(&report, emit, "Reference reranker", "enabled")
+				coreDoctorInfo(&report, emit, "Reference reranker model", orNone(cfg.ReferenceRerankerModelPath))
+			}
 		}
 		if cfg.GenerationProvider == "http" {
 			if strings.TrimSpace(cfg.GenerationEndpoint) == "" {
@@ -384,6 +393,8 @@ func init() {
 	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringMaxRetries, "notification-scoring-max-retries", 0, "Notification scoring retry count for local Core (0 keeps backend default)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceTrace, "reference-trace", false, "Enable detailed reference candidate tracing in local Core logs")
 	coreConfigSetCmd.Flags().IntVar(&coreReferenceTraceMaxCandidates, "reference-trace-max-candidates", 0, "Max candidate records to emit per source chunk when reference tracing is enabled (0 = all)")
+	coreConfigSetCmd.Flags().BoolVar(&coreReferenceReranker, "reference-reranker", false, "Enable the opt-in lightweight reference reranker in local Core")
+	coreConfigSetCmd.Flags().StringVar(&coreReferenceRerankerModelPath, "reference-reranker-model-path", "", "Path to the local reference reranker artifact to mount into local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
 	coreConfigSetCmd.Flags().StringVar(&coreAuthMode, "auth", "", "Auth mode: single-user or accounts")
 	coreConfigSetCmd.Flags().IntVar(&corePort, "port", 0, "Local host port for the Core API")
@@ -436,6 +447,10 @@ func runCoreStatus() error {
 			limit = strconv.Itoa(cfg.ReferenceTraceMaxCandidates)
 		}
 		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
+	}
+	if cfg.ReferenceReranker {
+		fmt.Printf("  Reference reranker: on\n")
+		fmt.Printf("  Reference reranker model: %s\n", orNone(cfg.ReferenceRerankerModelPath))
 	}
 	if usesBundledLocalProviders(cfg) {
 		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
@@ -587,6 +602,12 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	}
 	if v, ok := getIntFlagIfChanged(cmd, "reference-trace-max-candidates"); ok {
 		cfg.ReferenceTraceMaxCandidates = v
+	}
+	if cmd.Flags().Changed("reference-reranker") {
+		cfg.ReferenceReranker = coreReferenceReranker
+	}
+	if v, ok := getStringFlagIfChanged(cmd, "reference-reranker-model-path"); ok {
+		cfg.ReferenceRerankerModelPath = strings.TrimSpace(v)
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "generation-endpoint"); ok {
 		cfg.GenerationEndpoint = strings.TrimSpace(v)
@@ -773,6 +794,17 @@ func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []s
 			mismatches = append(mismatches, fmt.Sprintf("reference trace max candidates saved=%s running=%s", want, orNone(got)))
 		}
 	}
+	if cfg.ReferenceReranker && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_RERANKER_ENABLED") {
+		mismatches = append(mismatches, "reference reranker saved=on running=off")
+	}
+	if !cfg.ReferenceReranker && dockerEnvEnabled(env, "COMPAIR_REFERENCE_RERANKER_ENABLED") {
+		mismatches = append(mismatches, "reference reranker saved=off running=on")
+	}
+	if cfg.ReferenceReranker && strings.TrimSpace(cfg.ReferenceRerankerModelPath) != "" {
+		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_RERANKER_MODEL_PATH"]); got != coreReferenceRerankerContainerPath {
+			mismatches = append(mismatches, fmt.Sprintf("reference reranker model saved=%s running=%s", cfg.ReferenceRerankerModelPath, orNone(got)))
+		}
+	}
 	return mismatches
 }
 
@@ -828,6 +860,24 @@ func runCoreUp() error {
 	}
 	if cfg.ReferenceTraceMaxCandidates > 0 {
 		args = append(args, "-e", "COMPAIR_REFERENCE_TRACE_MAX_CANDIDATES="+strconv.Itoa(cfg.ReferenceTraceMaxCandidates))
+	}
+	if cfg.ReferenceReranker {
+		args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_ENABLED=1")
+	}
+	if modelPath := strings.TrimSpace(cfg.ReferenceRerankerModelPath); modelPath != "" {
+		absPath, err := filepath.Abs(modelPath)
+		if err != nil {
+			fmt.Printf("Warning: could not resolve reference reranker model path %q: %v\n", modelPath, err)
+		} else if info, statErr := os.Stat(absPath); statErr != nil || info.IsDir() {
+			if statErr != nil {
+				fmt.Printf("Warning: reference reranker model path %q is unavailable: %v\n", absPath, statErr)
+			} else {
+				fmt.Printf("Warning: reference reranker model path %q is a directory; falling back to heuristic ranking.\n", absPath)
+			}
+		} else {
+			args = append(args, "-v", fmt.Sprintf("%s:%s:ro", absPath, coreReferenceRerankerContainerPath))
+			args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_MODEL_PATH="+coreReferenceRerankerContainerPath)
+		}
 	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) != "" {
 		args = append(args, "-e", "COMPAIR_GENERATION_ENDPOINT="+strings.TrimSpace(cfg.GenerationEndpoint))
