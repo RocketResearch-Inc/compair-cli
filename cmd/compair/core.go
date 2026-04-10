@@ -48,6 +48,9 @@ var (
 )
 
 const coreReferenceRerankerContainerPath = "/opt/compair/reference_reranker.json"
+const coreReferenceRerankerContainerDirPath = "/opt/compair/reranker"
+const coreReferenceRerankerLatestManifestName = "reference_reranker_latest.json"
+const coreReferenceRerankerLatestContainerPath = coreReferenceRerankerContainerDirPath + "/" + coreReferenceRerankerLatestManifestName
 
 var coreCmd = &cobra.Command{
 	Use:   "core",
@@ -801,7 +804,8 @@ func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []s
 		mismatches = append(mismatches, "reference reranker saved=off running=on")
 	}
 	if cfg.ReferenceReranker && strings.TrimSpace(cfg.ReferenceRerankerModelPath) != "" {
-		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_RERANKER_MODEL_PATH"]); got != coreReferenceRerankerContainerPath {
+		want := expectedReferenceRerankerContainerPath(cfg.ReferenceRerankerModelPath)
+		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_RERANKER_MODEL_PATH"]); want != "" && got != want {
 			mismatches = append(mismatches, fmt.Sprintf("reference reranker model saved=%s running=%s", cfg.ReferenceRerankerModelPath, orNone(got)))
 		}
 	}
@@ -865,18 +869,12 @@ func runCoreUp() error {
 		args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_ENABLED=1")
 	}
 	if modelPath := strings.TrimSpace(cfg.ReferenceRerankerModelPath); modelPath != "" {
-		absPath, err := filepath.Abs(modelPath)
+		hostMountPath, containerMountPath, containerModelPath, err := resolveReferenceRerankerMount(modelPath)
 		if err != nil {
-			fmt.Printf("Warning: could not resolve reference reranker model path %q: %v\n", modelPath, err)
-		} else if info, statErr := os.Stat(absPath); statErr != nil || info.IsDir() {
-			if statErr != nil {
-				fmt.Printf("Warning: reference reranker model path %q is unavailable: %v\n", absPath, statErr)
-			} else {
-				fmt.Printf("Warning: reference reranker model path %q is a directory; falling back to heuristic ranking.\n", absPath)
-			}
+			fmt.Printf("Warning: reference reranker model path %q is unavailable: %v\n", modelPath, err)
 		} else {
-			args = append(args, "-v", fmt.Sprintf("%s:%s:ro", absPath, coreReferenceRerankerContainerPath))
-			args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_MODEL_PATH="+coreReferenceRerankerContainerPath)
+			args = append(args, "-v", fmt.Sprintf("%s:%s:ro", hostMountPath, containerMountPath))
+			args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_MODEL_PATH="+containerModelPath)
 		}
 	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) != "" {
@@ -931,6 +929,47 @@ func presence(v string) string {
 		return "missing"
 	}
 	return "present"
+}
+
+func expectedReferenceRerankerContainerPath(modelPath string) string {
+	trimmed := strings.TrimSpace(modelPath)
+	if trimmed == "" {
+		return ""
+	}
+	absPath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return coreReferenceRerankerContainerPath
+	}
+	info, statErr := os.Stat(absPath)
+	if statErr == nil {
+		if info.IsDir() || filepath.Base(absPath) == coreReferenceRerankerLatestManifestName {
+			return coreReferenceRerankerLatestContainerPath
+		}
+	}
+	return coreReferenceRerankerContainerPath
+}
+
+func resolveReferenceRerankerMount(modelPath string) (string, string, string, error) {
+	absPath, err := filepath.Abs(strings.TrimSpace(modelPath))
+	if err != nil {
+		return "", "", "", err
+	}
+	info, statErr := os.Stat(absPath)
+	if statErr != nil {
+		return "", "", "", statErr
+	}
+	if info.IsDir() {
+		manifestPath := filepath.Join(absPath, coreReferenceRerankerLatestManifestName)
+		if _, err := os.Stat(manifestPath); err != nil {
+			return "", "", "", fmt.Errorf("reference reranker directory %q is missing %s", absPath, coreReferenceRerankerLatestManifestName)
+		}
+		return absPath, coreReferenceRerankerContainerDirPath, coreReferenceRerankerLatestContainerPath, nil
+	}
+	if filepath.Base(absPath) == coreReferenceRerankerLatestManifestName {
+		dirPath := filepath.Dir(absPath)
+		return dirPath, coreReferenceRerankerContainerDirPath, coreReferenceRerankerLatestContainerPath, nil
+	}
+	return absPath, coreReferenceRerankerContainerPath, coreReferenceRerankerContainerPath, nil
 }
 
 func orNone(v string) string {
