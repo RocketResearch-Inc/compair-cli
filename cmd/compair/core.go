@@ -1,6 +1,7 @@
 package compair
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,35 +21,41 @@ import (
 )
 
 var (
-	coreProviderPreset                string
-	coreGenerationProvider            string
-	coreEmbeddingProvider             string
-	coreOpenAIAPIKey                  string
-	coreOpenAIModel                   string
-	coreOpenAICodeModel               string
-	coreOpenAINotifModel              string
-	coreOpenAIEmbedModel              string
-	coreOpenAIBaseURL                 string
-	coreNotificationScoringTimeoutS   int
-	coreNotificationScoringMaxRetries int
-	coreReferenceTrace                bool
-	coreReferenceTraceMaxCandidates   int
-	coreReferenceHybrid               bool
-	coreReferenceAdjudicator          bool
-	coreReferenceAdjudicatorTopK      int
-	coreReferenceReranker             bool
-	coreReferenceRerankerModelPath    string
-	coreGenerationEndpoint            string
-	coreAuthMode                      string
-	corePort                          int
-	coreImage                         string
-	coreContainerName                 string
-	coreDataVolume                    string
-	coreClearOpenAIAPIKey             bool
-	coreDownPurge                     bool
-	coreLogsFollow                    bool
-	coreLogsTail                      string
-	coreDoctorJSON                    bool
+	coreProviderPreset                    string
+	coreGenerationProvider                string
+	coreEmbeddingProvider                 string
+	coreOpenAIAPIKey                      string
+	coreOpenAIModel                       string
+	coreOpenAICodeModel                   string
+	coreOpenAINotifModel                  string
+	coreOpenAIEmbedModel                  string
+	coreOpenAIBaseURL                     string
+	coreNotificationScoringTimeoutS       int
+	coreNotificationScoringMaxRetries     int
+	coreReferenceTrace                    bool
+	coreReferenceTraceMaxCandidates       int
+	coreReferenceSourceTrace              bool
+	coreReferenceSourceTraceMaxCandidates int
+	coreReferenceHybrid                   bool
+	coreReferenceAdjudicator              bool
+	coreReferenceAdjudicatorTopK          int
+	coreReferenceReranker                 bool
+	coreReferenceRerankerModelPath        string
+	coreGenerationEndpoint                string
+	coreExtraEnv                          []string
+	coreExtraEnvFile                      string
+	coreUnsetExtraEnv                     []string
+	coreClearExtraEnv                     bool
+	coreAuthMode                          string
+	corePort                              int
+	coreImage                             string
+	coreContainerName                     string
+	coreDataVolume                        string
+	coreClearOpenAIAPIKey                 bool
+	coreDownPurge                         bool
+	coreLogsFollow                        bool
+	coreLogsTail                          string
+	coreDoctorJSON                        bool
 )
 
 const coreReferenceRerankerContainerPath = "/opt/compair/reference_reranker.json"
@@ -408,12 +416,18 @@ func init() {
 	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringMaxRetries, "notification-scoring-max-retries", 0, "Notification scoring retry count for local Core (0 keeps backend default)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceTrace, "reference-trace", false, "Enable detailed reference candidate tracing in local Core logs")
 	coreConfigSetCmd.Flags().IntVar(&coreReferenceTraceMaxCandidates, "reference-trace-max-candidates", 0, "Max candidate records to emit per source chunk when reference tracing is enabled (0 = all)")
+	coreConfigSetCmd.Flags().BoolVar(&coreReferenceSourceTrace, "reference-source-trace", false, "Enable detailed source-chunk admission tracing in local Core logs")
+	coreConfigSetCmd.Flags().IntVar(&coreReferenceSourceTraceMaxCandidates, "reference-source-trace-max-candidates", 0, "Max source-candidate records to emit per document when source tracing is enabled (0 = all)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceHybrid, "reference-hybrid", false, "Enable hybrid lexical+anchor+semantic candidate fusion in local Core")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceAdjudicator, "reference-adjudicator", false, "Enable the lightweight top-K reference adjudicator in local Core")
 	coreConfigSetCmd.Flags().IntVar(&coreReferenceAdjudicatorTopK, "reference-adjudicator-top-k", 0, "How many top reference candidates the local adjudicator should inspect per source chunk (0 keeps backend default)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceReranker, "reference-reranker", false, "Enable the opt-in lightweight reference reranker in local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreReferenceRerankerModelPath, "reference-reranker-model-path", "", "Path to the local reference reranker artifact to mount into local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
+	coreConfigSetCmd.Flags().StringArrayVar(&coreExtraEnv, "env", nil, "Additional environment variable for local Core in KEY=VALUE form (repeatable)")
+	coreConfigSetCmd.Flags().StringVar(&coreExtraEnvFile, "env-file", "", "Path to a dotenv-style file or replay-tuner JSON summary containing extra environment variables for local Core")
+	coreConfigSetCmd.Flags().StringArrayVar(&coreUnsetExtraEnv, "unset-env", nil, "Remove a saved extra environment variable key from local Core config (repeatable)")
+	coreConfigSetCmd.Flags().BoolVar(&coreClearExtraEnv, "clear-extra-env", false, "Remove all saved extra environment variables from local Core config")
 	coreConfigSetCmd.Flags().StringVar(&coreAuthMode, "auth", "", "Auth mode: single-user or accounts")
 	coreConfigSetCmd.Flags().IntVar(&corePort, "port", 0, "Local host port for the Core API")
 	coreConfigSetCmd.Flags().StringVar(&coreImage, "image", "", "Container image to run")
@@ -466,6 +480,13 @@ func runCoreStatus() error {
 		}
 		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
 	}
+	if cfg.ReferenceSourceTrace {
+		limit := "all"
+		if cfg.ReferenceSourceTraceMaxCandidates > 0 {
+			limit = strconv.Itoa(cfg.ReferenceSourceTraceMaxCandidates)
+		}
+		fmt.Printf("  Reference source trace: on (max candidates %s)\n", limit)
+	}
 	if cfg.ReferenceHybrid {
 		fmt.Println("  Reference hybrid: on")
 	}
@@ -478,6 +499,9 @@ func runCoreStatus() error {
 	if cfg.ReferenceReranker {
 		fmt.Printf("  Reference reranker: on\n")
 		fmt.Printf("  Reference reranker model: %s\n", orNone(cfg.ReferenceRerankerModelPath))
+	}
+	if len(cfg.ExtraEnv) > 0 {
+		fmt.Printf("  Extra env vars: %d\n", len(cfg.ExtraEnv))
 	}
 	if usesBundledLocalProviders(cfg) {
 		fmt.Println("  Review quality: bundled local fallback (functional, lower fidelity than Cloud)")
@@ -553,6 +577,13 @@ func runCoreConfigShow() error {
 		}
 		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
 	}
+	if cfg.ReferenceSourceTrace {
+		limit := "all"
+		if cfg.ReferenceSourceTraceMaxCandidates > 0 {
+			limit = strconv.Itoa(cfg.ReferenceSourceTraceMaxCandidates)
+		}
+		fmt.Printf("  Reference source trace: on (max candidates %s)\n", limit)
+	}
 	if cfg.ReferenceHybrid {
 		fmt.Println("  Reference hybrid: on")
 	}
@@ -566,7 +597,106 @@ func runCoreConfigShow() error {
 		fmt.Printf("  Reference reranker: on\n")
 		fmt.Printf("  Reference reranker model: %s\n", orNone(cfg.ReferenceRerankerModelPath))
 	}
+	if len(cfg.ExtraEnv) > 0 {
+		fmt.Printf("  Extra env vars: %d\n", len(cfg.ExtraEnv))
+		for _, key := range sortedMapKeys(cfg.ExtraEnv) {
+			fmt.Printf("    - %s\n", key)
+		}
+	}
 	return nil
+}
+
+func sortedMapKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func parseExtraEnvAssignment(raw string) (string, string, error) {
+	value := strings.TrimSpace(raw)
+	if strings.HasPrefix(value, "export ") {
+		value = strings.TrimSpace(strings.TrimPrefix(value, "export "))
+	}
+	parts := strings.SplitN(value, "=", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("expected KEY=VALUE, got %q", raw)
+	}
+	key := strings.TrimSpace(parts[0])
+	if key == "" {
+		return "", "", fmt.Errorf("missing env key in %q", raw)
+	}
+	return key, strings.TrimSpace(parts[1]), nil
+}
+
+func parseExtraEnvList(values []string) (map[string]string, error) {
+	result := map[string]string{}
+	for _, raw := range values {
+		key, value, err := parseExtraEnvAssignment(raw)
+		if err != nil {
+			return nil, err
+		}
+		result[key] = value
+	}
+	return result, nil
+}
+
+func parseExtraEnvJSONMap(payload map[string]any) map[string]string {
+	result := map[string]string{}
+	for rawKey, rawValue := range payload {
+		key := strings.TrimSpace(rawKey)
+		if key == "" {
+			continue
+		}
+		switch value := rawValue.(type) {
+		case nil:
+			result[key] = ""
+		case string:
+			result[key] = strings.TrimSpace(value)
+		default:
+			result[key] = strings.TrimSpace(fmt.Sprint(value))
+		}
+	}
+	return result
+}
+
+func loadExtraEnvFile(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var jsonPayload map[string]any
+	if err := json.Unmarshal(data, &jsonPayload); err == nil {
+		if rawRecommended, ok := jsonPayload["recommended_env"]; ok {
+			if recommended, ok := rawRecommended.(map[string]any); ok {
+				return parseExtraEnvJSONMap(recommended), nil
+			}
+		}
+		return parseExtraEnvJSONMap(jsonPayload), nil
+	}
+
+	result := map[string]string{}
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, err := parseExtraEnvAssignment(line)
+		if err != nil {
+			return nil, err
+		}
+		result[key] = value
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func maybeWarnCoreRestartNeeded(cfg *config.CoreRuntime) error {
@@ -593,6 +723,9 @@ func maybeWarnCoreRestartNeeded(cfg *config.CoreRuntime) error {
 func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	if cfg == nil {
 		return
+	}
+	if cfg.ExtraEnv == nil {
+		cfg.ExtraEnv = map[string]string{}
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "provider"); ok {
 		switch strings.TrimSpace(strings.ToLower(v)) {
@@ -643,6 +776,12 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	if v, ok := getIntFlagIfChanged(cmd, "reference-trace-max-candidates"); ok {
 		cfg.ReferenceTraceMaxCandidates = v
 	}
+	if cmd.Flags().Changed("reference-source-trace") {
+		cfg.ReferenceSourceTrace = coreReferenceSourceTrace
+	}
+	if v, ok := getIntFlagIfChanged(cmd, "reference-source-trace-max-candidates"); ok {
+		cfg.ReferenceSourceTraceMaxCandidates = v
+	}
 	if cmd.Flags().Changed("reference-hybrid") {
 		cfg.ReferenceHybrid = coreReferenceHybrid
 	}
@@ -660,6 +799,34 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "generation-endpoint"); ok {
 		cfg.GenerationEndpoint = strings.TrimSpace(v)
+	}
+	if cmd.Flags().Changed("clear-extra-env") && coreClearExtraEnv {
+		cfg.ExtraEnv = map[string]string{}
+	}
+	if v, ok := getStringFlagIfChanged(cmd, "env-file"); ok {
+		extraEnv, err := loadExtraEnvFile(strings.TrimSpace(v))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not load --env-file %q: %v\n", v, err)
+		} else {
+			for key, value := range extraEnv {
+				cfg.ExtraEnv[key] = value
+			}
+		}
+	}
+	if cmd.Flags().Changed("unset-env") {
+		for _, key := range coreUnsetExtraEnv {
+			delete(cfg.ExtraEnv, strings.TrimSpace(key))
+		}
+	}
+	if cmd.Flags().Changed("env") {
+		extraEnv, err := parseExtraEnvList(coreExtraEnv)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: ignoring invalid --env value: %v\n", err)
+		} else {
+			for key, value := range extraEnv {
+				cfg.ExtraEnv[key] = value
+			}
+		}
 	}
 	if v, ok := getStringFlagIfChanged(cmd, "auth"); ok {
 		cfg.AuthMode = strings.TrimSpace(v)
@@ -843,6 +1010,18 @@ func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []s
 			mismatches = append(mismatches, fmt.Sprintf("reference trace max candidates saved=%s running=%s", want, orNone(got)))
 		}
 	}
+	if cfg.ReferenceSourceTrace && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_SOURCE_TRACE") {
+		mismatches = append(mismatches, "reference source trace saved=on running=off")
+	}
+	if !cfg.ReferenceSourceTrace && dockerEnvEnabled(env, "COMPAIR_REFERENCE_SOURCE_TRACE") {
+		mismatches = append(mismatches, "reference source trace saved=off running=on")
+	}
+	if cfg.ReferenceSourceTrace && cfg.ReferenceSourceTraceMaxCandidates > 0 {
+		want := strconv.Itoa(cfg.ReferenceSourceTraceMaxCandidates)
+		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_SOURCE_TRACE_MAX_CANDIDATES"]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("reference source trace max candidates saved=%s running=%s", want, orNone(got)))
+		}
+	}
 	if cfg.ReferenceHybrid && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_HYBRID_ENABLED") {
 		mismatches = append(mismatches, "reference hybrid saved=on running=off")
 	}
@@ -871,6 +1050,12 @@ func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []s
 		want := expectedReferenceRerankerContainerPath(cfg.ReferenceRerankerModelPath)
 		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_RERANKER_MODEL_PATH"]); want != "" && got != want {
 			mismatches = append(mismatches, fmt.Sprintf("reference reranker model saved=%s running=%s", cfg.ReferenceRerankerModelPath, orNone(got)))
+		}
+	}
+	for _, key := range sortedMapKeys(cfg.ExtraEnv) {
+		want := strings.TrimSpace(cfg.ExtraEnv[key])
+		if got := strings.TrimSpace(env[key]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("extra env %s saved=%s running=%s", key, orNone(want), orNone(got)))
 		}
 	}
 	return mismatches
@@ -929,6 +1114,12 @@ func runCoreUp() error {
 	if cfg.ReferenceTraceMaxCandidates > 0 {
 		args = append(args, "-e", "COMPAIR_REFERENCE_TRACE_MAX_CANDIDATES="+strconv.Itoa(cfg.ReferenceTraceMaxCandidates))
 	}
+	if cfg.ReferenceSourceTrace {
+		args = append(args, "-e", "COMPAIR_REFERENCE_SOURCE_TRACE=1")
+	}
+	if cfg.ReferenceSourceTraceMaxCandidates > 0 {
+		args = append(args, "-e", "COMPAIR_REFERENCE_SOURCE_TRACE_MAX_CANDIDATES="+strconv.Itoa(cfg.ReferenceSourceTraceMaxCandidates))
+	}
 	if cfg.ReferenceHybrid {
 		args = append(args, "-e", "COMPAIR_REFERENCE_HYBRID_ENABLED=1")
 	}
@@ -955,6 +1146,9 @@ func runCoreUp() error {
 	}
 	if key := strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()); key != "" && cfg.UsesOpenAI() {
 		args = append(args, "-e", "COMPAIR_OPENAI_API_KEY="+key)
+	}
+	for _, key := range sortedMapKeys(cfg.ExtraEnv) {
+		args = append(args, "-e", key+"="+cfg.ExtraEnv[key])
 	}
 	args = append(args, cfg.Image)
 

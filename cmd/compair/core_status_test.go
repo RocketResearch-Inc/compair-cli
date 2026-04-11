@@ -16,6 +16,7 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
+		ReferenceSourceTrace:          true,
 		ReferenceHybrid:               true,
 		ReferenceAdjudicator:          true,
 		ReferenceAdjudicatorTopK:      6,
@@ -30,8 +31,8 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 
 	mismatches := runtimeConfigMismatches(cfg, env)
 
-	if len(mismatches) != 6 {
-		t.Fatalf("expected 6 mismatches, got %d: %#v", len(mismatches), mismatches)
+	if len(mismatches) != 7 {
+		t.Fatalf("expected 7 mismatches, got %d: %#v", len(mismatches), mismatches)
 	}
 }
 
@@ -43,6 +44,7 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
+		ReferenceSourceTrace:          true,
 		ReferenceHybrid:               true,
 		ReferenceAdjudicator:          true,
 		ReferenceAdjudicatorTopK:      6,
@@ -54,6 +56,7 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 		"COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S":   "90",
 		"COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES": "1",
 		"COMPAIR_REFERENCE_TRACE":                  "1",
+		"COMPAIR_REFERENCE_SOURCE_TRACE":           "1",
 		"COMPAIR_REFERENCE_HYBRID_ENABLED":         "1",
 		"COMPAIR_REFERENCE_ADJUDICATOR_ENABLED":    "1",
 		"COMPAIR_REFERENCE_ADJUDICATOR_TOP_K":      "6",
@@ -63,6 +66,61 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 
 	if len(mismatches) != 0 {
 		t.Fatalf("expected no mismatches, got %#v", mismatches)
+	}
+}
+
+func TestRuntimeConfigMismatchesIncludesExtraEnv(t *testing.T) {
+	cfg := &config.CoreRuntime{
+		ExtraEnv: map[string]string{
+			"COMPAIR_REFERENCE_HYBRID_RERANKER_BLEND": "0.75",
+		},
+	}
+	env := map[string]string{
+		"COMPAIR_REFERENCE_HYBRID_RERANKER_BLEND": "0.45",
+	}
+
+	mismatches := runtimeConfigMismatches(cfg, env)
+
+	if len(mismatches) != 1 {
+		t.Fatalf("expected 1 mismatch, got %#v", mismatches)
+	}
+}
+
+func TestLoadExtraEnvFileReadsReplaySummaryRecommendedEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "summary.json")
+	content := []byte("{\"recommended_env\":{\"COMPAIR_REFERENCE_HYBRID_RERANKER_BLEND\":\"0.75\",\"COMPAIR_REFERENCE_ADJUDICATOR_TOP_K\":\"12\"}}\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write summary: %v", err)
+	}
+
+	got, err := loadExtraEnvFile(path)
+	if err != nil {
+		t.Fatalf("load extra env file: %v", err)
+	}
+	if got["COMPAIR_REFERENCE_HYBRID_RERANKER_BLEND"] != "0.75" {
+		t.Fatalf("unexpected hybrid reranker blend: %#v", got)
+	}
+	if got["COMPAIR_REFERENCE_ADJUDICATOR_TOP_K"] != "12" {
+		t.Fatalf("unexpected adjudicator top-k: %#v", got)
+	}
+}
+
+func TestLoadExtraEnvFileReadsDotenvFormat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tuning.env")
+	content := []byte("# comment\nCOMPAIR_REFERENCE_HYBRID_RERANKER_BLEND=0.75\nexport COMPAIR_REFERENCE_ADJUDICATOR_TOP_K=12\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
+
+	got, err := loadExtraEnvFile(path)
+	if err != nil {
+		t.Fatalf("load extra env file: %v", err)
+	}
+	if got["COMPAIR_REFERENCE_HYBRID_RERANKER_BLEND"] != "0.75" {
+		t.Fatalf("unexpected hybrid reranker blend: %#v", got)
+	}
+	if got["COMPAIR_REFERENCE_ADJUDICATOR_TOP_K"] != "12" {
+		t.Fatalf("unexpected adjudicator top-k: %#v", got)
 	}
 }
 

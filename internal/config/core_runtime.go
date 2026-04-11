@@ -22,29 +22,32 @@ const (
 )
 
 type CoreRuntime struct {
-	Image                         string `yaml:"image"`
-	ContainerName                 string `yaml:"container_name"`
-	DataVolume                    string `yaml:"data_volume"`
-	Port                          int    `yaml:"port"`
-	AuthMode                      string `yaml:"auth_mode"`
-	GenerationProvider            string `yaml:"generation_provider"`
-	EmbeddingProvider             string `yaml:"embedding_provider"`
-	OpenAIAPIKey                  string `yaml:"openai_api_key,omitempty"`
-	OpenAIModel                   string `yaml:"openai_model,omitempty"`
-	OpenAICodeModel               string `yaml:"openai_code_model,omitempty"`
-	OpenAINotifModel              string `yaml:"openai_notif_model,omitempty"`
-	OpenAIEmbedModel              string `yaml:"openai_embed_model,omitempty"`
-	OpenAIBaseURL                 string `yaml:"openai_base_url,omitempty"`
-	NotificationScoringTimeoutS   int    `yaml:"notification_scoring_timeout_s,omitempty"`
-	NotificationScoringMaxRetries int    `yaml:"notification_scoring_max_retries,omitempty"`
-	ReferenceTrace                bool   `yaml:"reference_trace,omitempty"`
-	ReferenceTraceMaxCandidates   int    `yaml:"reference_trace_max_candidates,omitempty"`
-	ReferenceHybrid               bool   `yaml:"reference_hybrid,omitempty"`
-	ReferenceAdjudicator          bool   `yaml:"reference_adjudicator,omitempty"`
-	ReferenceAdjudicatorTopK      int    `yaml:"reference_adjudicator_top_k,omitempty"`
-	ReferenceReranker             bool   `yaml:"reference_reranker,omitempty"`
-	ReferenceRerankerModelPath    string `yaml:"reference_reranker_model_path,omitempty"`
-	GenerationEndpoint            string `yaml:"generation_endpoint,omitempty"`
+	Image                             string            `yaml:"image"`
+	ContainerName                     string            `yaml:"container_name"`
+	DataVolume                        string            `yaml:"data_volume"`
+	Port                              int               `yaml:"port"`
+	AuthMode                          string            `yaml:"auth_mode"`
+	GenerationProvider                string            `yaml:"generation_provider"`
+	EmbeddingProvider                 string            `yaml:"embedding_provider"`
+	OpenAIAPIKey                      string            `yaml:"openai_api_key,omitempty"`
+	OpenAIModel                       string            `yaml:"openai_model,omitempty"`
+	OpenAICodeModel                   string            `yaml:"openai_code_model,omitempty"`
+	OpenAINotifModel                  string            `yaml:"openai_notif_model,omitempty"`
+	OpenAIEmbedModel                  string            `yaml:"openai_embed_model,omitempty"`
+	OpenAIBaseURL                     string            `yaml:"openai_base_url,omitempty"`
+	NotificationScoringTimeoutS       int               `yaml:"notification_scoring_timeout_s,omitempty"`
+	NotificationScoringMaxRetries     int               `yaml:"notification_scoring_max_retries,omitempty"`
+	ReferenceTrace                    bool              `yaml:"reference_trace,omitempty"`
+	ReferenceTraceMaxCandidates       int               `yaml:"reference_trace_max_candidates,omitempty"`
+	ReferenceSourceTrace              bool              `yaml:"reference_source_trace,omitempty"`
+	ReferenceSourceTraceMaxCandidates int               `yaml:"reference_source_trace_max_candidates,omitempty"`
+	ReferenceHybrid                   bool              `yaml:"reference_hybrid,omitempty"`
+	ReferenceAdjudicator              bool              `yaml:"reference_adjudicator,omitempty"`
+	ReferenceAdjudicatorTopK          int               `yaml:"reference_adjudicator_top_k,omitempty"`
+	ReferenceReranker                 bool              `yaml:"reference_reranker,omitempty"`
+	ReferenceRerankerModelPath        string            `yaml:"reference_reranker_model_path,omitempty"`
+	GenerationEndpoint                string            `yaml:"generation_endpoint,omitempty"`
+	ExtraEnv                          map[string]string `yaml:"extra_env,omitempty"`
 }
 
 func defaultCoreRuntime() *CoreRuntime {
@@ -143,12 +146,27 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 	if cfg.ReferenceTraceMaxCandidates < 0 {
 		cfg.ReferenceTraceMaxCandidates = 0
 	}
+	if cfg.ReferenceSourceTraceMaxCandidates < 0 {
+		cfg.ReferenceSourceTraceMaxCandidates = 0
+	}
 	if cfg.ReferenceAdjudicatorTopK < 0 {
 		cfg.ReferenceAdjudicatorTopK = 0
 	}
 	cfg.ReferenceRerankerModelPath = strings.TrimSpace(cfg.ReferenceRerankerModelPath)
 	cfg.GenerationEndpoint = strings.TrimSpace(cfg.GenerationEndpoint)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
+	if len(cfg.ExtraEnv) > 0 {
+		normalized := make(map[string]string, len(cfg.ExtraEnv))
+		for rawKey, rawValue := range cfg.ExtraEnv {
+			key := strings.TrimSpace(rawKey)
+			value := strings.TrimSpace(rawValue)
+			if key == "" {
+				continue
+			}
+			normalized[key] = value
+		}
+		cfg.ExtraEnv = normalized
+	}
 	return cfg
 }
 
