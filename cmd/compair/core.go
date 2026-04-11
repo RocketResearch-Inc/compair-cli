@@ -32,6 +32,9 @@ var (
 	coreNotificationScoringMaxRetries int
 	coreReferenceTrace                bool
 	coreReferenceTraceMaxCandidates   int
+	coreReferenceHybrid               bool
+	coreReferenceAdjudicator          bool
+	coreReferenceAdjudicatorTopK      int
 	coreReferenceReranker             bool
 	coreReferenceRerankerModelPath    string
 	coreGenerationEndpoint            string
@@ -252,6 +255,15 @@ var coreDoctorCmd = &cobra.Command{
 				coreDoctorInfo(&report, emit, "Reference reranker", "enabled")
 				coreDoctorInfo(&report, emit, "Reference reranker model", orNone(cfg.ReferenceRerankerModelPath))
 			}
+			if cfg.ReferenceHybrid {
+				coreDoctorInfo(&report, emit, "Reference hybrid", "enabled")
+			}
+			if cfg.ReferenceAdjudicator {
+				coreDoctorInfo(&report, emit, "Reference adjudicator", "enabled")
+				if cfg.ReferenceAdjudicatorTopK > 0 {
+					coreDoctorInfo(&report, emit, "Reference adjudicator top-k", strconv.Itoa(cfg.ReferenceAdjudicatorTopK))
+				}
+			}
 		}
 		if cfg.GenerationProvider == "http" {
 			if strings.TrimSpace(cfg.GenerationEndpoint) == "" {
@@ -396,6 +408,9 @@ func init() {
 	coreConfigSetCmd.Flags().IntVar(&coreNotificationScoringMaxRetries, "notification-scoring-max-retries", 0, "Notification scoring retry count for local Core (0 keeps backend default)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceTrace, "reference-trace", false, "Enable detailed reference candidate tracing in local Core logs")
 	coreConfigSetCmd.Flags().IntVar(&coreReferenceTraceMaxCandidates, "reference-trace-max-candidates", 0, "Max candidate records to emit per source chunk when reference tracing is enabled (0 = all)")
+	coreConfigSetCmd.Flags().BoolVar(&coreReferenceHybrid, "reference-hybrid", false, "Enable hybrid lexical+anchor+semantic candidate fusion in local Core")
+	coreConfigSetCmd.Flags().BoolVar(&coreReferenceAdjudicator, "reference-adjudicator", false, "Enable the lightweight top-K reference adjudicator in local Core")
+	coreConfigSetCmd.Flags().IntVar(&coreReferenceAdjudicatorTopK, "reference-adjudicator-top-k", 0, "How many top reference candidates the local adjudicator should inspect per source chunk (0 keeps backend default)")
 	coreConfigSetCmd.Flags().BoolVar(&coreReferenceReranker, "reference-reranker", false, "Enable the opt-in lightweight reference reranker in local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreReferenceRerankerModelPath, "reference-reranker-model-path", "", "Path to the local reference reranker artifact to mount into local Core")
 	coreConfigSetCmd.Flags().StringVar(&coreGenerationEndpoint, "generation-endpoint", "", "Custom generation endpoint when using generation-provider=http")
@@ -450,6 +465,15 @@ func runCoreStatus() error {
 			limit = strconv.Itoa(cfg.ReferenceTraceMaxCandidates)
 		}
 		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
+	}
+	if cfg.ReferenceHybrid {
+		fmt.Println("  Reference hybrid: on")
+	}
+	if cfg.ReferenceAdjudicator {
+		fmt.Println("  Reference adjudicator: on")
+		if cfg.ReferenceAdjudicatorTopK > 0 {
+			fmt.Printf("  Reference adjudicator top-k: %d\n", cfg.ReferenceAdjudicatorTopK)
+		}
 	}
 	if cfg.ReferenceReranker {
 		fmt.Printf("  Reference reranker: on\n")
@@ -529,6 +553,19 @@ func runCoreConfigShow() error {
 		}
 		fmt.Printf("  Reference trace: on (max candidates %s)\n", limit)
 	}
+	if cfg.ReferenceHybrid {
+		fmt.Println("  Reference hybrid: on")
+	}
+	if cfg.ReferenceAdjudicator {
+		fmt.Println("  Reference adjudicator: on")
+		if cfg.ReferenceAdjudicatorTopK > 0 {
+			fmt.Printf("  Reference adjudicator top-k: %d\n", cfg.ReferenceAdjudicatorTopK)
+		}
+	}
+	if cfg.ReferenceReranker {
+		fmt.Printf("  Reference reranker: on\n")
+		fmt.Printf("  Reference reranker model: %s\n", orNone(cfg.ReferenceRerankerModelPath))
+	}
 	return nil
 }
 
@@ -605,6 +642,15 @@ func applyCoreRuntimeOverrides(cmd *cobra.Command, cfg *config.CoreRuntime) {
 	}
 	if v, ok := getIntFlagIfChanged(cmd, "reference-trace-max-candidates"); ok {
 		cfg.ReferenceTraceMaxCandidates = v
+	}
+	if cmd.Flags().Changed("reference-hybrid") {
+		cfg.ReferenceHybrid = coreReferenceHybrid
+	}
+	if cmd.Flags().Changed("reference-adjudicator") {
+		cfg.ReferenceAdjudicator = coreReferenceAdjudicator
+	}
+	if v, ok := getIntFlagIfChanged(cmd, "reference-adjudicator-top-k"); ok {
+		cfg.ReferenceAdjudicatorTopK = v
 	}
 	if cmd.Flags().Changed("reference-reranker") {
 		cfg.ReferenceReranker = coreReferenceReranker
@@ -797,6 +843,24 @@ func runtimeConfigMismatches(cfg *config.CoreRuntime, env map[string]string) []s
 			mismatches = append(mismatches, fmt.Sprintf("reference trace max candidates saved=%s running=%s", want, orNone(got)))
 		}
 	}
+	if cfg.ReferenceHybrid && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_HYBRID_ENABLED") {
+		mismatches = append(mismatches, "reference hybrid saved=on running=off")
+	}
+	if !cfg.ReferenceHybrid && dockerEnvEnabled(env, "COMPAIR_REFERENCE_HYBRID_ENABLED") {
+		mismatches = append(mismatches, "reference hybrid saved=off running=on")
+	}
+	if cfg.ReferenceAdjudicator && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_ADJUDICATOR_ENABLED") {
+		mismatches = append(mismatches, "reference adjudicator saved=on running=off")
+	}
+	if !cfg.ReferenceAdjudicator && dockerEnvEnabled(env, "COMPAIR_REFERENCE_ADJUDICATOR_ENABLED") {
+		mismatches = append(mismatches, "reference adjudicator saved=off running=on")
+	}
+	if cfg.ReferenceAdjudicator && cfg.ReferenceAdjudicatorTopK > 0 {
+		want := strconv.Itoa(cfg.ReferenceAdjudicatorTopK)
+		if got := strings.TrimSpace(env["COMPAIR_REFERENCE_ADJUDICATOR_TOP_K"]); got != want {
+			mismatches = append(mismatches, fmt.Sprintf("reference adjudicator top-k saved=%s running=%s", want, orNone(got)))
+		}
+	}
 	if cfg.ReferenceReranker && !dockerEnvEnabled(env, "COMPAIR_REFERENCE_RERANKER_ENABLED") {
 		mismatches = append(mismatches, "reference reranker saved=on running=off")
 	}
@@ -864,6 +928,15 @@ func runCoreUp() error {
 	}
 	if cfg.ReferenceTraceMaxCandidates > 0 {
 		args = append(args, "-e", "COMPAIR_REFERENCE_TRACE_MAX_CANDIDATES="+strconv.Itoa(cfg.ReferenceTraceMaxCandidates))
+	}
+	if cfg.ReferenceHybrid {
+		args = append(args, "-e", "COMPAIR_REFERENCE_HYBRID_ENABLED=1")
+	}
+	if cfg.ReferenceAdjudicator {
+		args = append(args, "-e", "COMPAIR_REFERENCE_ADJUDICATOR_ENABLED=1")
+	}
+	if cfg.ReferenceAdjudicatorTopK > 0 {
+		args = append(args, "-e", "COMPAIR_REFERENCE_ADJUDICATOR_TOP_K="+strconv.Itoa(cfg.ReferenceAdjudicatorTopK))
 	}
 	if cfg.ReferenceReranker {
 		args = append(args, "-e", "COMPAIR_REFERENCE_RERANKER_ENABLED=1")

@@ -39,6 +39,9 @@ type CoreRuntime struct {
 	NotificationScoringMaxRetries int    `yaml:"notification_scoring_max_retries,omitempty"`
 	ReferenceTrace                bool   `yaml:"reference_trace,omitempty"`
 	ReferenceTraceMaxCandidates   int    `yaml:"reference_trace_max_candidates,omitempty"`
+	ReferenceHybrid               bool   `yaml:"reference_hybrid,omitempty"`
+	ReferenceAdjudicator          bool   `yaml:"reference_adjudicator,omitempty"`
+	ReferenceAdjudicatorTopK      int    `yaml:"reference_adjudicator_top_k,omitempty"`
 	ReferenceReranker             bool   `yaml:"reference_reranker,omitempty"`
 	ReferenceRerankerModelPath    string `yaml:"reference_reranker_model_path,omitempty"`
 	GenerationEndpoint            string `yaml:"generation_endpoint,omitempty"`
@@ -139,6 +142,9 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 	}
 	if cfg.ReferenceTraceMaxCandidates < 0 {
 		cfg.ReferenceTraceMaxCandidates = 0
+	}
+	if cfg.ReferenceAdjudicatorTopK < 0 {
+		cfg.ReferenceAdjudicatorTopK = 0
 	}
 	cfg.ReferenceRerankerModelPath = strings.TrimSpace(cfg.ReferenceRerankerModelPath)
 	cfg.GenerationEndpoint = strings.TrimSpace(cfg.GenerationEndpoint)

@@ -16,6 +16,9 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
+		ReferenceHybrid:               true,
+		ReferenceAdjudicator:          true,
+		ReferenceAdjudicatorTopK:      6,
 	}
 	env := map[string]string{
 		"COMPAIR_GENERATION_PROVIDER":              "openai",
@@ -27,8 +30,8 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 
 	mismatches := runtimeConfigMismatches(cfg, env)
 
-	if len(mismatches) != 3 {
-		t.Fatalf("expected 3 mismatches, got %d: %#v", len(mismatches), mismatches)
+	if len(mismatches) != 6 {
+		t.Fatalf("expected 6 mismatches, got %d: %#v", len(mismatches), mismatches)
 	}
 }
 
@@ -40,6 +43,9 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
+		ReferenceHybrid:               true,
+		ReferenceAdjudicator:          true,
+		ReferenceAdjudicatorTopK:      6,
 	}
 	env := map[string]string{
 		"COMPAIR_GENERATION_PROVIDER":              "openai",
@@ -48,6 +54,9 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 		"COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S":   "90",
 		"COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES": "1",
 		"COMPAIR_REFERENCE_TRACE":                  "1",
+		"COMPAIR_REFERENCE_HYBRID_ENABLED":         "1",
+		"COMPAIR_REFERENCE_ADJUDICATOR_ENABLED":    "1",
+		"COMPAIR_REFERENCE_ADJUDICATOR_TOP_K":      "6",
 	}
 
 	mismatches := runtimeConfigMismatches(cfg, env)
