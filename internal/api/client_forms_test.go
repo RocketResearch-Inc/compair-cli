@@ -2,6 +2,7 @@ package api
 
 import (
 	"io"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -189,5 +190,55 @@ func TestGetTaskStatusIncludesMeta(t *testing.T) {
 	}
 	if got := status.Meta["indexed_chunks_total"]; got != float64(48) {
 		t.Fatalf("expected indexed_chunks_total to decode as 48, got %#v", got)
+	}
+}
+
+func TestReviewNowPostsJSONPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/review_now" {
+			t.Fatalf("expected /review_now, got %s", r.URL.Path)
+		}
+		var payload ReviewNowOptions
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if payload.GroupID != "grp_123" {
+			t.Fatalf("expected group_id grp_123, got %q", payload.GroupID)
+		}
+		if len(payload.DocumentIDs) != 2 {
+			t.Fatalf("expected 2 document ids, got %d", len(payload.DocumentIDs))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"group_id":"grp_123",
+			"group_name":"demo",
+			"document_ids":["doc_1","doc_2"],
+			"markdown":"# demo",
+			"findings":[{"intent":"potential_conflict","severity":"high","certainty":"high","title":"x","summary":"y","why_it_matters":"z","target_repos":[],"target_files":[],"peer_repos":[],"peer_files":[],"evidence_target":"a","evidence_peer":"b","follow_up":"c"}],
+			"meta":{"model":"gpt-5.4"}
+		}`)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.http = server.Client()
+
+	resp, err := client.ReviewNow(ReviewNowOptions{
+		GroupID:     "grp_123",
+		DocumentIDs: []string{"doc_1", "doc_2"},
+		MaxFindings: 8,
+		Model:       "gpt-5.4",
+	})
+	if err != nil {
+		t.Fatalf("ReviewNow returned error: %v", err)
+	}
+	if resp.GroupName != "demo" {
+		t.Fatalf("expected group name demo, got %q", resp.GroupName)
+	}
+	if got := resp.Meta["model"]; got != "gpt-5.4" {
+		t.Fatalf("expected meta.model gpt-5.4, got %#v", got)
 	}
 }

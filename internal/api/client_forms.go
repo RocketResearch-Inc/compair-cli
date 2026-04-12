@@ -470,6 +470,38 @@ type ProcessDocResp struct {
 	TaskID string `json:"task_id"`
 }
 
+type ReviewNowOptions struct {
+	GroupID     string   `json:"group_id"`
+	DocumentIDs []string `json:"document_ids,omitempty"`
+	MaxFindings int      `json:"max_findings,omitempty"`
+	Model       string   `json:"model,omitempty"`
+}
+
+type ReviewNowFinding struct {
+	Intent         string   `json:"intent"`
+	Severity       string   `json:"severity"`
+	Certainty      string   `json:"certainty"`
+	Title          string   `json:"title"`
+	Summary        string   `json:"summary"`
+	WhyItMatters   string   `json:"why_it_matters"`
+	TargetRepos    []string `json:"target_repos,omitempty"`
+	TargetFiles    []string `json:"target_files,omitempty"`
+	PeerRepos      []string `json:"peer_repos,omitempty"`
+	PeerFiles      []string `json:"peer_files,omitempty"`
+	EvidenceTarget string   `json:"evidence_target"`
+	EvidencePeer   string   `json:"evidence_peer"`
+	FollowUp       string   `json:"follow_up"`
+}
+
+type ReviewNowResp struct {
+	GroupID     string                 `json:"group_id"`
+	GroupName   string                 `json:"group_name"`
+	DocumentIDs []string               `json:"document_ids"`
+	Markdown    string                 `json:"markdown"`
+	Findings    []ReviewNowFinding     `json:"findings"`
+	Meta        map[string]interface{} `json:"meta"`
+}
+
 type ProcessDocOptions struct {
 	ChunkMode         string
 	ReanalyzeExisting bool
@@ -504,6 +536,20 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 	var out ProcessDocResp
 	if err := c.postForm("/process_doc", data, &out); err != nil {
 		return ProcessDocResp{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ReviewNow(opts ReviewNowOptions) (ReviewNowResp, error) {
+	var out ReviewNowResp
+	if strings.TrimSpace(opts.GroupID) == "" {
+		return out, fmt.Errorf("group id is required")
+	}
+	if opts.MaxFindings <= 0 {
+		opts.MaxFindings = 12
+	}
+	if err := c.post("/review_now", opts, &out); err != nil {
+		return out, err
 	}
 	return out, nil
 }

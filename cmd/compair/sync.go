@@ -151,6 +151,8 @@ var syncReanalyzeExisting bool
 type syncInvocationMode struct {
 	FetchOnly         bool
 	PushOnly          bool
+	AwaitProcessing   bool
+	GenerateFeedback  *bool
 	ReanalyzeExisting bool
 	ReportDetailLevel *reportDetailLevel
 }
@@ -197,6 +199,10 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	}
 	snapshotMode = mode
 	reanalyzeExisting := syncReanalyzeExisting || modeFlags.ReanalyzeExisting
+	generateFeedback := true
+	if modeFlags.GenerateFeedback != nil {
+		generateFeedback = *modeFlags.GenerateFeedback
+	}
 	if reanalyzeExisting && snapshotMode != "snapshot" {
 		return fmt.Errorf("--reanalyze-existing requires --snapshot-mode snapshot")
 	}
@@ -271,6 +277,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			return err
 		}
 	}
+	waitForProcessing := doFetch || modeFlags.AwaitProcessing
 
 	totalFeedback := 0
 	reportPath := ""
@@ -333,7 +340,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				ensureRepoDocumentPublished(client, r.DocumentID, root)
 			}
 			gatedDocIDs[r.DocumentID] = struct{}{}
-			if doFetch && strings.TrimSpace(r.PendingTaskID) != "" {
+			if waitForProcessing && strings.TrimSpace(r.PendingTaskID) != "" {
 				if stale, age, cutoff := isPendingRepoTaskStale(r.PendingTaskStartedAt); stale {
 					printer.Warn(
 						fmt.Sprintf(
@@ -348,7 +355,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					clearPendingRepoTask(root, cfg, r)
 				}
 			}
-			if doFetch && strings.TrimSpace(r.PendingTaskID) != "" {
+			if waitForProcessing && strings.TrimSpace(r.PendingTaskID) != "" {
 				printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(rootList), repoLabel))
 				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, r.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
 					printer.Info(formatTaskProgressLine(idx+1, len(rootList), "Still processing", repoLabel, st, elapsed))
@@ -381,7 +388,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
 						return err
 					}
-					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
+					if doFetch {
+						appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
+					}
 					latest := strings.TrimSpace(r.PendingTaskCommit)
 					if latest != "" {
 						finalizeRepoSync(root, group, cfg, r, latest)
@@ -443,17 +452,17 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			}
 			var resp api.ProcessDocResp
 			if snapshotUsed {
-				resp, err = client.ProcessDocWithOptions(r.DocumentID, text, true, api.ProcessDocOptions{
+				resp, err = client.ProcessDocWithOptions(r.DocumentID, text, generateFeedback, api.ProcessDocOptions{
 					ChunkMode:         "client",
 					ReanalyzeExisting: reanalyzeExisting,
 				})
 			} else {
-				resp, err = client.ProcessDoc(r.DocumentID, text, true)
+				resp, err = client.ProcessDoc(r.DocumentID, text, generateFeedback)
 			}
 			if err != nil {
 				return err
 			}
-			if doFetch {
+			if waitForProcessing {
 				persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialCount)
 				if strings.TrimSpace(resp.TaskID) != "" {
 					printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", idx+1, len(rootList), repoLabel, shortTaskID(resp.TaskID)))
@@ -492,7 +501,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
 					return err
 				}
-				appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed, reportOptions)
+				if doFetch {
+					appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed, reportOptions)
+				}
 			} else {
 				if snapshotUsed {
 					printer.Info("Uploaded baseline snapshot for " + r.RemoteURL)
@@ -629,7 +640,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 
 				syncStamp := time.Now().Unix()
 
-				resp, err := client.ProcessDoc(docID, content, true)
+				resp, err := client.ProcessDoc(docID, content, generateFeedback)
 				if err != nil {
 					printer.Warn(fmt.Sprintf("Process failed for %s: %v", it.Path, err))
 					continue
@@ -638,7 +649,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				if strings.TrimSpace(resp.TaskID) == "" {
 					st.Status = "SUCCESS"
 					st.Result = map[string]any{"detail": "processing completed locally"}
-				} else if doFetch {
+				} else if waitForProcessing {
 					deadline := processingDeadline()
 					for {
 						st, err = client.GetTaskStatus(resp.TaskID)
@@ -653,7 +664,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					}
 				}
 
-				if doFetch {
+				if waitForProcessing {
 					if err := waitForChunkTasks(cmd.Context(), client, st.Result, filepath.Base(it.Path), func(taskIndex int, taskTotal int, elapsed time.Duration) {
 						printer.Info(
 							fmt.Sprintf(
@@ -668,7 +679,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						printer.Warn(fmt.Sprintf("Chunk processing failed for %s: %v", it.Path, err))
 						continue
 					}
-					if reportOptions.IncludeDebug {
+					if doFetch && reportOptions.IncludeDebug {
 						lines = append(lines, "File: "+it.Path)
 						lines = append(lines, "Server Response:")
 						if st.Result != nil {

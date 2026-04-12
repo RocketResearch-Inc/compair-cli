@@ -47,6 +47,10 @@ func processDocHTTPTimeout() time.Duration {
 	return envDurationSeconds(processDocTimeout, "COMPAIR_PROCESS_DOC_HTTP_TIMEOUT_SEC", "PROCESS_DOC_HTTP_TIMEOUT_SEC")
 }
 
+func reviewNowHTTPTimeout() time.Duration {
+	return envDurationSeconds(processDocHTTPTimeout(), "COMPAIR_REVIEW_NOW_HTTP_TIMEOUT_SEC", "REVIEW_NOW_HTTP_TIMEOUT_SEC")
+}
+
 func NewClient(base string) *Client {
 	if base == "" {
 		base = "http://localhost:4000"
@@ -61,13 +65,16 @@ func (c *Client) clientForPath(path string) *http.Client {
 	if c == nil || c.http == nil {
 		return &http.Client{Timeout: defaultHTTPTimeout}
 	}
-	if path != "/process_doc" {
+	if path != "/process_doc" && path != "/review_now" {
 		return c.http
 	}
 	clone := *c.http
-	processTimeout := processDocHTTPTimeout()
-	if clone.Timeout <= 0 || clone.Timeout < processTimeout {
-		clone.Timeout = processTimeout
+	timeout := processDocHTTPTimeout()
+	if path == "/review_now" {
+		timeout = reviewNowHTTPTimeout()
+	}
+	if clone.Timeout <= 0 || clone.Timeout < timeout {
+		clone.Timeout = timeout
 	}
 	return &clone
 }
@@ -99,7 +106,7 @@ func (c *Client) post(path string, payload any, out any) error {
 	req.Header.Set("Content-Type", "application/json")
 	applyDefaultHeaders(req)
 	start := time.Now()
-	resp, err := c.http.Do(req)
+	resp, err := c.clientForPath(path).Do(req)
 	if err != nil {
 		logHTTP(http.MethodPost, path, 0, time.Since(start), "", err)
 		return err
