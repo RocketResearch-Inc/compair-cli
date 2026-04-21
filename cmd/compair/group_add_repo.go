@@ -233,7 +233,7 @@ func registerRepoDocument(client *api.Client, groupID, remote, root string, opts
 			return doc.DocumentID, err
 		}
 		if strings.TrimSpace(resp.TaskID) != "" {
-			persistPendingRepoTask(root, cfg, &cfg.Repos[0], resp.TaskID, latest, 0)
+			persistPendingRepoTask(root, cfg, &cfg.Repos[0], resp.TaskID, latest, feedbackSnapshot{})
 			upsertRepoWorkspaceBinding(root, groupID, doc.DocumentID, "", opts.Unpublished)
 			printer.Info(
 				"Initial sync submitted for " + title + "; indexing continues in the background as server task " + shortTaskID(resp.TaskID),

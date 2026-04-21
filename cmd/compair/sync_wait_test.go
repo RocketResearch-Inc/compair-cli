@@ -82,3 +82,32 @@ func TestFormatTaskProgressLineIncludesDetailAndETA(t *testing.T) {
 		t.Fatalf("expected ETA in progress line, got %q", line)
 	}
 }
+
+func TestHasNewFeedbackDetectsReplacementIDsAtSameCount(t *testing.T) {
+	baseline := feedbackSnapshot{
+		Count: 1,
+		IDs: map[string]struct{}{
+			"old-feedback": {},
+		},
+		LatestTimestamp: time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
+	}
+	fbs := []api.FeedbackEntry{
+		{FeedbackID: "new-feedback", Timestamp: "2026-04-14T12:05:00Z"},
+	}
+	if !hasNewFeedback(fbs, baseline) {
+		t.Fatal("expected replacement feedback id at same count to be detected as new")
+	}
+}
+
+func TestHasNewFeedbackDetectsNewerTimestampAtSameCount(t *testing.T) {
+	baseline := feedbackSnapshot{
+		Count:           1,
+		LatestTimestamp: time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
+	}
+	fbs := []api.FeedbackEntry{
+		{FeedbackID: "same-slot", Timestamp: "2026-04-14T12:05:00Z"},
+	}
+	if !hasNewFeedback(fbs, baseline) {
+		t.Fatal("expected newer feedback timestamp at same count to be detected as new")
+	}
+}

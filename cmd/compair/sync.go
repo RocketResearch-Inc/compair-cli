@@ -399,12 +399,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					}
 					updatedDocs[r.DocumentID] = struct{}{}
 					printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
-					if waitForFeedback {
+					if waitForFeedback && len(extractChunkTaskIDs(st.Result)) > 0 {
 						waitForNewFeedback(
 							cmd.Context(),
 							client,
 							r.DocumentID,
-							r.PendingTaskInitialFeedback,
+							feedbackSnapshotFromPending(r.PendingTaskInitialFeedback, r.PendingTaskInitialFeedbackLatest),
 							time.Duration(feedbackWaitSec)*time.Second,
 							func(elapsed time.Duration, remaining time.Duration) {
 								printer.Info(feedbackWaitLine(idx+1, len(rootList), repoLabel, elapsed, remaining))
@@ -422,9 +422,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					clearPendingRepoTask(root, cfg, r)
 				}
 			}
-			initialCount := 0
+			initialFeedback := feedbackSnapshot{}
 			if waitForFeedback {
-				initialCount = feedbackCount(client, r.DocumentID)
+				initialFeedback = feedbackSnapshotForDoc(client, r.DocumentID)
 			}
 			snapshotUsed := false
 			var text string
@@ -462,8 +462,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			if err != nil {
 				return err
 			}
+			var st api.TaskStatus
 			if waitForProcessing {
-				persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialCount)
+				persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialFeedback)
 				if strings.TrimSpace(resp.TaskID) != "" {
 					printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", idx+1, len(rootList), repoLabel, shortTaskID(resp.TaskID)))
 				}
@@ -514,12 +515,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			finalizeRepoSync(root, group, cfg, r, latest)
 			updatedDocs[r.DocumentID] = struct{}{}
 			printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
-			if waitForFeedback {
+			if waitForFeedback && (!waitForProcessing || strings.TrimSpace(resp.TaskID) == "" || len(extractChunkTaskIDs(st.Result)) > 0) {
 				waitForNewFeedback(
 					cmd.Context(),
 					client,
 					r.DocumentID,
-					initialCount,
+					initialFeedback,
 					time.Duration(feedbackWaitSec)*time.Second,
 					func(elapsed time.Duration, remaining time.Duration) {
 						printer.Info(feedbackWaitLine(idx+1, len(rootList), repoLabel, elapsed, remaining))
@@ -577,9 +578,9 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 
 				docID := it.DocumentID
-				initialCount := 0
+				initialFeedback := feedbackSnapshot{}
 				if waitForFeedback && docID != "" {
-					initialCount = feedbackCount(client, docID)
+					initialFeedback = feedbackSnapshotForDoc(client, docID)
 				}
 				needContent := docID == "" || !fetchOnly
 				var content string
@@ -625,7 +626,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						continue
 					}
 					docID = doc.DocumentID
-					initialCount = 0
+					initialFeedback = feedbackSnapshot{}
 				}
 				if docID != "" {
 					gatedDocIDs[docID] = struct{}{}
@@ -694,12 +695,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				_ = store.UpsertItem(cmd.Context(), &db.TrackedItem{Path: it.Path, Kind: it.Kind, GroupID: it.GroupID, DocumentID: docID, ContentHash: hash, Size: size, MTime: mtime, LastSyncedAt: syncStamp, Published: it.Published})
 				updatedDocs[docID] = struct{}{}
-				if waitForFeedback {
+				if waitForFeedback && (!waitForProcessing || strings.TrimSpace(resp.TaskID) == "" || len(extractChunkTaskIDs(st.Result)) > 0) {
 					waitForNewFeedback(
 						cmd.Context(),
 						client,
 						docID,
-						initialCount,
+						initialFeedback,
 						time.Duration(feedbackWaitSec)*time.Second,
 						func(elapsed time.Duration, remaining time.Duration) {
 							printer.Info(fmt.Sprintf("Waiting for new feedback on %s (%s elapsed, est. %s remaining)", filepath.Base(it.Path), humanDuration(elapsed), humanDuration(remaining)))
@@ -1825,18 +1826,78 @@ func looksLikeText(buf []byte) bool {
 	return utf8.Valid(buf)
 }
 
-func feedbackCount(client *api.Client, docID string) int {
+type feedbackSnapshot struct {
+	Count           int
+	IDs             map[string]struct{}
+	LatestTimestamp time.Time
+}
+
+func parseFeedbackTimestamp(value interface{}) time.Time {
+	raw := strings.TrimSpace(fmt.Sprint(value))
+	if raw == "" || raw == "<nil>" {
+		return time.Time{}
+	}
+	if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return parsed
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed
+	}
+	return time.Time{}
+}
+
+func feedbackSnapshotForDoc(client *api.Client, docID string) feedbackSnapshot {
 	if docID == "" {
-		return 0
+		return feedbackSnapshot{}
 	}
 	fbs, err := client.ListFeedback(docID)
 	if err != nil {
-		return 0
+		return feedbackSnapshot{}
 	}
-	return len(fbs)
+	snapshot := feedbackSnapshot{
+		Count: len(fbs),
+		IDs:   make(map[string]struct{}, len(fbs)),
+	}
+	for _, fb := range fbs {
+		if id := strings.TrimSpace(fb.FeedbackID); id != "" {
+			snapshot.IDs[id] = struct{}{}
+		}
+		if ts := parseFeedbackTimestamp(fb.Timestamp); ts.After(snapshot.LatestTimestamp) {
+			snapshot.LatestTimestamp = ts
+		}
+	}
+	return snapshot
 }
 
-func waitForNewFeedback(ctx context.Context, client *api.Client, docID string, prevCount int, timeout time.Duration, onProgress func(time.Duration, time.Duration)) {
+func feedbackSnapshotFromPending(count int, latest string) feedbackSnapshot {
+	snapshot := feedbackSnapshot{Count: count}
+	if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(latest)); err == nil {
+		snapshot.LatestTimestamp = parsed
+	} else if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(latest)); err == nil {
+		snapshot.LatestTimestamp = parsed
+	}
+	return snapshot
+}
+
+func hasNewFeedback(fbs []api.FeedbackEntry, baseline feedbackSnapshot) bool {
+	if len(fbs) > baseline.Count {
+		return true
+	}
+	latest := time.Time{}
+	for _, fb := range fbs {
+		if id := strings.TrimSpace(fb.FeedbackID); id != "" && len(baseline.IDs) > 0 {
+			if _, ok := baseline.IDs[id]; !ok {
+				return true
+			}
+		}
+		if ts := parseFeedbackTimestamp(fb.Timestamp); ts.After(latest) {
+			latest = ts
+		}
+	}
+	return !baseline.LatestTimestamp.IsZero() && latest.After(baseline.LatestTimestamp)
+}
+
+func waitForNewFeedback(ctx context.Context, client *api.Client, docID string, baseline feedbackSnapshot, timeout time.Duration, onProgress func(time.Duration, time.Duration)) {
 	if docID == "" || timeout <= 0 {
 		return
 	}
@@ -1850,7 +1911,7 @@ func waitForNewFeedback(ctx context.Context, client *api.Client, docID string, p
 		case <-time.After(3 * time.Second):
 		}
 		fbs, err := client.ListFeedback(docID)
-		if err == nil && len(fbs) > prevCount {
+		if err == nil && hasNewFeedback(fbs, baseline) {
 			return
 		}
 		if time.Now().After(deadline) {
@@ -2790,13 +2851,18 @@ func isPendingRepoTaskStale(startedAt string) (bool, time.Duration, time.Duratio
 	return age >= cutoff, age, cutoff
 }
 
-func persistPendingRepoTask(root string, cfg config.Project, repo *config.Repo, taskID, latest string, initialFeedbackCount int) {
+func persistPendingRepoTask(root string, cfg config.Project, repo *config.Repo, taskID, latest string, initialFeedback feedbackSnapshot) {
 	if strings.TrimSpace(taskID) == "" {
 		return
 	}
 	repo.PendingTaskID = taskID
 	repo.PendingTaskCommit = latest
-	repo.PendingTaskInitialFeedback = initialFeedbackCount
+	repo.PendingTaskInitialFeedback = initialFeedback.Count
+	if !initialFeedback.LatestTimestamp.IsZero() {
+		repo.PendingTaskInitialFeedbackLatest = initialFeedback.LatestTimestamp.UTC().Format(time.RFC3339Nano)
+	} else {
+		repo.PendingTaskInitialFeedbackLatest = ""
+	}
 	repo.PendingTaskStartedAt = time.Now().UTC().Format(time.RFC3339)
 	_ = config.WriteProjectConfig(root, cfg)
 }
@@ -2805,12 +2871,14 @@ func clearPendingRepoTask(root string, cfg config.Project, repo *config.Repo) {
 	if strings.TrimSpace(repo.PendingTaskID) == "" &&
 		strings.TrimSpace(repo.PendingTaskCommit) == "" &&
 		repo.PendingTaskInitialFeedback == 0 &&
+		strings.TrimSpace(repo.PendingTaskInitialFeedbackLatest) == "" &&
 		strings.TrimSpace(repo.PendingTaskStartedAt) == "" {
 		return
 	}
 	repo.PendingTaskID = ""
 	repo.PendingTaskCommit = ""
 	repo.PendingTaskInitialFeedback = 0
+	repo.PendingTaskInitialFeedbackLatest = ""
 	repo.PendingTaskStartedAt = ""
 	_ = config.WriteProjectConfig(root, cfg)
 }
@@ -2820,6 +2888,7 @@ func finalizeRepoSync(root, group string, cfg config.Project, repo *config.Repo,
 	repo.PendingTaskID = ""
 	repo.PendingTaskCommit = ""
 	repo.PendingTaskInitialFeedback = 0
+	repo.PendingTaskInitialFeedbackLatest = ""
 	repo.PendingTaskStartedAt = ""
 	_ = config.WriteProjectConfig(root, cfg)
 	upsertRepoWorkspaceBinding(root, group, repo.DocumentID, latest, repo.Unpublished)
