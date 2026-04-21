@@ -14,17 +14,18 @@ type Group struct {
 }
 
 type Repo struct {
-	Provider                   string `yaml:"provider"`
-	RemoteURL                  string `yaml:"remote_url"`
-	RepoID                     string `yaml:"repo_id"`
-	DefaultBranch              string `yaml:"default_branch"`
-	LastSyncedCommit           string `yaml:"last_synced_commit"`
-	DocumentID                 string `yaml:"document_id"`
-	Unpublished                bool   `yaml:"unpublished,omitempty"`
-	PendingTaskID              string `yaml:"pending_task_id,omitempty"`
-	PendingTaskCommit          string `yaml:"pending_task_commit,omitempty"`
-	PendingTaskInitialFeedback int    `yaml:"pending_task_initial_feedback,omitempty"`
-	PendingTaskStartedAt       string `yaml:"pending_task_started_at,omitempty"`
+	Provider                         string `yaml:"provider"`
+	RemoteURL                        string `yaml:"remote_url"`
+	RepoID                           string `yaml:"repo_id"`
+	DefaultBranch                    string `yaml:"default_branch"`
+	LastSyncedCommit                 string `yaml:"last_synced_commit"`
+	DocumentID                       string `yaml:"document_id"`
+	Unpublished                      bool   `yaml:"unpublished,omitempty"`
+	PendingTaskID                    string `yaml:"pending_task_id,omitempty"`
+	PendingTaskCommit                string `yaml:"pending_task_commit,omitempty"`
+	PendingTaskInitialFeedback       int    `yaml:"pending_task_initial_feedback,omitempty"`
+	PendingTaskInitialFeedbackLatest string `yaml:"pending_task_initial_feedback_latest,omitempty"`
+	PendingTaskStartedAt             string `yaml:"pending_task_started_at,omitempty"`
 }
 
 type Project struct {
