@@ -91,11 +91,13 @@ type taskProgressMeta struct {
 	Stage               string
 	Message             string
 	StartedAt           time.Time
+	LastProgressAt      time.Time
 	TotalChunks         int
 	NewChunksTotal      int
 	IndexedChunksDone   int
 	IndexedChunksTotal  int
 	FeedbackChunksTotal int
+	ChunkTaskIDs        []string
 }
 
 type pendingInitialSync struct {
@@ -372,46 +374,13 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 				case "SUCCESS":
-					if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
-						printer.Info(
-							fmt.Sprintf(
-								"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
-								idx+1,
-								len(rootList),
-								taskIndex,
-								taskTotal,
-								repoLabel,
-								humanDuration(elapsed),
-							),
-						)
-					}); err != nil {
-						clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
-						return err
-					}
-					if doFetch {
-						appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
-					}
-					latest := strings.TrimSpace(r.PendingTaskCommit)
-					if latest != "" {
-						finalizeRepoSync(root, group, cfg, r, latest)
-					} else {
-						clearPendingRepoTask(root, cfg, r)
-					}
-					updatedDocs[r.DocumentID] = struct{}{}
-					printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
-					if waitForFeedback && len(extractChunkTaskIDs(st.Result)) > 0 {
-						waitForNewFeedback(
-							cmd.Context(),
-							client,
-							r.DocumentID,
-							feedbackSnapshotFromPending(r.PendingTaskInitialFeedback, r.PendingTaskInitialFeedbackLatest),
-							time.Duration(feedbackWaitSec)*time.Second,
-							func(elapsed time.Duration, remaining time.Duration) {
-								printer.Info(feedbackWaitLine(idx+1, len(rootList), repoLabel, elapsed, remaining))
-							},
+				case "PROGRESS", "STARTED":
+					if len(extractChunkTaskIDsFromStatus(st)) == 0 {
+						return fmt.Errorf(
+							"saved processing task for %s is still in progress without recoverable chunk tasks",
+							r.RemoteURL,
 						)
 					}
-					continue
 				case "PENDING":
 					return fmt.Errorf(
 						"saved processing task for %s is still pending (rerun 'compair sync' to continue waiting)",
@@ -420,7 +389,49 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				default:
 					printer.Warn(fmt.Sprintf("Saved processing task for %s ended with status %s; resubmitting current changes", r.RemoteURL, st.Status))
 					clearPendingRepoTask(root, cfg, r)
+					continue
 				}
+				chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
+				if err := waitForChunkTaskIDs(cmd.Context(), client, chunkTaskIDs, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+					printer.Info(
+						fmt.Sprintf(
+							"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+							idx+1,
+							len(rootList),
+							taskIndex,
+							taskTotal,
+							repoLabel,
+							humanDuration(elapsed),
+						),
+					)
+				}); err != nil {
+					clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
+					return err
+				}
+				if doFetch {
+					appendRepoServerResponse(&lines, r.RemoteURL, "", st.Result, false, reportOptions)
+				}
+				latest := strings.TrimSpace(r.PendingTaskCommit)
+				if latest != "" {
+					finalizeRepoSync(root, group, cfg, r, latest)
+				} else {
+					clearPendingRepoTask(root, cfg, r)
+				}
+				updatedDocs[r.DocumentID] = struct{}{}
+				printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
+				if waitForFeedback && len(chunkTaskIDs) > 0 {
+					waitForNewFeedback(
+						cmd.Context(),
+						client,
+						r.DocumentID,
+						feedbackSnapshotFromPending(r.PendingTaskInitialFeedback, r.PendingTaskInitialFeedbackLatest),
+						time.Duration(feedbackWaitSec)*time.Second,
+						func(elapsed time.Duration, remaining time.Duration) {
+							printer.Info(feedbackWaitLine(idx+1, len(rootList), repoLabel, elapsed, remaining))
+						},
+					)
+				}
+				continue
 			}
 			initialFeedback := feedbackSnapshot{}
 			if waitForFeedback {
@@ -482,11 +493,21 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 				case "SUCCESS":
+				case "PROGRESS", "STARTED":
+					if len(extractChunkTaskIDsFromStatus(st)) == 0 {
+						clearPendingRepoTask(root, cfg, r)
+						return fmt.Errorf(
+							"processing task %s for %s is still in progress without recoverable chunk tasks",
+							shortTaskID(resp.TaskID),
+							repoLabel,
+						)
+					}
 				default:
 					clearPendingRepoTask(root, cfg, r)
 					return fmt.Errorf("processing task %s for %s ended with status %s", shortTaskID(resp.TaskID), repoLabel, st.Status)
 				}
-				if err := waitForChunkTasks(cmd.Context(), client, st.Result, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+				chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
+				if err := waitForChunkTaskIDs(cmd.Context(), client, chunkTaskIDs, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
 					printer.Info(
 						fmt.Sprintf(
 							"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
@@ -515,7 +536,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			finalizeRepoSync(root, group, cfg, r, latest)
 			updatedDocs[r.DocumentID] = struct{}{}
 			printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
-			if waitForFeedback && (!waitForProcessing || strings.TrimSpace(resp.TaskID) == "" || len(extractChunkTaskIDs(st.Result)) > 0) {
+			if waitForFeedback && (!waitForProcessing || strings.TrimSpace(resp.TaskID) == "" || len(extractChunkTaskIDsFromStatus(st)) > 0) {
 				waitForNewFeedback(
 					cmd.Context(),
 					client,
@@ -1985,25 +2006,34 @@ func taskMetaInt(meta map[string]any, key string) int {
 
 func parseTaskProgressMeta(st api.TaskStatus) taskProgressMeta {
 	meta := st.Meta
-	startedAt := time.Time{}
-	rawStartedAt := taskMetaString(meta, "started_at")
-	if rawStartedAt != "" {
-		if parsed, err := time.Parse(time.RFC3339Nano, rawStartedAt); err == nil {
-			startedAt = parsed
-		} else if parsed, err := time.Parse(time.RFC3339, rawStartedAt); err == nil {
-			startedAt = parsed
-		}
-	}
+	startedAt := taskMetaTime(meta, "started_at")
+	lastProgressAt := taskMetaTime(meta, "last_progress_at")
 	return taskProgressMeta{
 		Stage:               taskMetaString(meta, "stage"),
 		Message:             taskMetaString(meta, "message"),
 		StartedAt:           startedAt,
+		LastProgressAt:      lastProgressAt,
 		TotalChunks:         taskMetaInt(meta, "total_chunks"),
 		NewChunksTotal:      taskMetaInt(meta, "new_chunks_total"),
 		IndexedChunksDone:   taskMetaInt(meta, "indexed_chunks_done"),
 		IndexedChunksTotal:  taskMetaInt(meta, "indexed_chunks_total"),
 		FeedbackChunksTotal: taskMetaInt(meta, "feedback_chunks_total"),
+		ChunkTaskIDs:        extractChunkTaskIDs(meta),
 	}
+}
+
+func taskMetaTime(meta map[string]any, key string) time.Time {
+	raw := taskMetaString(meta, key)
+	if raw == "" {
+		return time.Time{}
+	}
+	if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return parsed
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed
+	}
+	return time.Time{}
 }
 
 func taskStatusElapsed(st api.TaskStatus, fallbackStartedAt time.Time) time.Duration {
@@ -2014,6 +2044,45 @@ func taskStatusElapsed(st api.TaskStatus, fallbackStartedAt time.Time) time.Dura
 		}
 	}
 	return time.Since(fallbackStartedAt)
+}
+
+func processProgressStaleAfter() time.Duration {
+	const defaultCutoff = 15 * time.Minute
+	raw := strings.TrimSpace(os.Getenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC"))
+	if raw == "" {
+		return defaultCutoff
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		return defaultCutoff
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
+	cutoff := processProgressStaleAfter()
+	if cutoff <= 0 {
+		return false, 0, cutoff
+	}
+	reference := progress.LastProgressAt
+	if reference.IsZero() {
+		reference = progress.StartedAt
+	}
+	if reference.IsZero() {
+		reference = fallbackStartedAt
+	}
+	if reference.IsZero() {
+		return false, 0, cutoff
+	}
+	age := time.Since(reference)
+	return age >= cutoff, age, cutoff
+}
+
+func extractChunkTaskIDsFromStatus(st api.TaskStatus) []string {
+	if ids := extractChunkTaskIDs(st.Result); len(ids) > 0 {
+		return ids
+	}
+	return extractChunkTaskIDs(st.Meta)
 }
 
 func taskProgressSummary(progress taskProgressMeta) string {
@@ -2126,6 +2195,18 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 		case "FAILURE", "FAILED", "REVOKED":
 			return st, false, nil
 		}
+		progress := parseTaskProgressMeta(st)
+		if stale, age, cutoff := isTaskProgressStale(progress, startedAt); stale {
+			if len(extractChunkTaskIDsFromStatus(st)) > 0 {
+				return st, false, nil
+			}
+			return st, false, fmt.Errorf(
+				"processing task %s appears stalled; last progress update was %s ago (cutoff %s)",
+				shortTaskID(taskID),
+				humanDuration(age),
+				humanDuration(cutoff),
+			)
+		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			return st, true, nil
 		}
@@ -2163,6 +2244,10 @@ func isRetryableStatusPollError(err error) bool {
 
 func waitForChunkTasks(ctx context.Context, client *api.Client, result any, label string, onProgress func(int, int, time.Duration)) error {
 	taskIDs := extractChunkTaskIDs(result)
+	return waitForChunkTaskIDs(ctx, client, taskIDs, label, onProgress)
+}
+
+func waitForChunkTaskIDs(ctx context.Context, client *api.Client, taskIDs []string, label string, onProgress func(int, int, time.Duration)) error {
 	for idx, taskID := range taskIDs {
 		st, timedOut, err := waitForProcessingTask(ctx, client, taskID, func(_ api.TaskStatus, elapsed time.Duration) {
 			if onProgress != nil {

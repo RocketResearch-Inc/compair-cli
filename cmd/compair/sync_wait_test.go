@@ -83,6 +83,30 @@ func TestFormatTaskProgressLineIncludesDetailAndETA(t *testing.T) {
 	}
 }
 
+func TestIsTaskProgressStaleUsesLastProgressAt(t *testing.T) {
+	oldEnv := os.Getenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC")
+	t.Cleanup(func() {
+		if oldEnv == "" {
+			_ = os.Unsetenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC")
+		} else {
+			_ = os.Setenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC", oldEnv)
+		}
+	})
+	_ = os.Setenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC", "60")
+
+	progress := taskProgressMeta{
+		StartedAt:      time.Now().Add(-10 * time.Minute),
+		LastProgressAt: time.Now().Add(-2 * time.Minute),
+	}
+	stale, age, cutoff := isTaskProgressStale(progress, time.Now().Add(-10*time.Minute))
+	if !stale {
+		t.Fatal("expected progress to be stale")
+	}
+	if age < time.Minute || cutoff != time.Minute {
+		t.Fatalf("unexpected age/cutoff: age=%s cutoff=%s", age, cutoff)
+	}
+}
+
 func TestHasNewFeedbackDetectsReplacementIDsAtSameCount(t *testing.T) {
 	baseline := feedbackSnapshot{
 		Count: 1,
