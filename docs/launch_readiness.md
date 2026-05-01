@@ -76,6 +76,10 @@ Interpretation:
   - tag-triggered real publishes in `.github/workflows/release.yml`
   - manual no-publish packaging rehearsals in `.github/workflows/release-dry-run.yml`
 - The release dry-run workflow now verifies the generated `dist/` artifacts before uploading them, which gives us earlier signal on broken archives or package contents.
+- The refreshed published Core image has now passed:
+  - raw `/health` and `/capabilities` smoke validation
+  - CLI-managed `compair core doctor` validation on `generation=openai`, `embedding=local`
+  - `compair demo --mode local` on the recommended self-hosted quality lane
 
 ## Remaining Release Work
 
@@ -92,7 +96,10 @@ Interpretation:
 
 ### 2. Publish The Validated Runtime
 
-- [ ] Refresh the published Core runtime / image so it includes the source fixes validated during this cycle.
+- [x] Refresh the published Core runtime / image so it includes the source fixes validated during this cycle.
+- [x] Smoke-test the refreshed published Core image on both:
+  - raw container endpoints (`/health`, `/capabilities`)
+  - CLI-managed local flow with OpenAI generation + local embeddings
 - [ ] Package the validated Cloud reranker runtime into `compair_cloud/src/compair_cloud/reranker/`.
 - [ ] Package the validated reference profile JSON under `compair_cloud/src/compair_cloud/reference_profiles/`.
 - [ ] Confirm the intended default generation lane and profile priority before public rollout.

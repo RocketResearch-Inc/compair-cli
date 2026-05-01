@@ -66,7 +66,7 @@ Treat this as a functionality and UX check, not the primary proof point for revi
 
 ```bash
 export HOME="$(mktemp -d)"
-compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"
+compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"
 compair core up
 compair demo --mode local
 ```
@@ -75,7 +75,7 @@ compair demo --mode local
 
 ```bash
 export HOME="$(mktemp -d)"
-compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
+compair core config set --provider openai --openai-model gpt-5.4 --openai-api-key "$OPENAI_API_KEY"
 compair core up
 compair demo --mode local
 ```

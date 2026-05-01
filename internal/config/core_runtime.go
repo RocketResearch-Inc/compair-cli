@@ -17,7 +17,7 @@ const (
 	defaultCoreAuthMode       = "single-user"
 	defaultGenerationProvider = "local"
 	defaultEmbeddingProvider  = "local"
-	defaultOpenAIModel        = "gpt-5-nano"
+	defaultOpenAIModel        = "gpt-5.4-mini"
 	defaultOpenAIEmbedModel   = "text-embedding-3-small"
 )
 

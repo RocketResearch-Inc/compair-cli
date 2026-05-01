@@ -39,6 +39,17 @@ Release steps:
 
 If you want a no-publish rehearsal first, run the `Release Dry Run` workflow. It verifies checksums, archive structure, and basic package contents before uploading the `dist/` artifact for inspection.
 
+Expected dry-run artifact:
+
+- GitHub Actions artifact name: `compair-release-dry-run-dist`
+
+Minimum manual review after download:
+
+- confirm `checksums.txt` exists
+- confirm macOS, Linux, and Windows archives were all produced
+- confirm at least one `.deb` and one `.rpm` are present
+- keep one screenshot or note of the successful `Verify release artifacts` step for the release record
+
 Recommended smoke checks after each release:
 
 - macOS/Linux: download an archive, unpack it, run `./compair version`

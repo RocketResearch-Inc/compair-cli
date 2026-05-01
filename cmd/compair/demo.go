@@ -200,7 +200,7 @@ func prepareDemoAPI(mode string) error {
 		}
 		if shouldRecommendOpenAIDemo(cfg) {
 			fmt.Println("Tip: for the strongest local demo feedback, use OpenAI generation with local embeddings:")
-			fmt.Println(`  compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"`)
+			fmt.Println(`  compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"`)
 			fmt.Println("  compair core restart")
 			fmt.Println()
 		}

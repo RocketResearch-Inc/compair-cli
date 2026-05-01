@@ -40,14 +40,14 @@ compair core down
 Recommended default for `compair demo --mode local`: use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight, avoids outsourced embeddings, and is the best lower-outsourced-cost self-hosted path we have validated so far.
 
 ```bash
-compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"
+compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"
 compair core restart
 ```
 
 If you want the strongest current self-hosted quality path, move both generation and embeddings to OpenAI:
 
 ```bash
-compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
+compair core config set --provider openai --openai-model gpt-5.4 --openai-api-key "$OPENAI_API_KEY"
 compair core restart
 compair profile use local
 compair login
@@ -68,9 +68,9 @@ You can also tune the local Core OpenAI-backed path more precisely:
 compair core config set \
   --generation-provider openai \
   --embedding-provider local \
-  --openai-model gpt-5-mini \
-  --openai-code-model gpt-5 \
-  --openai-notif-model gpt-5-mini
+  --openai-model gpt-5.4-mini \
+  --openai-code-model gpt-5.4 \
+  --openai-notif-model gpt-5.4-mini
 
 # Point local Core at an OpenAI-compatible endpoint instead of api.openai.com
 compair core config set \
@@ -82,6 +82,7 @@ Notes:
 - `--openai-code-model` only affects the code/doc review generation path inside local Core.
 - `--openai-notif-model` only affects local Core notification scoring.
 - `--openai-base-url` is intended for OpenAI-compatible servers. Cloud behavior is unchanged.
+- The local Core runtime now defaults to `gpt-5.4-mini` for OpenAI-backed runs. Choose `gpt-5.4` on purpose when you want the quality-first path instead of the lower-cost default.
 
 ## Review Quality Notes
 

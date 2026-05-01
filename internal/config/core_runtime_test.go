@@ -2,6 +2,14 @@ package config
 
 import "testing"
 
+func TestDefaultCoreRuntimeUsesGPT54Mini(t *testing.T) {
+	cfg := defaultCoreRuntime()
+
+	if got := cfg.OpenAIModel; got != "gpt-5.4-mini" {
+		t.Fatalf("expected default OpenAI model gpt-5.4-mini, got %q", got)
+	}
+}
+
 func TestCoreRuntimeResolvedOpenAIBaseURLPrefersSavedConfig(t *testing.T) {
 	t.Setenv("COMPAIR_OPENAI_BASE_URL", "https://env.example/v1")
 	cfg := &CoreRuntime{OpenAIBaseURL: "https://saved.example/v1"}

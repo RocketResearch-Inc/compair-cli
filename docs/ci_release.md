@@ -43,6 +43,63 @@ jobs:
 
 For packaging rehearsals without publishing, use `.github/workflows/release-dry-run.yml` via `workflow_dispatch`. It runs the same `go test`, `go vet`, and GoReleaser packaging path in snapshot mode, verifies the resulting `dist/` contents with `scripts/verify_release_artifacts.sh`, and uploads the `dist/` directory as a workflow artifact.
 
+## Release Dry Run Operator Checklist
+
+Use this before cutting a real tag.
+
+### Start the workflow
+
+1. Open GitHub Actions for `compair-cli`.
+2. Run `Release Dry Run`.
+3. Wait for these steps to pass:
+   - `Test`
+   - `Vet`
+   - `GoReleaser snapshot build`
+   - `Verify release artifacts`
+4. Download the uploaded artifact named `compair-release-dry-run-dist`.
+
+### What counts as a pass
+
+The built-in verifier already checks:
+
+- `checksums.txt` exists and validates
+- one Linux archive unpacks and its `compair` binary runs
+- one macOS archive unpacks and contains `compair`
+- one Windows archive unpacks and contains `compair.exe`
+- one `.deb` contains `/usr/bin/compair`
+- one `.rpm` contains `/usr/bin/compair`
+
+If `Verify release artifacts` passes, the packaging structure is already in decent shape.
+
+### What to inspect manually after download
+
+Inside the downloaded `dist/` artifact, spot-check:
+
+- both macOS archives exist (`amd64` and `arm64`)
+- both Linux archives exist (`amd64` and `arm64`)
+- both Windows archives exist (`amd64` and `arm64`)
+- at least one `.deb` and one `.rpm` were produced
+- `checksums.txt` is present
+
+Recommended quick local checks:
+
+```bash
+tar -tzf dist/compair_*_darwin_*.tar.gz | head
+unzip -l dist/compair_*_windows_*.zip | head
+```
+
+### What a dry run does not prove
+
+The dry run is intentionally no-publish. It does **not** verify:
+
+- GitHub Release publication
+- Homebrew tap publication
+- WinGet PR creation
+- Linux Pages repo publication
+- signing-key wiring in the external package repos
+
+Those still need either a tagged RC or explicit staging validation in the publisher repos.
+
 ## GoReleaser config (high-level)
 - **Archives** for darwin/linux/windows, amd64/arm64
 - **Windows archive format**: `zip`

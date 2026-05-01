@@ -83,13 +83,15 @@ auth_mode: single-user         # or accounts
 generation_provider: local     # local, openai, http, fallback
 embedding_provider: local      # local or openai
 openai_api_key: ""             # optional; 0600 file permissions
-openai_model: gpt-5-nano
+openai_model: gpt-5.4-mini
 openai_code_model: ""          # optional; defaults to openai_model
 openai_notif_model: ""         # optional; defaults to backend scorer default
 openai_embed_model: text-embedding-3-small
 openai_base_url: ""            # optional; for OpenAI-compatible endpoints
 generation_endpoint: ""        # required only when generation_provider=http
 ```
+
+`openai_model` now defaults to `gpt-5.4-mini`. Use `gpt-5.4` when you want the quality-first self-hosted path instead of the lower-cost default.
 
 ## Environment variables
 - `COMPAIR_API_BASE` – override API base (`--api-base` flag wins)

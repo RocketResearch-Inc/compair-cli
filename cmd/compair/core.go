@@ -1172,9 +1172,9 @@ func runCoreUp() error {
 		fmt.Println()
 		fmt.Println("Note: the bundled no-key local providers are functional, but review quality is lower-fidelity than Cloud.")
 		if strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) != "" {
-			fmt.Println("For stronger local review quality, switch Core to your OpenAI-backed setup with 'compair core config set --provider openai' or 'compair core config set --generation-provider openai --embedding-provider local', then run 'compair core restart'.")
+			fmt.Println("For stronger local review quality, switch Core to your OpenAI-backed setup with 'compair core config set --provider openai --openai-model gpt-5.4' or 'compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini', then run 'compair core restart'.")
 		} else {
-			fmt.Println("For stronger local review quality, configure your own OpenAI key with 'compair core config set --generation-provider openai --embedding-provider local --openai-api-key <key>' and then run 'compair core restart'.")
+			fmt.Println("For stronger local review quality, configure your own OpenAI key with 'compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key <key>' and then run 'compair core restart'.")
 		}
 	}
 	return nil
