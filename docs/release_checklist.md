@@ -2,7 +2,10 @@
 
 Use this as a pre-release checklist for beta/1.0 builds.
 
+For the cross-product launch view and current validation status, see [Launch Readiness](launch_readiness.md).
+
 ## Build & packaging
+- [ ] Run the `Release Dry Run` workflow and confirm `scripts/verify_release_artifacts.sh` passes
 - [ ] Build binaries for macOS, Windows, Linux (amd64/arm64 as needed)
 - [ ] Verify `go build` succeeds from a clean checkout
 - [ ] Verify `compair version` reports the expected CLI version/commit

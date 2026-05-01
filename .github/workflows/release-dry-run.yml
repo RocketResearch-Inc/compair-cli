@@ -1,0 +1,36 @@
+name: Release Dry Run
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  goreleaser-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24.x" }
+      - name: Install release verification tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm unzip
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: GoReleaser snapshot build
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+      - name: Verify release artifacts
+        run: bash ./scripts/verify_release_artifacts.sh dist
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compair-release-dry-run-dist
+          path: dist/**
+          if-no-files-found: error

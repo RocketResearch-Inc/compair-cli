@@ -37,14 +37,14 @@ compair core down
 
 ## Bring Your Own OpenAI Key
 
-Recommended default for `compair demo --mode local`: use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight while producing much better demo-quality feedback.
+Recommended default for `compair demo --mode local`: use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight, avoids outsourced embeddings, and is the best lower-outsourced-cost self-hosted path we have validated so far.
 
 ```bash
 compair core config set --generation-provider openai --embedding-provider local --openai-api-key "$OPENAI_API_KEY"
 compair core restart
 ```
 
-If you want Compair Core to use your own OpenAI credentials for both generation and embeddings, run:
+If you want the strongest current self-hosted quality path, move both generation and embeddings to OpenAI:
 
 ```bash
 compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
@@ -101,7 +101,7 @@ How to interpret misses:
 
 - Cloud is still the strongest out-of-the-box review path today
 - Local Core can miss or soften very small structured renames inside larger chunks, especially when embeddings or references surface the right neighborhood but not the exact prior value
-- Using your own OpenAI key for generation improves local output substantially; using OpenAI for both generation and embeddings can improve retrieval further when you need the closest local behavior to Cloud
+- Using your own OpenAI key for generation improves local output substantially; keeping embeddings local is the better cost-aware default, while using OpenAI for both generation and embeddings is the quality-first path when you want the closest local behavior to Cloud
 
 ## Manual container path
 

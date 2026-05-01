@@ -1,0 +1,148 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Compair architecture overview</title>
+  <desc id="desc">A high-level architecture diagram showing developers using the Compair CLI to review a shared cross-repo product surface through either hosted Cloud services or self-hosted Core, producing reports, notifications, and CI gates.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F4EC"/>
+      <stop offset="1" stop-color="#EEF3F1"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="302" y1="214" x2="648" y2="544" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="1" stop-color="#155E75"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="725" y1="210" x2="1092" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="core" x1="725" y1="560" x2="1092" y2="864" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1400" height="920" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font: 700 42px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #0F172A; }
+      .subtitle { font: 500 21px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .section { font: 700 16px 'Avenir Next', 'Segoe UI', Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; fill: #64748B; }
+      .cardTitle { font: 700 28px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: white; }
+      .cardBody { font: 500 18px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: rgba(255,255,255,0.92); }
+      .boxTitle { font: 700 23px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #0F172A; }
+      .boxBody { font: 500 17px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .pill { font: 700 15px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #0F172A; }
+      .small { font: 600 14px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .outputTitle { font: 700 20px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #0F172A; }
+      .outputBody { font: 500 15px 'Avenir Next', 'Segoe UI', Arial, sans-serif; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="920" rx="36" fill="url(#bg)"/>
+
+  <text x="78" y="92" class="title">Compair Architecture</text>
+  <text x="78" y="132" class="subtitle">Cross-repo review starts from changed code and docs, grounds itself in related evidence,</text>
+  <text x="78" y="164" class="subtitle">then surfaces reports, notifications, and optional CI gates.</text>
+
+  <text x="86" y="192" class="section">Inputs</text>
+  <g filter="url(#shadow)">
+    <rect x="78" y="214" width="220" height="152" rx="26" fill="#FFFFFF"/>
+  </g>
+  <text x="108" y="267" class="boxTitle">Developer Workflow</text>
+  <text x="108" y="303" class="boxBody">`track`</text>
+  <text x="108" y="331" class="boxBody">`review` / `sync`</text>
+  <text x="108" y="359" class="boxBody">`reports` / `notifications`</text>
+
+  <g filter="url(#shadow)">
+    <rect x="78" y="404" width="220" height="360" rx="26" fill="#FFFFFF"/>
+  </g>
+  <text x="108" y="457" class="boxTitle">Shared Product Surface</text>
+  <text x="108" y="493" class="boxBody">Backend APIs</text>
+  <text x="108" y="521" class="boxBody">Web / desktop UI</text>
+  <text x="108" y="549" class="boxBody">CLI / SDKs</text>
+  <text x="108" y="577" class="boxBody">Docs / deployment guides</text>
+  <text x="108" y="605" class="boxBody">Config / packaging</text>
+  <rect x="108" y="648" width="160" height="36" rx="18" fill="#D1FAE5"/>
+  <text x="137" y="671" class="pill">tracked together</text>
+  <text x="108" y="719" class="small">Compair reviews changes in one repo</text>
+  <text x="108" y="742" class="small">in the context of the others.</text>
+
+  <text x="356" y="192" class="section">Entry Point</text>
+  <g filter="url(#shadow)">
+    <rect x="338" y="214" width="330" height="550" rx="32" fill="url(#hero)"/>
+  </g>
+  <text x="374" y="278" class="cardTitle">Compair CLI</text>
+  <text x="374" y="316" class="cardBody">Creates the shared review group, uploads repo snapshots,</text>
+  <text x="374" y="346" class="cardBody">triggers cross-repo review, and renders the result</text>
+  <text x="374" y="376" class="cardBody">back into the terminal.</text>
+  <rect x="374" y="402" width="258" height="54" rx="27" fill="rgba(255,255,255,0.16)"/>
+  <text x="406" y="436" class="pill" fill="white">profiles: `cloud` and `local`</text>
+  <rect x="374" y="486" width="258" height="144" rx="24" fill="rgba(255,255,255,0.12)"/>
+  <text x="402" y="528" class="cardBody">Starts from changed files and chunks,</text>
+  <text x="402" y="559" class="cardBody">then retrieves the few related snippets</text>
+  <text x="402" y="590" class="cardBody">that matter across the product surface.</text>
+  <rect x="374" y="654" width="258" height="114" rx="24" fill="rgba(255,255,255,0.12)"/>
+  <text x="402" y="696" class="cardBody">Feeds the same workflow into either</text>
+  <text x="402" y="727" class="cardBody">hosted Cloud or self-hosted Core.</text>
+
+  <text x="728" y="192" class="section">Execution Paths</text>
+  <g filter="url(#shadow)">
+    <rect x="710" y="214" width="340" height="278" rx="32" fill="url(#cloud)"/>
+  </g>
+  <text x="744" y="276" class="cardTitle">Compair Cloud</text>
+  <text x="744" y="314" class="cardBody">Hosted auth, shared accounts, ranked notifications,</text>
+  <text x="744" y="344" class="cardBody">delivery, and the strongest out-of-the-box</text>
+  <text x="744" y="374" class="cardBody">review quality.</text>
+  <rect x="744" y="396" width="272" height="82" rx="24" fill="rgba(255,255,255,0.13)"/>
+  <text x="772" y="431" class="cardBody">Hybrid retrieval</text>
+  <text x="772" y="460" class="cardBody">OpenAI-backed embeddings and generation</text>
+
+  <g filter="url(#shadow)">
+    <rect x="710" y="526" width="340" height="278" rx="32" fill="url(#core)"/>
+  </g>
+  <text x="744" y="588" class="cardTitle">Compair Core</text>
+  <text x="744" y="626" class="cardBody">Self-hosted single-user or team deployment for</text>
+  <text x="744" y="656" class="cardBody">local evaluation, private setups, and</text>
+  <text x="744" y="686" class="cardBody">bring-your-own-key workflows.</text>
+  <rect x="744" y="704" width="272" height="86" rx="24" fill="rgba(255,255,255,0.13)"/>
+  <text x="772" y="739" class="cardBody">Local search and local embeddings by default</text>
+  <text x="772" y="768" class="cardBody">Optional OpenAI-backed generation</text>
+
+  <text x="1098" y="192" class="section">Outputs</text>
+  <g filter="url(#shadow)">
+    <rect x="1080" y="214" width="248" height="160" rx="26" fill="#FFFFFF"/>
+  </g>
+  <text x="1112" y="268" class="outputTitle">Reports</text>
+  <text x="1112" y="301" class="outputBody">Readable Markdown summaries</text>
+  <text x="1112" y="326" class="outputBody">grounded in cross-repo evidence</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1080" y="400" width="248" height="160" rx="26" fill="#FFFFFF"/>
+  </g>
+  <text x="1112" y="454" class="outputTitle">Notifications</text>
+  <text x="1112" y="487" class="outputBody">Ranked conflicts, hidden overlap,</text>
+  <text x="1112" y="512" class="outputBody">and relevant updates for follow-up</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1080" y="586" width="248" height="178" rx="26" fill="#FFFFFF"/>
+  </g>
+  <text x="1112" y="640" class="outputTitle">CI Gates</text>
+  <text x="1112" y="673" class="outputBody">Optional machine-readable checks</text>
+  <text x="1112" y="698" class="outputBody">for conservative rollout into PRs</text>
+  <rect x="1112" y="718" width="142" height="34" rx="17" fill="#E2E8F0"/>
+  <text x="1140" y="740" class="small">advisory → strict</text>
+
+  <path d="M298 290 H324" stroke="#64748B" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M298 584 H324" stroke="#64748B" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M668 356 H690 Q706 356 706 340 V340 Q706 328 714 328 H735" stroke="#475569" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M668 624 H690 Q706 624 706 640 V640 Q706 664 714 664 H735" stroke="#475569" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1050 352 H1070" stroke="#475569" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M1050 486 C1090 486 1040 480 1070 480" stroke="#475569" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1050 726 H1070" stroke="#475569" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="338" y="794" width="712" height="72" rx="24" fill="#FFFFFF" opacity="0.86"/>
+  <text x="374" y="830" class="boxBody">Core idea: Compair does not ask one giant prompt to hold the whole product in memory.</text>
+  <text x="374" y="856" class="boxBody">It keeps a shared cross-repo context, narrows attention to the changed surface, and brings in the few related snippets that matter.</text>
+</svg>

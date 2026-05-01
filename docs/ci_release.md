@@ -11,7 +11,7 @@ Automated releases in this repo currently:
 - generate and publish WinGet manifests when the fork token is configured
 
 ## Current GitHub Actions release flow
-`.github/workflows/release.yml` (tag-triggered):
+`.github/workflows/release.yml` (tag-triggered only):
 ```yaml
 name: Release
 on:
@@ -41,6 +41,8 @@ jobs:
           LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
 ```
 
+For packaging rehearsals without publishing, use `.github/workflows/release-dry-run.yml` via `workflow_dispatch`. It runs the same `go test`, `go vet`, and GoReleaser packaging path in snapshot mode, verifies the resulting `dist/` contents with `scripts/verify_release_artifacts.sh`, and uploads the `dist/` directory as a workflow artifact.
+
 ## GoReleaser config (high-level)
 - **Archives** for darwin/linux/windows, amd64/arm64
 - **Windows archive format**: `zip`
@@ -69,6 +71,11 @@ Important token note:
 - `HOMEBREW_TAP_GITHUB_TOKEN` can be a fine-grained token scoped to `RocketResearch-Inc/homebrew-tap`
 - `WINGET_GITHUB_TOKEN` should be a classic PAT with `public_repo`, because the release job opens a PR against the upstream public repo `microsoft/winget-pkgs`
 - WinGet publishing is disabled by default; set the repository variable `WINGET_PUBLISH_ENABLED=true` when you are ready to turn it on
+
+Current automation gaps to plan around:
+- the dry-run workflow validates packaging and basic artifact sanity, but it does not publish to GitHub Releases, Homebrew, WinGet, or the Linux Pages repo
+- no post-publish smoke tests run automatically after a tagged release
+- SBOM generation is not wired today
 
 This repository can now automate the build, archive, package, and publisher-update side. The remaining package-manager work is mostly repository ownership and credentials.
 

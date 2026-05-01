@@ -94,14 +94,36 @@ These results reflect the current seeded-drift suite on macOS using Local Core. 
 | Local Core configuration | Scenario A | Scenario B | Scenario C | Scenario D | Current read |
 | --- | --- | --- | --- | --- | --- |
 | `embedding=openai`, `generation=openai` | pass | pass | pass | strict-pass, softer than ideal | Best local-Core quality path tested so far |
-| `embedding=local`, `generation=openai` | pass | pass | pass | unstable / soft | Good default bring-your-own-key path |
+| `embedding=local`, `generation=openai` | pass | pass | pass | unstable / soft | Credible lower-outsourced-cost bring-your-own-key path |
 | `embedding=local`, `generation=local` | miss | miss | miss | miss | Functional fallback only; not a strong review-quality proof point |
+
+### Current production-Cloud validation snapshot
+
+These results reflect the seeded production-Cloud reruns completed on May 1, 2026 using a fresh CLI `HOME`, an explicit Cloud profile, a fresh validation group per scenario, and a baseline-clear pass before seeding the drift.
+
+| Production Cloud configuration | Scenario A | Scenario B | Scenario C | Scenario D | Current read |
+| --- | --- | --- | --- | --- | --- |
+| `api_base=https://app.compair.sh/api`, fresh `HOME`, fresh group per scenario | pass | pass | pass, artifact bundle not currently archived under `benchmark_artifacts/launch_validation` | miss / inconclusive | Strongest validated launch path; A, B, and C are the primary proof points, while D remains a softer sanity check |
+
+Artifact bundles:
+
+- Scenario A: `benchmark_artifacts/launch_validation/scenario-a-20260430-233220/`
+- Scenario B: `benchmark_artifacts/launch_validation/scenario-b-20260430-224548/`
+- Scenario D: `benchmark_artifacts/launch_validation/scenario-d-20260501-000228/`
+- Scenario C: validated during the production rerun, but the final artifact bundle still needs to be archived if we want a complete four-scenario paper trail under `benchmark_artifacts/launch_validation/`
+
+Operational notes from the production rerun:
+
+- Use the same shell session for `compair_seed_setup` and the later `sync` command. Mixing `HOME`, wrappers, or profile state can resume the wrong pending task and make a seeded scenario look like a product miss.
+- Before seeding a drift, run `"$COMPAIR_BIN" sync --all --fetch-only --feedback-wait 0 --process-timeout-sec 0` and confirm that no `pending_task` entries remain in the scenario worktrees.
+- Keep the production launch read anchored on Scenarios A, B, and C. Scenario D is still useful for broad install-surface sanity checking, but it is more retrieval-sensitive than the other seeded tests and should not carry equal benchmark weight.
 
 Recommended launch framing:
 
 - Cloud remains the strongest out-of-the-box experience.
-- Local Core with OpenAI-backed generation is the recommended self-hosted quality path.
-- Fully local no-key mode is launchable as a privacy-first, zero-cost, functional fallback, but it should be described as lower-fidelity and should not be the source of launch screenshots, benchmark claims, or primary review-quality examples.
+- Local Core with OpenAI-backed generation remains the recommended self-hosted quality path.
+- Local Core with local embeddings plus OpenAI generation is the lower-outsourced-cost self-hosted path and now has a completed strict replay baseline from the saved `core-local` retrieval run.
+- Fully local no-key mode is launchable as a privacy-first, zero-cost, functional fallback and retrieval-assist path, but it should be described as lower-fidelity and should not be the source of launch screenshots, benchmark claims, or primary review-quality examples.
 
 ## 3. Real cross-repo suite review
 

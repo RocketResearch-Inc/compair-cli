@@ -16,7 +16,7 @@ Instead of asking one model call to hold your whole product in working memory, C
 - Review changes in the context of the rest of your product
 - Turn high-confidence findings into CI checks when you're ready
 
-**Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, especially if you want to pair it with your own OpenAI key.
+**Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, with two meaningful bring-your-own-key paths: keep embeddings local and use OpenAI for generation as the lower-outsourced-cost default, or use OpenAI for both generation and embeddings when you want the strongest current self-hosted quality.
 
 ## Why This Isn't Just RAG
 
@@ -126,7 +126,7 @@ compair core up
 compair login
 ```
 
-If you stay fully local with the bundled no-key providers, expect functional but simpler summaries than Cloud. If you want local review quality closer to Cloud, point Core at your own OpenAI key.
+If you stay fully local with the bundled no-key providers, expect functional but simpler summaries than Cloud. For the best lower-outsourced-cost self-hosted start, keep embeddings local and use your own OpenAI key for generation. If you want the strongest current self-hosted review quality, use your own OpenAI key for both generation and embeddings.
 
 ### Cloud
 
@@ -261,6 +261,7 @@ See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions 
 - [Deployment Guide](docs/deployment_guide.md)
 - [Operator Guide](docs/operator_guide.md)
 - [Launch Validation](docs/launch_validation.md)
+- [How We Evaluated Quality](docs/quality_evaluation.md)
 - [CI & Release](docs/ci_release.md)
 - [Release Checklist](docs/release_checklist.md)
 - [Release Notes Template](docs/release_notes_template.md)

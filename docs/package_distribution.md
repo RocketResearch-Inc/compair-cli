@@ -13,6 +13,11 @@ The release workflow in this repo now handles:
 
 The remaining work is external setup: creating the publisher repos and storing the required GitHub secrets.
 
+Two workflows matter here:
+
+- `.github/workflows/release.yml`: real tagged releases only
+- `.github/workflows/release-dry-run.yml`: manual packaging rehearsal that builds the same archives/packages in snapshot mode, verifies the generated archives/packages, and uploads `dist/` as an artifact without publishing
+
 ## 1. GitHub Releases
 
 This path is already wired in `.github/workflows/release.yml` and `.goreleaser.yaml`.
@@ -31,6 +36,8 @@ Release steps:
 1. Cut and push a semantic version tag like `v1.2.3`.
 2. Wait for the `Release` GitHub Actions workflow to finish.
 3. Verify the Release page includes the expected archives, packages, and checksums.
+
+If you want a no-publish rehearsal first, run the `Release Dry Run` workflow. It verifies checksums, archive structure, and basic package contents before uploading the `dist/` artifact for inspection.
 
 Recommended smoke checks after each release:
 
