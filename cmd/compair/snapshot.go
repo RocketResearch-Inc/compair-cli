@@ -788,6 +788,23 @@ func splitOversizedSegments(segments []string, rule chunkRule) []string {
 	return out
 }
 
+func splitOversizedSegmentsSoft(segments []string, rule chunkRule, maxMultiplier int) []string {
+	if maxMultiplier < 1 {
+		maxMultiplier = 1
+	}
+	out := make([]string, 0, len(segments))
+	softMax := rule.MaxLines * maxMultiplier
+	for _, segment := range segments {
+		lineCount := len(strings.Split(segment, "\n"))
+		if rule.MaxLines > 0 && softMax > 0 && lineCount > softMax {
+			out = append(out, chunkTextDefault(segment, rule)...)
+			continue
+		}
+		out = append(out, segment)
+	}
+	return out
+}
+
 func mergeSmallSegments(segments []string, rule chunkRule) []string {
 	if len(segments) < 2 {
 		return segments
@@ -839,7 +856,7 @@ func chunkCodeSymbols(text, lang string, rule chunkRule, includePreamble bool) [
 		}
 		segments = append(segments, segment)
 	}
-	return mergeSmallSegments(splitOversizedSegments(joinNonEmptySegments(segments), rule), rule)
+	return mergeSmallSegments(splitOversizedSegmentsSoft(joinNonEmptySegments(segments), rule, 2), rule)
 }
 
 func preambleContextLines(preamble []string, rule chunkRule) []string {
@@ -848,8 +865,8 @@ func preambleContextLines(preamble []string, rule chunkRule) []string {
 		return nil
 	}
 	limit := 24
-	if rule.MinLines > 0 && rule.MinLines < limit {
-		limit = rule.MinLines
+	if rule.MaxLines > 0 && rule.MaxLines < limit {
+		limit = rule.MaxLines
 	}
 	if len(trimmed) > limit {
 		trimmed = trimmed[:limit]
@@ -1023,7 +1040,7 @@ func chunkMarkdownSections(text string, rule chunkRule) []string {
 	if len(trimBlankEdges(preamble)) > 0 {
 		segments[0] = append(append([]string{}, trimBlankEdges(preamble)...), append([]string{""}, segments[0]...)...)
 	}
-	return mergeSmallSegments(splitOversizedSegments(joinNonEmptySegments(segments), rule), rule)
+	return mergeSmallSegments(splitOversizedSegmentsSoft(joinNonEmptySegments(segments), rule, 2), rule)
 }
 
 type markdownSection struct {
@@ -1040,9 +1057,6 @@ type markdownGroup struct {
 
 func chunkMarkdownSectionsWithProfile(text string, rule chunkRule, profile string) []string {
 	lines := normalizeLines(text)
-	if len(lines) <= rule.MaxLines {
-		return nil
-	}
 	sections := collectMarkdownSections(lines)
 	if len(sections) == 0 {
 		return nil
@@ -1148,7 +1162,7 @@ func chunkMarkdownStrictSections(sections []markdownSection, rule chunkRule) []s
 		}
 		segments = append(segments, segment)
 	}
-	return splitOversizedSegments(joinNonEmptySegments(segments), rule)
+	return splitOversizedSegmentsSoft(joinNonEmptySegments(segments), rule, 2)
 }
 
 func chunkMarkdownH2Sections(sections []markdownSection, rule chunkRule, includeIntroWindow bool) []string {
@@ -1201,7 +1215,7 @@ func chunkMarkdownH2Sections(sections []markdownSection, rule chunkRule, include
 		}
 	}
 
-	return splitOversizedSegments(joinNonEmptySegments(segments), rule)
+	return splitOversizedSegmentsSoft(joinNonEmptySegments(segments), rule, 2)
 }
 
 func renderMarkdownGroup(group markdownGroup, rule chunkRule, includeIntroWindow bool) [][]string {
