@@ -1158,6 +1158,9 @@ func runCoreUp() error {
 	}
 	_ = syncLocalProfile(cfg.APIBase())
 	_ = api.ClearCapabilitiesCache()
+	if err := waitForLocalCoreReady(cfg.APIBase(), 30*time.Second); err != nil {
+		return err
+	}
 
 	fmt.Println("Started local Compair Core container.")
 	if id := strings.TrimSpace(out); id != "" {

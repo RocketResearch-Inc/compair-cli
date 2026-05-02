@@ -76,15 +76,18 @@ What happens on the next tagged release:
 How to test it:
 
 ```bash
+brew update
 brew tap RocketResearch-Inc/tap
-brew install --cask compair
-compair version
+brew upgrade --cask compair || brew install --cask compair
+"$(brew --prefix)/bin/compair" version
 ```
 
 Notes:
 
 - The generated cask is intended for the CLI binary, not a GUI app bundle.
 - The cask includes a quarantine-removal hook because the release artifact is not notarized. If you later add signing/notarization, keep or simplify that hook based on actual install behavior.
+- During release validation, prefer `"$(brew --prefix)/bin/compair"` over plain `compair` so a local repo build earlier on `PATH` does not hide the brewed install.
+- If `brew info --cask compair` already shows the new version but the installed Caskroom payload is still older, use `brew upgrade --cask compair` before treating it as a publishing failure.
 
 ## 3. WinGet (Windows)
 

@@ -310,6 +310,32 @@ func TestFeedbackComparedFilesDropsReferenceOnlyNoiseWithoutAnchorOverlap(t *tes
 	}
 }
 
+func TestFeedbackComparedFilesSuppressesLocalCompairStatePaths(t *testing.T) {
+	item := feedbackRenderItem{
+		Feedback: api.FeedbackEntry{
+			ChunkContent: "diff --git a/docs/api_mapping.md b/docs/api_mapping.md\n" +
+				"--- a/docs/api_mapping.md\n+++ b/docs/api_mapping.md\n",
+			Feedback: "The docs in `docs/api_mapping.md` now mention `/activity_feed`, but `desktop/compair_desktop/api.py` still calls `/get_activity_feed`. Ignore `.compair/config.yaml` and `~/.compair/credentials.json` when rendering compared files.",
+			References: []api.FeedbackReference{
+				{Content: "### File: .compair/config.yaml\n### File: ~/.compair/credentials.json\n### File: desktop/compair_desktop/api.py\n"},
+			},
+		},
+	}
+
+	got := feedbackComparedFiles(item)
+	out := strings.Join(got, "\n")
+	for _, want := range []string{"docs/api_mapping.md", "desktop/compair_desktop/api.py"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected compared files to contain %q, got %#v", want, got)
+		}
+	}
+	for _, unwanted := range []string{".compair/config.yaml", "~/.compair/credentials.json"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("did not expect compared files to contain %q, got %#v", unwanted, got)
+		}
+	}
+}
+
 func TestFeedbackHeadingUsesIntentLabel(t *testing.T) {
 	item := feedbackRenderItem{
 		Meta: &feedbackNotificationMeta{Intent: "hidden_overlap"},

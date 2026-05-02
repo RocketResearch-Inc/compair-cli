@@ -15,9 +15,9 @@ Adjust `COMPAIR_ROOT` if your checkout lives elsewhere.
 ```bash
 brew untap RocketResearch-Inc/tap 2>/dev/null || true
 brew tap RocketResearch-Inc/tap
-brew reinstall --cask compair
-compair version
-compair demo --mode cloud
+brew upgrade --cask compair || brew reinstall --cask compair
+"$(brew --prefix)/bin/compair" version
+"$(brew --prefix)/bin/compair" demo --mode cloud
 ```
 
 ### Linux: package repo + Local Core demo
@@ -41,6 +41,11 @@ Success criteria:
 - `compair version` runs on each platform
 - the demo completes and writes a Markdown report
 - the report contains one real cross-repo notification instead of fallback or duplicate noise
+
+Notes:
+
+- On macOS, prefer `"$(brew --prefix)/bin/compair"` during release validation instead of plain `compair`. This avoids accidentally exercising a locally built repo binary earlier on `PATH`.
+- If `brew info --cask compair` shows the new cask version but the installed payload is still older, run `brew upgrade --cask compair` before treating it as a failed publish.
 
 ## 2. First-run matrix
 
@@ -103,14 +108,14 @@ These results reflect the seeded production-Cloud reruns completed on May 1, 202
 
 | Production Cloud configuration | Scenario A | Scenario B | Scenario C | Scenario D | Current read |
 | --- | --- | --- | --- | --- | --- |
-| `api_base=https://app.compair.sh/api`, fresh `HOME`, fresh group per scenario | pass | pass | pass, artifact bundle not currently archived under `benchmark_artifacts/launch_validation` | miss / inconclusive | Strongest validated launch path; A, B, and C are the primary proof points, while D remains a softer sanity check |
+| `api_base=https://app.compair.sh/api`, fresh `HOME`, fresh group per scenario | pass | pass | pass, archived under `benchmark_artifacts/launch_validation/scenario-c-20260502-000527/` | miss / inconclusive | Strongest validated launch path; A, B, and C are the primary proof points, while D remains a softer sanity check |
 
 Artifact bundles:
 
 - Scenario A: `benchmark_artifacts/launch_validation/scenario-a-20260430-233220/`
 - Scenario B: `benchmark_artifacts/launch_validation/scenario-b-20260430-224548/`
+- Scenario C: `benchmark_artifacts/launch_validation/scenario-c-20260502-000527/`
 - Scenario D: `benchmark_artifacts/launch_validation/scenario-d-20260501-000228/`
-- Scenario C: validated during the production rerun, but the final artifact bundle still needs to be archived if we want a complete four-scenario paper trail under `benchmark_artifacts/launch_validation/`. Treat this as a documentation-completeness gap, not as a failed validation result.
 
 Operational notes from the production rerun:
 

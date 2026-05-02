@@ -1223,6 +1223,9 @@ func feedbackComparedFiles(item feedbackRenderItem) []string {
 	}
 	scored := make([]scoredPath, 0, len(pathScores))
 	for path, score := range pathScores {
+		if suppressComparedFilePath(path) {
+			continue
+		}
 		if score < 3.0 {
 			continue
 		}
@@ -1242,6 +1245,20 @@ func feedbackComparedFiles(item feedbackRenderItem) []string {
 		out = append(out, item.Path)
 	}
 	return out
+}
+
+func suppressComparedFilePath(path string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(filepath.ToSlash(path)))
+	if normalized == "" {
+		return true
+	}
+	// Hide local CLI state and auth material from user-facing report summaries.
+	if strings.HasPrefix(normalized, ".compair/") ||
+		strings.HasPrefix(normalized, "~/.compair/") ||
+		strings.Contains(normalized, "/.compair/") {
+		return true
+	}
+	return false
 }
 
 func appendFeedbackComparedFiles(entry *[]string, item feedbackRenderItem, options reportRenderOptions) {

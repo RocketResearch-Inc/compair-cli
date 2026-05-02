@@ -4,9 +4,9 @@ Use this as the working launch board for the public Compair CLI, Core, and Cloud
 
 ## Current Snapshot
 
-Status as of 2026-05-01:
+Status as of 2026-05-02:
 
-- Production Cloud: launch-quality validation is in good shape. Seeded scenarios A, B, and C passed in production. Scenario D was inconclusive and should be treated as a softer install-surface sanity check, not a blocker.
+- Production Cloud: launch-quality validation is in good shape. Seeded scenarios A, B, and C passed in production and now all have archived artifact bundles. Scenario D was inconclusive and should be treated as a softer install-surface sanity check, not a blocker.
 - Core with OpenAI embeddings: strict finding-universe baseline is complete and credible. The premium lane currently landed at `0.571` F1 in `compair_eval_runs/finding_universe_metrics/core-openai-embeddings-20260501-final/`.
 - Core with local embeddings + local generation: native strict evaluation is complete after excluding dropped notification events. The row is still `0.000` F1 and should be treated as experimental / manual-review assist, not a launch-tier generative lane.
 - Core with local embeddings + OpenAI generation: strict replay evaluation is complete. The premium lane landed at `0.560` F1, `gpt-5.4-mini` landed at `0.349`, and `gpt-5.4-nano` landed at `0.250` in `compair_eval_runs/finding_universe_metrics/core-local-openai-generation-20260501-final/`.
@@ -102,7 +102,7 @@ Interpretation:
   - raw container endpoints (`/health`, `/capabilities`)
   - CLI-managed local flow with OpenAI generation + local embeddings
 - [x] Package the validated Cloud reranker runtime into `compair_cloud/src/compair_cloud/reranker/`.
-- [ ] Commit the remaining validated reference profile JSON under `compair_cloud/src/compair_cloud/reference_profiles/`.
+- [x] Commit the remaining validated reference profile JSON under `compair_cloud/src/compair_cloud/reference_profiles/`.
 - [ ] Confirm the intended default generation lane and profile priority before public rollout.
 
 Notes:
@@ -122,12 +122,12 @@ Notes:
   - Core + your own OpenAI key as the stronger self-hosted path
   - Core + local embeddings + OpenAI generation as the lower-outsourced-cost self-hosted path
   - fully local Core as the zero-external-cost option, with quality caveats and manual-review framing
-- [ ] Archive the missing production Scenario C artifact bundle so the seeded validation paper trail is complete.
+- [x] Archive the missing production Scenario C artifact bundle so the seeded validation paper trail is complete.
 - [x] Add one short “how we evaluated quality” doc or section pointing to the finding-universe workflow and seeded launch validation.
 
 ### 4. Release Automation And External Setup
 
-- [ ] Verify the external repos and secrets listed in [ci_release.md](ci_release.md) and [release_checklist.md](release_checklist.md) are actually configured:
+- [x] Verify the external repos and secrets listed in [ci_release.md](ci_release.md) and [release_checklist.md](release_checklist.md) are actually configured:
   - `RocketResearch-Inc/homebrew-tap`
   - `RocketResearch-Inc/winget-pkgs`
   - `RocketResearch-Inc/compair-packages`
@@ -142,30 +142,37 @@ Notes:
   - Linux package publication
 - [ ] Separately validate the publish paths that the dry-run still cannot exercise:
   - Linux repo publishing
-  - Homebrew publication
   - WinGet manifest generation / PR path
 
 Needs:
 
-- human verification of repo ownership, credentials, and CI secrets
 - validation that the current tagged CLI release reached the intended package-manager channels
+- a final decision on when to enable the WinGet publish path
+
+Current status:
+
+- External repos and secrets were checked. `WINGET_PUBLISH_ENABLED` is still intentionally unset until we are ready to deal with the WinGet publish/approval path.
+- Homebrew publication and upgrade behavior have now been validated on macOS for the current tagged CLI release.
+- Linux package publication and direct GitHub-archive install validation are still pending.
+- The current tagged CLI release predates two small source-only fixes from this pass: waiting for local Core readiness in `compair core up`, and suppressing `.compair/*` / `~/.compair/credentials.json` noise in report “Compared Files”. Cut a follow-up CLI release if you want those improvements in the shipped binary.
 
 ### 5. Runtime Defaults And Debug Hygiene
 
-- [ ] Review trace and debug defaults before public release.
-- [ ] Make sure investigation-only tracing stays opt-in for normal installs and local demos.
+- [x] Review trace and debug defaults before public release.
+- [x] Make sure investigation-only tracing stays opt-in for normal installs and local demos.
 - [ ] Confirm the intended notification scoring and reference profile defaults are explicit in docs and deployment config.
 
-Known items to review:
+Current status:
 
-- `compair_cloud/docker-compose.local.yml` currently defaults `COMPAIR_REFERENCE_TRACE` to `1` for local Cloud runs.
+- `compair_cloud/docker-compose.local.yml` now leaves `COMPAIR_REFERENCE_TRACE` and `COMPAIR_REFERENCE_SOURCE_TRACE` off by default for normal local Cloud runs.
+- The evaluation harnesses that depend on tracing still opt in explicitly via their wrapper scripts.
 - `COMPAIR_NOTIFICATION_SCORING_TRACE` / `NOTIFICATION_SCORING_TRACE` should remain off unless intentionally debugging.
 
 ### 6. Release-Candidate Validation
 
 - [ ] Run the full pre-release CLI checklist from [release_checklist.md](release_checklist.md).
 - [ ] Run the seeded launch-validation suite again against the actual release-candidate build if the runtime or defaults changed materially.
-- [ ] Smoke-test Cloud and Core demos from a clean machine / clean `HOME`.
+- [x] Smoke-test Cloud and Core demos from a clean machine / clean `HOME`.
 
 ## What We Can Keep Doing Now
 
