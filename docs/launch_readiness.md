@@ -80,6 +80,7 @@ Interpretation:
   - raw `/health` and `/capabilities` smoke validation
   - CLI-managed `compair core doctor` validation on `generation=openai`, `embedding=local`
   - `compair demo --mode local` on the recommended self-hosted quality lane
+- A tagged CLI release has already exercised the full packaging path successfully once during this cycle, and the expected release artifacts were present.
 
 ## Remaining Release Work
 
@@ -87,7 +88,7 @@ Interpretation:
 
 - [x] Record the final native `core-local` result in the launch recommendation.
 - [x] Run the `core-local-openai-generation` replay lane (`phase2` + `phase4`) so the final self-hosted profile family is represented in the strict comparison table.
-- [ ] Freeze the public support matrix and copy it into the remaining launch-facing docs:
+- [x] Freeze the public support matrix and copy it into the remaining launch-facing docs:
   - launch-tier: Cloud
   - strong supported path: Core with OpenAI embeddings + OpenAI generation
   - supported or secondary path: Core with local embeddings + OpenAI generation
@@ -100,8 +101,8 @@ Interpretation:
 - [x] Smoke-test the refreshed published Core image on both:
   - raw container endpoints (`/health`, `/capabilities`)
   - CLI-managed local flow with OpenAI generation + local embeddings
-- [ ] Package the validated Cloud reranker runtime into `compair_cloud/src/compair_cloud/reranker/`.
-- [ ] Package the validated reference profile JSON under `compair_cloud/src/compair_cloud/reference_profiles/`.
+- [x] Package the validated Cloud reranker runtime into `compair_cloud/src/compair_cloud/reranker/`.
+- [ ] Commit the remaining validated reference profile JSON under `compair_cloud/src/compair_cloud/reference_profiles/`.
 - [ ] Confirm the intended default generation lane and profile priority before public rollout.
 
 Notes:
@@ -132,11 +133,13 @@ Notes:
   - `RocketResearch-Inc/compair-packages`
   - package signing secrets
   - release automation tokens
-- [ ] Run one release-candidate dry run that exercises:
-  - build
-  - archive/package creation
-  - checksums
-  - basic archive/package sanity checks
+- [x] Exercise the CLI packaging pipeline end to end with either:
+  - the `Release Dry Run` workflow, or
+  - a tagged CLI release
+- [ ] Validate the live install/update paths from the current successful CLI release:
+  - GitHub archives
+  - Homebrew publication
+  - Linux package publication
 - [ ] Separately validate the publish paths that the dry-run still cannot exercise:
   - Linux repo publishing
   - Homebrew publication
@@ -145,7 +148,7 @@ Notes:
 Needs:
 
 - human verification of repo ownership, credentials, and CI secrets
-- one tagged release candidate (or equivalent staging dry run in the publisher repos) to prove the live publish paths
+- validation that the current tagged CLI release reached the intended package-manager channels
 
 ### 5. Runtime Defaults And Debug Hygiene
 
@@ -170,7 +173,7 @@ These are good parallel tasks now that the profile matrix is substantially compl
 
 - wire the final profile messaging into the remaining setup-facing docs
 - verify external release repos and secrets
-- execute the Core image refresh / release plan
+- validate live package-manager channels from the current CLI release
 - draft release notes structure and launch messaging
 - tighten the support matrix and default recommendations
 

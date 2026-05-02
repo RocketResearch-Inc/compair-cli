@@ -110,7 +110,7 @@ Artifact bundles:
 - Scenario A: `benchmark_artifacts/launch_validation/scenario-a-20260430-233220/`
 - Scenario B: `benchmark_artifacts/launch_validation/scenario-b-20260430-224548/`
 - Scenario D: `benchmark_artifacts/launch_validation/scenario-d-20260501-000228/`
-- Scenario C: validated during the production rerun, but the final artifact bundle still needs to be archived if we want a complete four-scenario paper trail under `benchmark_artifacts/launch_validation/`
+- Scenario C: validated during the production rerun, but the final artifact bundle still needs to be archived if we want a complete four-scenario paper trail under `benchmark_artifacts/launch_validation/`. Treat this as a documentation-completeness gap, not as a failed validation result.
 
 Operational notes from the production rerun:
 

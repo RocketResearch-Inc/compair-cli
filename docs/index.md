@@ -8,7 +8,7 @@ Think of Compair as a context manager for teams: it keeps a shared cross-repo me
 Current launch read:
 
 - Cloud is the strongest out-of-the-box path.
-- Local Core with OpenAI-backed generation is the strongest self-hosted path.
+- Local Core with OpenAI embeddings plus OpenAI generation is the quality-first self-hosted path.
 - Local Core with local embeddings plus OpenAI generation is the lower-outsourced-cost self-hosted path.
 - Fully local Core is best framed today as a privacy-first retrieval-assist path with experimental native generation.
 
