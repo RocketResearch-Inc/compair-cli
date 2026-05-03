@@ -33,6 +33,8 @@ var stdoutIsTerminal = func() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
+var shouldRenderPlainMarkdownFunc = shouldRenderPlainMarkdown
+
 var markdownRenderFunc = func(md string, width int) (string, error) {
 	options := []glamour.TermRendererOption{glamour.WithAutoStyle()}
 	if width > 0 {
@@ -159,7 +161,7 @@ func renderMarkdown(md string) (string, error) {
 }
 
 func renderMarkdownWithWidth(md string, width int) (string, error) {
-	if shouldRenderPlainMarkdown() {
+	if shouldRenderPlainMarkdownFunc() {
 		return plainMarkdown(md), nil
 	}
 

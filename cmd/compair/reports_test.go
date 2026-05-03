@@ -114,11 +114,13 @@ func TestRenderMarkdownPassesConfiguredWidth(t *testing.T) {
 	prevNoColor := viper.GetBool("no_color")
 	prevTTY := stdoutIsTerminal
 	prevRenderer := markdownRenderFunc
+	prevShouldRender := shouldRenderPlainMarkdownFunc
 	prevTerm := os.Getenv("TERM")
 	prevWidth := reportsWidth
 	prevNoColorEnv := os.Getenv("NO_COLOR")
 	viper.Set("no_color", false)
 	stdoutIsTerminal = func() bool { return true }
+	shouldRenderPlainMarkdownFunc = func() bool { return false }
 	reportsWidth = 96
 	if err := os.Setenv("TERM", "xterm-256color"); err != nil {
 		t.Fatalf("Setenv TERM: %v", err)
@@ -137,6 +139,7 @@ func TestRenderMarkdownPassesConfiguredWidth(t *testing.T) {
 		viper.Set("no_color", prevNoColor)
 		stdoutIsTerminal = prevTTY
 		markdownRenderFunc = prevRenderer
+		shouldRenderPlainMarkdownFunc = prevShouldRender
 		reportsWidth = prevWidth
 		if prevTerm == "" {
 			_ = os.Unsetenv("TERM")
