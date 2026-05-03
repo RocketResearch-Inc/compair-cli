@@ -138,12 +138,13 @@ var doctorCmd = &cobra.Command{
 		}
 		doctorOK(&report, emit, "Repo root", root)
 
+		cfgPath := config.ProjectConfigPath(root)
 		cfg, cfgErr := config.ReadProjectConfig(root)
 		if cfgErr != nil {
-			doctorWarn(&report, &summary, emit, "Repo binding", "missing .compair/config.yaml", "Run 'compair track' to create a repo document and local binding.")
+			doctorWarn(&report, &summary, emit, "Repo binding", fmt.Sprintf("missing %s", cfgPath), "Run 'compair track' to create a repo document and local binding, or set COMPAIR_PROJECT_CONFIG_PATH when the binding lives outside the repo.")
 			return finishDoctor(report, summary, emit)
 		}
-		doctorOK(&report, emit, "Repo binding", ".compair/config.yaml present")
+		doctorOK(&report, emit, "Repo binding", cfgPath)
 
 		if cfg.Group.ID != "" {
 			if activeGroup != "" && cfg.Group.ID != activeGroup {
@@ -206,7 +207,7 @@ var doctorCmd = &cobra.Command{
 				emit,
 				"Pending processing task",
 				detail,
-				"Rerun 'compair review' or 'compair sync' to continue waiting without resubmitting this repo.",
+				"Run 'compair wait' to reattach to the saved task, or rerun 'compair review' to continue waiting without resubmitting this repo.",
 			)
 		}
 

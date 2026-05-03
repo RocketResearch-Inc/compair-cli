@@ -151,12 +151,14 @@ var syncProcessTimeoutSec int
 var syncReanalyzeExisting bool
 
 type syncInvocationMode struct {
-	FetchOnly         bool
-	PushOnly          bool
-	AwaitProcessing   bool
-	GenerateFeedback  *bool
-	ReanalyzeExisting bool
-	ReportDetailLevel *reportDetailLevel
+	FetchOnly           bool
+	PushOnly            bool
+	AwaitProcessing     bool
+	Detach              bool
+	GenerateFeedback    *bool
+	ReanalyzeExisting   bool
+	ReportDetailLevel   *reportDetailLevel
+	SkipInitialSyncWait bool
 }
 
 var syncCmd = &cobra.Command{
@@ -210,6 +212,10 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	}
 	doUpload := !modeFlags.FetchOnly
 	doFetch := !modeFlags.PushOnly
+	if modeFlags.Detach {
+		doUpload = true
+		doFetch = false
+	}
 	if reanalyzeExisting && !doUpload {
 		return fmt.Errorf("--reanalyze-existing requires an upload pass; remove --fetch-only")
 	}
@@ -274,12 +280,12 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	sort.Strings(rootList)
 	repoProgress := newRepoProgressTracker(len(rootList))
 
-	if doFetch {
+	if doFetch && !modeFlags.SkipInitialSyncWait {
 		if err := waitForPendingInitialSyncs(cmd.Context(), client, group); err != nil {
 			return err
 		}
 	}
-	waitForProcessing := doFetch || modeFlags.AwaitProcessing
+	waitForProcessing := !modeFlags.Detach && (doFetch || modeFlags.AwaitProcessing)
 
 	totalFeedback := 0
 	reportPath := ""
@@ -357,6 +363,17 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					clearPendingRepoTask(root, cfg, r)
 				}
 			}
+			if modeFlags.Detach && strings.TrimSpace(r.PendingTaskID) != "" {
+				printer.Info(
+					fmt.Sprintf(
+						"[%d/%d] Reusing saved processing task for %s. Run 'compair wait' or 'compair status' to follow progress.",
+						idx+1,
+						len(rootList),
+						repoLabel,
+					),
+				)
+				continue
+			}
 			if waitForProcessing && strings.TrimSpace(r.PendingTaskID) != "" {
 				printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(rootList), repoLabel))
 				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, r.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
@@ -367,7 +384,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				if timedOut {
 					return fmt.Errorf(
-						"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair sync' to continue waiting without resubmitting)",
+						"processing timeout after %ds while waiting for the saved task for %s (run 'compair wait' or rerun the same command to continue waiting without resubmitting)",
 						syncProcessTimeoutSec,
 						r.RemoteURL,
 					)
@@ -383,7 +400,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 					}
 				case "PENDING":
 					return fmt.Errorf(
-						"saved processing task for %s is still pending (rerun 'compair sync' to continue waiting)",
+						"saved processing task for %s is still pending (run 'compair wait' or rerun the same command to continue waiting)",
 						r.RemoteURL,
 					)
 				default:
@@ -473,6 +490,30 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			if err != nil {
 				return err
 			}
+			if modeFlags.Detach {
+				if strings.TrimSpace(resp.TaskID) != "" {
+					persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialFeedback)
+					printer.Info(
+						fmt.Sprintf(
+							"[%d/%d] Submitted %s in the background as task %s. Run 'compair wait' or 'compair status' to follow progress.",
+							idx+1,
+							len(rootList),
+							repoLabel,
+							shortTaskID(resp.TaskID),
+						),
+					)
+					continue
+				}
+				if snapshotUsed {
+					printer.Info("Uploaded baseline snapshot for " + r.RemoteURL)
+				} else {
+					printer.Info("Uploaded changes for " + r.RemoteURL)
+				}
+				finalizeRepoSync(root, group, cfg, r, latest)
+				updatedDocs[r.DocumentID] = struct{}{}
+				printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
+				continue
+			}
 			var st api.TaskStatus
 			if waitForProcessing {
 				persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialFeedback)
@@ -487,7 +528,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				if timedOut {
 					return fmt.Errorf(
-						"processing timeout after %ds (rerun 'compair sync' to continue waiting without resubmitting this repo; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+						"processing timeout after %ds (run 'compair wait' or rerun the same command to continue waiting without resubmitting this repo; increase with --process-timeout-sec or set 0 to wait indefinitely)",
 						syncProcessTimeoutSec,
 					)
 				}
@@ -2462,7 +2503,7 @@ func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group s
 		}
 		if timedOut {
 			return fmt.Errorf(
-				"processing timeout after %ds while waiting for pending initial sync of %s (rerun 'compair sync' to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+				"processing timeout after %ds while waiting for pending initial sync of %s (run 'compair wait --all' or rerun the original command to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
 				syncProcessTimeoutSec,
 				item.Label,
 			)
@@ -2505,6 +2546,99 @@ func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group s
 	return nil
 }
 
+func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group string, roots []string) (int, error) {
+	pending, err := listPendingRepoTasks(roots)
+	if err != nil || len(pending) == 0 {
+		return 0, err
+	}
+	printer.Info(fmt.Sprintf("Waiting for %d saved pending task(s).", len(pending)))
+	progress := newRepoProgressTracker(len(pending))
+	completed := 0
+	for idx, item := range pending {
+		cfg := item.Config
+		if len(cfg.Repos) == 0 {
+			continue
+		}
+		repo := &cfg.Repos[0]
+		if strings.TrimSpace(repo.PendingTaskID) == "" {
+			continue
+		}
+		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			return completed, fmt.Errorf(
+				"saved processing task for %s is stale (%s old; cutoff %s); rerun 'compair review' or 'compair review --detach' to resubmit current changes",
+				item.Label,
+				humanDuration(age),
+				humanDuration(cutoff),
+			)
+		}
+		waitStartedAt := time.Now()
+		printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(pending), item.Label))
+		st, timedOut, err := waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
+			printer.Info(formatTaskProgressLine(idx+1, len(pending), "Still processing", item.Label, st, elapsed))
+		})
+		if err != nil {
+			return completed, err
+		}
+		if timedOut {
+			return completed, fmt.Errorf(
+				"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair wait' to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+				syncProcessTimeoutSec,
+				item.Label,
+			)
+		}
+		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+		case "SUCCESS":
+		case "PROGRESS", "STARTED":
+			if len(extractChunkTaskIDsFromStatus(st)) == 0 {
+				return completed, fmt.Errorf(
+					"saved processing task for %s is still in progress without recoverable chunk tasks",
+					item.Label,
+				)
+			}
+		case "PENDING":
+			return completed, fmt.Errorf(
+				"saved processing task for %s is still pending (rerun 'compair wait' to continue waiting)",
+				item.Label,
+			)
+		default:
+			clearPendingRepoTask(item.Root, cfg, repo)
+			return completed, fmt.Errorf("saved processing task %s for %s ended with status %s", shortTaskID(repo.PendingTaskID), item.Label, st.Status)
+		}
+		chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
+		if err := waitForChunkTaskIDs(ctx, client, chunkTaskIDs, item.Label, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+			printer.Info(
+				fmt.Sprintf(
+					"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+					idx+1,
+					len(pending),
+					taskIndex,
+					taskTotal,
+					item.Label,
+					humanDuration(elapsed),
+				),
+			)
+		}); err != nil {
+			clearPendingRepoTaskOnTerminalChunkFailure(item.Root, cfg, repo, err)
+			return completed, err
+		}
+		latest := strings.TrimSpace(repo.PendingTaskCommit)
+		localWaitElapsed := time.Since(waitStartedAt)
+		taskAge := pendingTaskElapsed(repo.PendingTaskStartedAt, waitStartedAt)
+		if latest != "" {
+			finalizeRepoSync(item.Root, group, cfg, repo, latest)
+		} else {
+			clearPendingRepoTask(item.Root, cfg, repo)
+		}
+		completed++
+		if localWaitElapsed <= 3*time.Second {
+			printer.Info(progress.alreadyCompleteLine(idx+1, item.Label, taskAge))
+		} else {
+			printer.Info(progress.completeLine(idx+1, item.Label, localWaitElapsed))
+		}
+	}
+	return completed, nil
+}
+
 func clearPendingRepoTaskOnTerminalChunkFailure(root string, cfg config.Project, repo *config.Repo, err error) {
 	if err == nil {
 		return
@@ -2536,6 +2670,40 @@ func listPendingInitialSyncs(ctx context.Context, group string) ([]pendingInitia
 			continue
 		}
 		if strings.TrimSpace(repo.LastSyncedCommit) != "" {
+			continue
+		}
+		out = append(out, pendingInitialSync{
+			Root:   root,
+			Label:  repoDisplayLabel(root, repo.RemoteURL),
+			Config: cfg,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := strings.TrimSpace(out[i].Config.Repos[0].PendingTaskStartedAt)
+		right := strings.TrimSpace(out[j].Config.Repos[0].PendingTaskStartedAt)
+		if left == right {
+			return out[i].Label < out[j].Label
+		}
+		if left == "" {
+			return false
+		}
+		if right == "" {
+			return true
+		}
+		return left < right
+	})
+	return out, nil
+}
+
+func listPendingRepoTasks(roots []string) ([]pendingInitialSync, error) {
+	out := make([]pendingInitialSync, 0, len(roots))
+	for _, root := range roots {
+		cfg, err := config.ReadProjectConfig(root)
+		if err != nil || len(cfg.Repos) == 0 {
+			continue
+		}
+		repo := cfg.Repos[0]
+		if strings.TrimSpace(repo.PendingTaskID) == "" {
 			continue
 		}
 		out = append(out, pendingInitialSync{

@@ -18,9 +18,21 @@ compair login
 compair group use <group-id>
 compair track
 ```
-4. Commit `.compair/config.yaml` if you want CI to keep syncing the same document binding.
+4. Either:
+   - commit `.compair/config.yaml`, or
+   - base64-encode it into a CI secret and restore it during the workflow.
 
-Without a stable `.compair/config.yaml`, CI will not know which Compair document the repo should continue updating.
+Recommended secret-backed pattern:
+
+```bash
+base64 < .compair/config.yaml
+```
+
+Store that value as `COMPAIR_PROJECT_CONFIG_YAML_B64`, then restore it inside CI
+and point the CLI at it with `COMPAIR_PROJECT_CONFIG_PATH`.
+
+Without a stable project config, CI will not know which Compair document the
+repo should continue updating.
 
 ## Cross-Repo Setup
 
@@ -58,12 +70,19 @@ jobs:
         working-directory: compair-cli
         run: go build -o compair .
 
+      - name: Restore Compair binding
+        run: |
+          mkdir -p "$RUNNER_TEMP/compair-state"
+          echo "${{ secrets.COMPAIR_PROJECT_CONFIG_YAML_B64 }}" | base64 --decode > "$RUNNER_TEMP/compair-state/project-config.yaml"
+
       - name: Login to Compair
         working-directory: compair-cli
         run: ./compair --api-base https://app.compair.sh/api login --token "${{ secrets.COMPAIR_AUTH_TOKEN }}"
 
       - name: Run advisory review
         working-directory: ${{ github.workspace }}
+        env:
+          COMPAIR_PROJECT_CONFIG_PATH: ${{ runner.temp }}/compair-state/project-config.yaml
         run: ./compair-cli/compair --api-base https://app.compair.sh/api review || true
 
       - name: Upload report artifact
@@ -98,12 +117,19 @@ jobs:
         working-directory: compair-cli
         run: go build -o compair .
 
+      - name: Restore Compair binding
+        run: |
+          mkdir -p "$RUNNER_TEMP/compair-state"
+          echo "${{ secrets.COMPAIR_PROJECT_CONFIG_YAML_B64 }}" | base64 --decode > "$RUNNER_TEMP/compair-state/project-config.yaml"
+
       - name: Login to Compair
         working-directory: compair-cli
         run: ./compair --api-base https://app.compair.sh/api login --token "${{ secrets.COMPAIR_AUTH_TOKEN }}"
 
       - name: Run failing PR check
         working-directory: ${{ github.workspace }}
+        env:
+          COMPAIR_PROJECT_CONFIG_PATH: ${{ runner.temp }}/compair-state/project-config.yaml
         run: ./compair-cli/compair --api-base https://app.compair.sh/api sync --json --gate api-contract
 
       - name: Upload report artifact
@@ -127,9 +153,11 @@ compair_review:
   script:
     - cd compair-cli
     - go build -o compair .
+    - mkdir -p "$CI_PROJECT_DIR/.compair-ci"
+    - echo "$COMPAIR_PROJECT_CONFIG_YAML_B64" | base64 --decode > "$CI_PROJECT_DIR/.compair-ci/project-config.yaml"
     - ./compair --api-base https://app.compair.sh/api login --token "$COMPAIR_AUTH_TOKEN"
     - cd "$CI_PROJECT_DIR"
-    - ./compair-cli/compair --api-base https://app.compair.sh/api review || true
+    - COMPAIR_PROJECT_CONFIG_PATH="$CI_PROJECT_DIR/.compair-ci/project-config.yaml" ./compair-cli/compair --api-base https://app.compair.sh/api review || true
   artifacts:
     when: always
     paths:
@@ -148,9 +176,11 @@ compair_gate:
   script:
     - cd compair-cli
     - go build -o compair .
+    - mkdir -p "$CI_PROJECT_DIR/.compair-ci"
+    - echo "$COMPAIR_PROJECT_CONFIG_YAML_B64" | base64 --decode > "$CI_PROJECT_DIR/.compair-ci/project-config.yaml"
     - ./compair --api-base https://app.compair.sh/api login --token "$COMPAIR_AUTH_TOKEN"
     - cd "$CI_PROJECT_DIR"
-    - ./compair-cli/compair --api-base https://app.compair.sh/api sync --json --gate api-contract
+    - COMPAIR_PROJECT_CONFIG_PATH="$CI_PROJECT_DIR/.compair-ci/project-config.yaml" ./compair-cli/compair --api-base https://app.compair.sh/api sync --json --gate api-contract
   artifacts:
     when: always
     paths:
@@ -162,6 +192,7 @@ compair_gate:
 - Start with advisory mode.
 - Only promote to failing checks once you trust the signal quality for your repos.
 - Use a dedicated Compair account and group for CI.
+- If you do not want to commit `.compair/config.yaml`, restore it from CI secret storage and set `COMPAIR_PROJECT_CONFIG_PATH`.
 - Prefer `api-contract` as the first failing-check preset. It is the most conservative option.
 - Use advisory mode for medium-severity findings until you trust the signal for that repo set.
 - Keep the Markdown artifact even on failure so reviewers can see why the job failed.

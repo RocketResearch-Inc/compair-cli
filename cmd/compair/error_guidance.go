@@ -117,6 +117,8 @@ func errorGuidance(cmd *cobra.Command, message string) []string {
 		"demo priming failed",
 	) {
 		add("Run 'compair doctor' to inspect pending tasks, repo binding, and current sync state.")
+		add("For large repos or first baselines, prefer 'compair review --detach' and come back with 'compair wait', or use 'compair push' now and 'compair pull' later.")
+		add("If you do want to keep waiting locally, rerun the same command or 'compair wait' to continue waiting, or increase --process-timeout-sec (use 0 to wait indefinitely).")
 		if localCore {
 			add("If this is against local Core, run 'compair core doctor' to check Docker, the container, and /health.")
 		} else if hostedCloud {

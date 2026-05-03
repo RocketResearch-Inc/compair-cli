@@ -18,6 +18,7 @@ import (
 )
 
 var reviewOpenSystem bool
+var reviewDetach bool
 var reviewNow bool
 var reviewNowYes bool
 var reviewNowModel string
@@ -121,11 +122,15 @@ func confirmNowReview(groupID string, documentIDs []string) error {
 }
 
 var reviewCmd = &cobra.Command{
-	Use:   "review [PATH ...]",
-	Short: "Run a full Compair review and write the latest report",
+	Use:          "review [PATH ...]",
+	Short:        "Run a full Compair review and write the latest report",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if reviewNow {
 			return runNowReview(cmd, args)
+		}
+		if reviewDetach {
+			return runSyncCommand(cmd, args, syncInvocationMode{Detach: true})
 		}
 
 		reportPath := writeMD
@@ -216,11 +221,13 @@ func init() {
 	rootCmd.AddCommand(reviewCmd)
 	addSyncFlags(reviewCmd, true)
 	reviewCmd.Flags().BoolVar(&reviewOpenSystem, "system", false, "Open the generated report using the system default viewer")
+	reviewCmd.Flags().BoolVar(&reviewDetach, "detach", false, "Submit the review work and return immediately; use 'compair wait' or 'compair status' to follow progress")
 	reviewCmd.Flags().BoolVar(&reviewNow, "now", false, "Run a one-shot whole-bundle review against the configured OpenAI-compatible model")
 	reviewCmd.Flags().BoolVarP(&reviewNowYes, "yes", "y", false, "Skip the `review --now` confirmation prompt")
 	reviewCmd.Flags().StringVar(&reviewNowModel, "now-model", "", "Override the model used for `review --now`")
 	reviewCmd.Flags().IntVar(&reviewNowMaxFindings, "now-max-findings", 12, "Maximum findings to request from `review --now`")
 	hideCommandFlags(reviewCmd,
+		"feedback-wait",
 		"write-md",
 		"push-only",
 		"fetch-only",

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,10 +36,25 @@ type Project struct {
 	Repos       []Repo `yaml:"repos"`
 }
 
-func projectPath(root string) string { return filepath.Join(root, ".compair", "config.yaml") }
+const projectConfigPathEnv = "COMPAIR_PROJECT_CONFIG_PATH"
+
+func defaultProjectPath(root string) string { return filepath.Join(root, ".compair", "config.yaml") }
+
+func ProjectConfigPath(root string) string {
+	if override := strings.TrimSpace(os.Getenv(projectConfigPathEnv)); override != "" {
+		if filepath.IsAbs(override) {
+			return filepath.Clean(override)
+		}
+		if strings.TrimSpace(root) == "" {
+			return filepath.Clean(override)
+		}
+		return filepath.Clean(filepath.Join(root, override))
+	}
+	return defaultProjectPath(root)
+}
 
 func ReadProjectConfig(root string) (Project, error) {
-	p := projectPath(root)
+	p := ProjectConfigPath(root)
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return Project{}, err
@@ -51,7 +67,7 @@ func ReadProjectConfig(root string) (Project, error) {
 }
 
 func WriteProjectConfig(root string, cfg Project) error {
-	p := projectPath(root)
+	p := ProjectConfigPath(root)
 	_ = os.MkdirAll(filepath.Dir(p), 0o755)
 	b, _ := yaml.Marshal(cfg)
 	return os.WriteFile(p, b, 0o644)

@@ -56,10 +56,15 @@ Why:
 - `--no-feedback` avoids generating feedback while the group is still incomplete
 - this is only the first-run bootstrap; you should not need these flags for normal daily review
 
+If you want to keep the generated `.compair/config.yaml` local-only instead of
+committing it, add `.compair/` to `.git/info/exclude` in that repo or ignore it
+through your usual local git workflow.
+
 ### 3. Run the warm pass
 
 ```bash
-compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
+compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
+compair wait --all
 ```
 
 Why:
@@ -106,6 +111,38 @@ That keeps the common loop lightweight:
 2. run `compair review` in the repo you changed
 3. inspect the report or notification
 4. fix or intentionally accept the drift
+
+If you want the normal review flow without blocking your machine:
+
+```bash
+compair review --detach
+# later, when convenient
+compair wait
+```
+
+If you prefer the lower-level upload/fetch split:
+
+```bash
+compair push
+# later, when convenient
+compair pull
+```
+
+Or, if you still want the lower-level sync command that submits work now without
+waiting for new feedback:
+
+```bash
+compair sync --feedback-wait 0
+```
+
+This is especially useful on larger repos or slower remote queues.
+
+If a large first baseline hits the default 10-minute processing timeout, that
+usually means the backend is still chewing through chunks rather than that the
+review is unusable. Rerun the same command or use `compair wait` to continue
+waiting without resubmitting, or switch to the async pattern above and come
+back later. If you explicitly want to keep the terminal attached, increase
+`--process-timeout-sec` or set it to `0` to wait indefinitely.
 
 When you want a broader integration check across the suite again, rerun:
 

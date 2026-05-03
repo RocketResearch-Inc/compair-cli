@@ -208,7 +208,16 @@ func printRepoStatus() {
 		if strings.TrimSpace(repo.PendingTaskCommit) != "" {
 			fmt.Printf("  Pending task commit: %s\n", shortSHA(repo.PendingTaskCommit))
 		}
-		fmt.Println("  Tip: rerun 'compair review' or 'compair sync' to continue waiting on the saved task.")
+		taskAge := pendingTaskElapsed(repo.PendingTaskStartedAt, time.Now())
+		if taskAge > 0 {
+			fmt.Printf("  Pending task age: %s\n", humanDuration(taskAge))
+		}
+		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			fmt.Printf("  Pending task state: stale (%s old; cutoff %s)\n", humanDuration(age), humanDuration(cutoff))
+			fmt.Println("  Tip: rerun 'compair review' or 'compair review --detach' to resubmit current changes.")
+		} else {
+			fmt.Println("  Tip: run 'compair wait' to reattach, 'compair pull' to check for finished feedback, or 'compair doctor' for deeper diagnostics.")
+		}
 	}
 }
 

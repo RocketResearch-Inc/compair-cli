@@ -22,6 +22,15 @@ func TestFormatCLIErrorAddsHostedChunkFailureGuidance(t *testing.T) {
 	if !strings.Contains(out, "support@compair.sh") {
 		t.Fatalf("expected hosted support guidance, got %q", out)
 	}
+	if !strings.Contains(out, "compair review --detach") {
+		t.Fatalf("expected async large-repo guidance, got %q", out)
+	}
+	if !strings.Contains(out, "compair wait") {
+		t.Fatalf("expected wait guidance, got %q", out)
+	}
+	if !strings.Contains(out, "--process-timeout-sec") {
+		t.Fatalf("expected process-timeout guidance, got %q", out)
+	}
 }
 
 func TestFormatCLIErrorAddsLocalCoreGuidance(t *testing.T) {

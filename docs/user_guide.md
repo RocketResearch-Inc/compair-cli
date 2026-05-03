@@ -282,10 +282,12 @@ compair feedback-length verbose
 
 ## Process changes
 ```bash
-# Run a full review (default uploads + fetches, waits up to 45s for feedback,
+# Run a full review (default uploads + fetches, waits for processing,
 # writes .compair/latest_feedback_sync.md, then renders it)
 compair review --commits 10 --ext-detail
 compair review --all --snapshot-mode snapshot --reanalyze-existing
+compair review --detach   # submit now, then follow with `compair wait`
+compair wait
 
 # Simpler task-oriented aliases
 compair push
@@ -298,6 +300,10 @@ compair sync --fetch-only
 
 # If your backend queues take longer, extend the wait window (seconds)
 compair sync --feedback-wait 90
+
+# If backend processing itself is the long pole, raise the per-document wait budget
+compair review --process-timeout-sec 1200
+compair review --process-timeout-sec 0
 
 # Sync selected paths (resolved to repo roots)
 compair sync ./projA ./projB
@@ -318,7 +324,10 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - On the first sync of a repo (no `last_synced_commit` yet), sends a baseline snapshot with the file tree and full tracked text contents by default
 - Sends text to `/process_doc` with `generate_feedback=true`
 - `--reanalyze-existing` is the warm-pass switch: when paired with `--snapshot-mode snapshot`, Compair can generate feedback from already-indexed repo chunks that do not yet have feedback
-- Waits (configurable via `--feedback-wait`) for newly generated feedback before continuing
+- `compair review --detach` submits the review work and returns immediately; use `compair wait` to reattach later
+- `compair wait` resumes saved pending repo tasks, then fetches and renders the resulting report
+- `compair sync --feedback-wait` remains the lower-level knob when you want to cap only the post-processing feedback wait budget
+- Large first baselines can also hit the per-document `--process-timeout-sec` wait budget; rerun the same command or use `compair wait` to continue waiting without resubmitting, or use `compair review --detach` / `compair push` and come back later
 - Caches feedback IDs locally so repeated syncs only append newly seen items
 - Updates `last_synced_commit` both in repo-local `.compair/config.yaml` and the workspace DB
 - `--gate <preset>` provides the simplest path for common CI/review use cases without needing to remember low-level notification flags
