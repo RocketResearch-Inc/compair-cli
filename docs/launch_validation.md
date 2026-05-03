@@ -28,6 +28,8 @@ compair version
 compair demo --mode local
 ```
 
+If you validate Fedora/RHEL package installs inside a root container, omit `sudo` from the `dnf` setup commands.
+
 ### Windows: GitHub Release zip + Cloud demo
 
 ```powershell

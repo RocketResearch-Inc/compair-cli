@@ -83,6 +83,7 @@ curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.
 Fedora / RHEL:
 
 ```bash
+# Omit sudo if you are already root (for example, inside a container).
 curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
 sudo dnf install -y compair
 ```
