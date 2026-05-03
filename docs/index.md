@@ -36,16 +36,13 @@ compair login
 - [Core Quickstart](core_quickstart.md)
 - [CI Review Examples](ci_review_examples.md)
 
-### Advanced / Maintainer Docs
+### Advanced / Operator Docs
 
 - [Deployment Guide](deployment_guide.md)
 - [Operator Guide](operator_guide.md)
-- [Launch Validation](launch_validation.md)
-- [How We Evaluated Quality](quality_evaluation.md)
-- [CI & Release](ci_release.md)
-- [Package Distribution Setup](package_distribution.md)
-- [Release Checklist](release_checklist.md)
-- [Release Notes Template](release_notes_template.md)
 - [API Mapping](api_mapping.md)
 - [Hook Recipes](hook_recipes.md)
 - [Config Reference](config_reference.md)
+
+Internal launch, release, and packaging runbooks are maintained outside the
+public docs set.

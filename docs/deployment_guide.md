@@ -14,7 +14,7 @@ Expose the API base to users via `COMPAIR_API_BASE` or `--api-base`.
 - The API should validate the `Authorization: Bearer` header.
 
 ## Publishing binaries (optional)
-See [CI & Release](ci_release.md). With GitHub Actions + GoReleaser you can:
+This repo uses GitHub Actions plus GoReleaser to:
 - Build macOS/Linux/Windows archives
 - Build Linux `.deb` and `.rpm` packages
 - Publish a Linux APT/RPM repository once `RocketResearch-Inc/compair-packages` exists and Pages is enabled
@@ -37,8 +37,6 @@ What still depends on external infrastructure:
 - Homebrew tap ownership and credentials
 - WinGet fork ownership and credentials
 - CI secrets for `COMPAIR_AUTH_TOKEN` and any PR comment integrations
-
-For the exact setup steps, see [Package Distribution Setup](package_distribution.md).
 
 ## GitHub Pages (docs site)
 - Put docs in `docs/` (already structured).

@@ -257,18 +257,16 @@ See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions 
 - [Core Quickstart](docs/core_quickstart.md)
 - [CI Review Examples](docs/ci_review_examples.md)
 
-### Advanced / Maintainer Docs
+### Advanced / Operator Docs
 
 - [Deployment Guide](docs/deployment_guide.md)
 - [Operator Guide](docs/operator_guide.md)
-- [Launch Validation](docs/launch_validation.md)
-- [How We Evaluated Quality](docs/quality_evaluation.md)
-- [CI & Release](docs/ci_release.md)
-- [Release Checklist](docs/release_checklist.md)
-- [Release Notes Template](docs/release_notes_template.md)
 - [API Mapping](docs/api_mapping.md)
 - [Hook Recipes](docs/hook_recipes.md)
 - [Config Reference](docs/config_reference.md)
+
+Internal launch, validation, release, and packaging runbooks are maintained
+outside the public docs set.
 
 ### **What will you Compair?**
 

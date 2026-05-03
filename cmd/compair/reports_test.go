@@ -81,7 +81,7 @@ func TestRenderMarkdownFallsBackWhenRendererTimesOut(t *testing.T) {
 	if err := os.Setenv("COMPAIR_MARKDOWN_RENDER_TIMEOUT_MS", "5"); err != nil {
 		t.Fatalf("Setenv COMPAIR_MARKDOWN_RENDER_TIMEOUT_MS: %v", err)
 	}
-	markdownRenderFunc = func(md string) (string, error) {
+	markdownRenderFunc = func(md string, width int) (string, error) {
 		time.Sleep(50 * time.Millisecond)
 		return "styled", nil
 	}
@@ -107,6 +107,61 @@ func TestRenderMarkdownFallsBackWhenRendererTimesOut(t *testing.T) {
 	}
 	if out != "# Demo\n" {
 		t.Fatalf("expected plain markdown fallback after timeout, got %q", out)
+	}
+}
+
+func TestRenderMarkdownPassesConfiguredWidth(t *testing.T) {
+	prevNoColor := viper.GetBool("no_color")
+	prevTTY := stdoutIsTerminal
+	prevRenderer := markdownRenderFunc
+	prevTerm := os.Getenv("TERM")
+	prevWidth := reportsWidth
+	prevNoColorEnv := os.Getenv("NO_COLOR")
+	viper.Set("no_color", false)
+	stdoutIsTerminal = func() bool { return true }
+	reportsWidth = 96
+	if err := os.Setenv("TERM", "xterm-256color"); err != nil {
+		t.Fatalf("Setenv TERM: %v", err)
+	}
+	if err := os.Unsetenv("NO_COLOR"); err != nil {
+		t.Fatalf("Unsetenv NO_COLOR: %v", err)
+	}
+	called := 0
+	gotWidth := 0
+	markdownRenderFunc = func(md string, width int) (string, error) {
+		called++
+		gotWidth = width
+		return "styled", nil
+	}
+	t.Cleanup(func() {
+		viper.Set("no_color", prevNoColor)
+		stdoutIsTerminal = prevTTY
+		markdownRenderFunc = prevRenderer
+		reportsWidth = prevWidth
+		if prevTerm == "" {
+			_ = os.Unsetenv("TERM")
+		} else {
+			_ = os.Setenv("TERM", prevTerm)
+		}
+		if prevNoColorEnv == "" {
+			_ = os.Unsetenv("NO_COLOR")
+		} else {
+			_ = os.Setenv("NO_COLOR", prevNoColorEnv)
+		}
+	})
+
+	out, err := renderMarkdownWithWidth("# Demo", 96)
+	if err != nil {
+		t.Fatalf("renderMarkdown returned error: %v", err)
+	}
+	if out != "styled" {
+		t.Fatalf("unexpected rendered output: %q", out)
+	}
+	if called != 1 {
+		t.Fatalf("expected renderer to be called once, got %d", called)
+	}
+	if gotWidth != 96 {
+		t.Fatalf("expected width 96, got %d", gotWidth)
 	}
 }
 

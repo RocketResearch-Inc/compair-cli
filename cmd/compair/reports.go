@@ -22,6 +22,7 @@ import (
 var reportsAll bool
 var reportsSystem bool
 var reportsFile string
+var reportsWidth int
 
 type feedbackReport struct {
 	Path    string
@@ -32,8 +33,12 @@ var stdoutIsTerminal = func() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-var markdownRenderFunc = func(md string) (string, error) {
-	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
+var markdownRenderFunc = func(md string, width int) (string, error) {
+	options := []glamour.TermRendererOption{glamour.WithAutoStyle()}
+	if width > 0 {
+		options = append(options, glamour.WithWordWrap(width))
+	}
+	renderer, err := glamour.NewTermRenderer(options...)
 	if err != nil {
 		return "", err
 	}
@@ -79,6 +84,7 @@ func init() {
 	reportsCmd.Flags().BoolVar(&reportsAll, "all", false, "Iterate through all available feedback reports")
 	reportsCmd.Flags().BoolVar(&reportsSystem, "system", false, "Open the latest report using the system default viewer")
 	reportsCmd.Flags().StringVar(&reportsFile, "file", "", "Render a specific feedback report (overrides other options)")
+	reportsCmd.Flags().IntVar(&reportsWidth, "width", 0, "Wrap rendered Markdown to the given column width")
 }
 
 func discoverReports() ([]feedbackReport, error) {
@@ -149,13 +155,17 @@ func renderInteractive(reports []feedbackReport) error {
 }
 
 func renderMarkdown(md string) (string, error) {
+	return renderMarkdownWithWidth(md, reportsWidth)
+}
+
+func renderMarkdownWithWidth(md string, width int) (string, error) {
 	if shouldRenderPlainMarkdown() {
 		return plainMarkdown(md), nil
 	}
 
 	timeout := markdownRenderTimeout()
 	if timeout <= 0 {
-		return markdownRenderFunc(md)
+		return markdownRenderFunc(md, width)
 	}
 
 	type renderResult struct {
@@ -164,7 +174,7 @@ func renderMarkdown(md string) (string, error) {
 	}
 	done := make(chan renderResult, 1)
 	go func() {
-		out, err := markdownRenderFunc(md)
+		out, err := markdownRenderFunc(md, width)
 		done <- renderResult{out: out, err: err}
 	}()
 
