@@ -182,8 +182,8 @@ func collectNotificationGateResult(events []api.NotificationEvent, result notifi
 	return result
 }
 
-func notificationGateWaitBudget(uploaded bool) time.Duration {
-	if !uploaded || !detailedNotificationGateEnabled() || feedbackWaitSec <= 0 {
+func notificationGateWaitBudget(uploaded bool, fetch bool, updatedDocCount int) time.Duration {
+	if !uploaded || !fetch || updatedDocCount == 0 || !detailedNotificationGateEnabled() || feedbackWaitSec <= 0 {
 		return 0
 	}
 	seconds := feedbackWaitSec

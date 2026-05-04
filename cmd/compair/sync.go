@@ -996,7 +996,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			gateErr = fmt.Errorf("%s", gateResult.Error)
 		}
 	} else {
-		gateResult, gateErr = evaluateNotificationGate(client, group, gatedDocIDs, startedAt, notificationGateWaitBudget(doUpload))
+		gateResult, gateErr = evaluateNotificationGate(client, group, gatedDocIDs, startedAt, notificationGateWaitBudget(doUpload, doFetch, len(updatedDocs)))
 	}
 
 	if doFetch && totalFeedback == 0 {

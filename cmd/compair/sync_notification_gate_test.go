@@ -1,49 +1,35 @@
 package compair
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
-
-	"github.com/RocketResearch-Inc/compair-cli/internal/api"
+	"time"
 )
 
-func TestNotificationEventsAvailableFallsBackToEndpointProbe(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/notification_events" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"events":[],"total_count":0}`))
-	}))
-	defer server.Close()
+func TestNotificationGateWaitBudgetRequiresNewFetchedUploadWork(t *testing.T) {
+	t.Parallel()
 
-	client := api.NewClient(server.URL)
-	caps := &api.Capabilities{}
+	prevFeedbackWait := feedbackWaitSec
+	prevSeverities := syncFailOnSeverity
+	prevTypes := syncFailOnType
+	feedbackWaitSec = 45
+	syncFailOnSeverity = []string{"high"}
+	syncFailOnType = []string{"potential_conflict"}
+	t.Cleanup(func() {
+		feedbackWaitSec = prevFeedbackWait
+		syncFailOnSeverity = prevSeverities
+		syncFailOnType = prevTypes
+	})
 
-	available, err := notificationEventsAvailable(client, caps, "group-123")
-	if err != nil {
-		t.Fatalf("unexpected error probing notification events endpoint: %v", err)
+	if got := notificationGateWaitBudget(false, true, 1); got != 0 {
+		t.Fatalf("expected no wait budget without upload, got %s", got)
 	}
-	if !available {
-		t.Fatal("expected notification events to be treated as available when the endpoint probe succeeds")
+	if got := notificationGateWaitBudget(true, false, 1); got != 0 {
+		t.Fatalf("expected no wait budget without fetch, got %s", got)
 	}
-}
-
-func TestNotificationEventsAvailableReturnsFalseWhenEndpointMissing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	client := api.NewClient(server.URL)
-	caps := &api.Capabilities{}
-
-	available, err := notificationEventsAvailable(client, caps, "group-123")
-	if err != nil {
-		t.Fatalf("expected missing endpoint to be treated as unavailable, not an error: %v", err)
+	if got := notificationGateWaitBudget(true, true, 0); got != 0 {
+		t.Fatalf("expected no wait budget without updated docs, got %s", got)
 	}
-	if available {
-		t.Fatal("expected notification events to be unavailable when the endpoint probe returns 404")
+	if got := notificationGateWaitBudget(true, true, 2); got != 60*time.Second {
+		t.Fatalf("expected 60s wait budget for fresh uploaded work, got %s", got)
 	}
 }
