@@ -61,6 +61,19 @@ The demo creates a disposable workspace with two small repos, tracks them in a d
 
 If you want the recommended multi-repo product workflow instead of the disposable demo, follow [cross_repo_workflow.md](cross_repo_workflow.md).
 
+## Choose the right command
+
+Use this mental model to stay out of the weeds:
+
+- `compair review`: the normal interactive command for reviewing the repo you changed
+- `compair review --detach`: submit the review work now and come back later
+- `compair wait`: reattach to saved pending repo tasks and fetch the finished report
+- `compair wait --timeout 20m`: keep waiting longer when a large baseline needs more time
+- `compair push` / `compair pull`: lower-level async split when you want upload and fetch as separate steps
+- `compair sync`: advanced/CI command surface for JSON output, gates, automation, and power-user control
+
+If you are not sure which command to use, start with `compair review`.
+
 ## Configure API base
 The CLI uses `--api-base` or `COMPAIR_API_BASE`:
 ```bash
@@ -288,22 +301,24 @@ compair review --commits 10 --ext-detail
 compair review --all --snapshot-mode snapshot --reanalyze-existing
 compair review --detach   # submit now, then follow with `compair wait`
 compair wait
+compair wait --timeout 20m
+compair wait --timeout 0
 
 # Simpler task-oriented aliases
 compair push
 compair pull
 compair reports
 
-# The lower-level sync flags still exist when you want them
+# Advanced / CI path: use sync when you want lower-level control
 compair sync --push-only
 compair sync --fetch-only
 
 # If your backend queues take longer, extend the wait window (seconds)
 compair sync --feedback-wait 90
 
-# If backend processing itself is the long pole, raise the per-document wait budget
-compair review --process-timeout-sec 1200
-compair review --process-timeout-sec 0
+# If backend processing itself is the long pole, reattach with a larger wait budget
+compair wait --timeout 20m
+compair wait --timeout 0
 
 # Sync selected paths (resolved to repo roots)
 compair sync ./projA ./projB
@@ -326,8 +341,10 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - `--reanalyze-existing` is the warm-pass switch: when paired with `--snapshot-mode snapshot`, Compair can generate feedback from already-indexed repo chunks that do not yet have feedback
 - `compair review --detach` submits the review work and returns immediately; use `compair wait` to reattach later
 - `compair wait` resumes saved pending repo tasks, then fetches and renders the resulting report
+- `compair wait --timeout` is the friendly way to extend how long you stay attached to a large review; use `0` to wait indefinitely
 - `compair sync --feedback-wait` remains the lower-level knob when you want to cap only the post-processing feedback wait budget
-- Large first baselines can also hit the per-document `--process-timeout-sec` wait budget; rerun the same command or use `compair wait` to continue waiting without resubmitting, or use `compair review --detach` / `compair push` and come back later
+- `compair sync` is mainly for automation, CI, JSON output, gating, or troubleshooting; most interactive use should stay on `review`
+- Large first baselines can also hit the default 10-minute processing wait budget; rerun the same command or use `compair wait --timeout 20m` to continue waiting without resubmitting, or use `compair review --detach` / `compair push` and come back later
 - Caches feedback IDs locally so repeated syncs only append newly seen items
 - Updates `last_synced_commit` both in repo-local `.compair/config.yaml` and the workspace DB
 - `--gate <preset>` provides the simplest path for common CI/review use cases without needing to remember low-level notification flags
@@ -370,7 +387,8 @@ compair track ~/code/compair_cloud --initial-sync --no-feedback
 compair track ~/code/compair-cli --initial-sync --no-feedback
 
 # 2. Once all repo baselines exist in that group, run one warm snapshot pass
-compair review --all --snapshot-mode snapshot --reanalyze-existing
+compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
+compair wait --all
 ```
 
 This keeps the onboarding path aligned with the normal Compair model:
@@ -543,6 +561,6 @@ compair_use() {
 *(Fish or PowerShell users can adapt the snippet above to their shell syntax.)*
 
 Notes:
-- For now, `sync` and `watch` operate on repo-local `.compair/config.yaml`.
+- `review`, `sync`, and `watch` default to repo-local `.compair/config.yaml`, and automation can override that path with `COMPAIR_PROJECT_CONFIG_PATH`.
 - The workspace DB is the source of truth for `add`, `rm`, and `status`.
 - Command names use a single style: `group ...` subcommands (colon forms are deprecated).

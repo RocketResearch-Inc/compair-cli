@@ -189,7 +189,8 @@ compair track ~/code/desktop-client --initial-sync --no-feedback
 # repeat for any other repos in the shared product surface
 
 # 3. Run the warm review pass across the whole group
-compair review --all --snapshot-mode snapshot --reanalyze-existing --feedback-wait 90
+compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
+compair wait --all
 
 # 4. Inspect the results
 compair reports
@@ -201,7 +202,10 @@ After the first run:
 
 - Start with `brief`
 - Expect the first baseline to take longest
-- After the warm pass, use normal `review` / `sync` cycles day to day
+- After the warm pass, use normal `review` / `wait` cycles day to day
+- Use `review --detach` when you want the same workflow without blocking your terminal
+- Use `wait --timeout 20m` when a large baseline needs more time without resubmitting
+- Treat `sync` as the advanced/CI control surface rather than the default daily command
 - Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow
 
 For the full step-by-step workflow, see [docs/cross_repo_workflow.md](docs/cross_repo_workflow.md).
@@ -215,6 +219,9 @@ For the full step-by-step workflow, see [docs/cross_repo_workflow.md](docs/cross
 | `verbose`  | You are actively debugging a specific result and want the most supporting detail.              |
 
 ## Add Compair To CI When You're Ready
+
+For interactive use, prefer `compair review`, `compair review --detach`, and `compair wait`.
+Use `compair sync` when you specifically want CI, machine-readable output, gating, or lower-level control.
 
 Start in advisory mode:
 

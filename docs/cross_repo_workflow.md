@@ -101,15 +101,15 @@ Use:
 
 ```bash
 compair review
-compair sync --json
+compair wait
 compair notifications
 ```
 
-That keeps the common loop lightweight:
+That keeps the common loop lightweight for most people:
 
 1. make a change
 2. run `compair review` in the repo you changed
-3. inspect the report or notification
+3. if you detached earlier, run `compair wait`
 4. fix or intentionally accept the drift
 
 If you want the normal review flow without blocking your machine:
@@ -118,6 +118,7 @@ If you want the normal review flow without blocking your machine:
 compair review --detach
 # later, when convenient
 compair wait
+compair wait --timeout 20m
 ```
 
 If you prefer the lower-level upload/fetch split:
@@ -137,12 +138,17 @@ compair sync --feedback-wait 0
 
 This is especially useful on larger repos or slower remote queues.
 
+`compair sync` is intentionally the advanced surface. Reach for it when you need
+JSON output, CI gating, explicit upload/fetch control, or troubleshooting. For
+normal interactive work, stay with `review`, `review --detach`, `wait`, `push`,
+and `pull`.
+
 If a large first baseline hits the default 10-minute processing timeout, that
 usually means the backend is still chewing through chunks rather than that the
 review is unusable. Rerun the same command or use `compair wait` to continue
 waiting without resubmitting, or switch to the async pattern above and come
-back later. If you explicitly want to keep the terminal attached, increase
-`--process-timeout-sec` or set it to `0` to wait indefinitely.
+back later. If you explicitly want to keep the terminal attached longer, use
+`compair wait --timeout 20m` or `compair wait --timeout 0` to wait indefinitely.
 
 When you want a broader integration check across the suite again, rerun:
 

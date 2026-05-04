@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
@@ -14,12 +15,52 @@ import (
 )
 
 var waitOpenSystem bool
+var waitTimeout string
+
+func parseWaitTimeoutSeconds(raw string) (int, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		trimmed = "10m"
+	}
+	if trimmed == "0" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(trimmed)
+	if err != nil {
+		return 0, fmt.Errorf("invalid --timeout value %q: %w", raw, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid --timeout value %q: must be >= 0", raw)
+	}
+	if d == 0 {
+		return 0, nil
+	}
+	return int((d + time.Second - 1) / time.Second), nil
+}
 
 var waitCmd = &cobra.Command{
 	Use:          "wait [PATH ...]",
 	Short:        "Wait for saved pending Compair processing tasks and fetch the resulting feedback",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		oldProcessTimeout := syncProcessTimeoutSec
+		defer func() { syncProcessTimeoutSec = oldProcessTimeout }()
+		timeoutChanged := false
+		if flag := cmd.Flags().Lookup("timeout"); flag != nil {
+			timeoutChanged = flag.Changed
+		}
+		processTimeoutChanged := false
+		if flag := cmd.Flags().Lookup("process-timeout-sec"); flag != nil {
+			processTimeoutChanged = flag.Changed
+		}
+		if timeoutChanged || !processTimeoutChanged {
+			timeoutSec, err := parseWaitTimeoutSeconds(waitTimeout)
+			if err != nil {
+				return err
+			}
+			syncProcessTimeoutSec = timeoutSec
+		}
+
 		reportPath := writeMD
 		if reportPath == "" {
 			reportPath = defaultReportPath()
@@ -88,6 +129,8 @@ func init() {
 	waitCmd.Flags().BoolVar(&syncAll, "all", false, "Wait on all tracked repos in the active group")
 	waitCmd.Flags().StringVar(&writeMD, "write-md", "", "Write the fetched Markdown report to the given path")
 	waitCmd.Flags().BoolVar(&syncJSON, "json", false, "Output machine-readable sync summary JSON")
+	waitCmd.Flags().StringVar(&waitTimeout, "timeout", "10m", "How long to keep waiting for backend processing (for example: 30s, 10m, 1h, or 0 to wait indefinitely)")
 	waitCmd.Flags().IntVar(&syncProcessTimeoutSec, "process-timeout-sec", 600, "Max seconds to wait for backend processing per document (0 waits indefinitely)")
 	waitCmd.Flags().BoolVar(&waitOpenSystem, "system", false, "Open the generated report using the system default viewer")
+	hideCommandFlags(waitCmd, "process-timeout-sec")
 }

@@ -56,7 +56,7 @@ var reportsCmd = &cobra.Command{
 			return err
 		}
 		if len(reports) == 0 {
-			return fmt.Errorf("no feedback reports found; run 'compair review' or 'compair sync' first")
+			return fmt.Errorf("no feedback reports found; run 'compair review' first (or 'compair wait' if a detached review is still running)")
 		}
 
 		if reportsFile != "" {

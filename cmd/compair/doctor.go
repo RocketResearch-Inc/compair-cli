@@ -184,7 +184,7 @@ var doctorCmd = &cobra.Command{
 					doctorWarn(&report, &summary, emit, "Repo document type", doc.DocType, "This repo is bound to a non-code document type. Re-run 'compair track' if review quality looks wrong.")
 				}
 				if !doc.IsPublished {
-					doctorWarn(&report, &summary, emit, "Repo publish state", "unpublished", "Cross-repo feedback is reduced when repo docs are unpublished. Run 'compair review' or 'compair sync' to auto-publish, or re-track without --unpublished.")
+					doctorWarn(&report, &summary, emit, "Repo publish state", "unpublished", "Cross-repo feedback is reduced when repo docs are unpublished. Run 'compair review' to auto-publish, or re-track without --unpublished.")
 				} else {
 					doctorOK(&report, emit, "Repo publish state", "published")
 				}
@@ -192,7 +192,7 @@ var doctorCmd = &cobra.Command{
 		}
 
 		if strings.TrimSpace(repo.LastSyncedCommit) == "" {
-			doctorWarn(&report, &summary, emit, "Last synced commit", "missing", "Run 'compair review' or 'compair sync' to establish the first sync baseline.")
+			doctorWarn(&report, &summary, emit, "Last synced commit", "missing", "Run 'compair review' to establish the first sync baseline.")
 		} else {
 			doctorOK(&report, emit, "Last synced commit", shortSHA(repo.LastSyncedCommit))
 		}
@@ -237,12 +237,12 @@ var doctorCmd = &cobra.Command{
 					doctorFail(&report, &summary, emit, "Workspace DB repo root", item.RepoRoot, "The workspace DB repo root does not match the current repo path. Re-track this repo to repair it.")
 				}
 				if strings.TrimSpace(repo.LastSyncedCommit) != "" && strings.TrimSpace(item.LastSyncedCommit) != "" && strings.TrimSpace(repo.LastSyncedCommit) != strings.TrimSpace(item.LastSyncedCommit) {
-					doctorWarn(&report, &summary, emit, "Workspace DB sync state", shortSHA(item.LastSyncedCommit), "The workspace DB and .compair/config.yaml disagree on the last synced commit. Run 'compair review' or 'compair sync' to reconcile them.")
+					doctorWarn(&report, &summary, emit, "Workspace DB sync state", shortSHA(item.LastSyncedCommit), "The workspace DB and .compair/config.yaml disagree on the last synced commit. Run 'compair review' to reconcile them.")
 				}
 				configPublished := !repo.Unpublished
 				dbPublished := item.Published == 1
 				if configPublished != dbPublished {
-					doctorWarn(&report, &summary, emit, "Workspace DB publish state", yesNo(dbPublished), "The workspace DB publish state disagrees with .compair/config.yaml. Run 'compair review' or 'compair sync' to reconcile it.")
+					doctorWarn(&report, &summary, emit, "Workspace DB publish state", yesNo(dbPublished), "The workspace DB publish state disagrees with .compair/config.yaml. Run 'compair review' to reconcile it.")
 				}
 			}
 		}

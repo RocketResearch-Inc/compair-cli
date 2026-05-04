@@ -3,6 +3,9 @@
 Compair CLI brings cross-repo review to the terminal.
 Use this docs hub to choose the fastest path: run the demo, set up local Core, connect to Cloud, or move toward CI.
 
+Most people should think in terms of `review`, `review --detach`, `wait`, `push`, and `pull`.
+Treat `sync` as the advanced command surface for CI, JSON output, and power-user control.
+
 Think of Compair as a context manager for teams: it keeps a shared cross-repo memory of your product surface, then focuses model attention on the changed area and the few related snippets that matter instead of relying on one giant prompt.
 
 Current launch read:

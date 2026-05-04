@@ -228,6 +228,7 @@ func init() {
 	reviewCmd.Flags().IntVar(&reviewNowMaxFindings, "now-max-findings", 12, "Maximum findings to request from `review --now`")
 	hideCommandFlags(reviewCmd,
 		"feedback-wait",
+		"process-timeout-sec",
 		"write-md",
 		"push-only",
 		"fetch-only",

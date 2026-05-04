@@ -384,7 +384,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				if timedOut {
 					return fmt.Errorf(
-						"processing timeout after %ds while waiting for the saved task for %s (run 'compair wait' or rerun the same command to continue waiting without resubmitting)",
+						"processing timeout after %ds while waiting for the saved task for %s (run 'compair wait --timeout 20m' or rerun the same command to continue waiting without resubmitting)",
 						syncProcessTimeoutSec,
 						r.RemoteURL,
 					)
@@ -528,7 +528,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				}
 				if timedOut {
 					return fmt.Errorf(
-						"processing timeout after %ds (run 'compair wait' or rerun the same command to continue waiting without resubmitting this repo; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+						"processing timeout after %ds (run 'compair wait --timeout 20m' or rerun the same command to continue waiting without resubmitting this repo; use 'compair wait --timeout 0' to wait indefinitely)",
 						syncProcessTimeoutSec,
 					)
 				}
@@ -2503,7 +2503,7 @@ func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group s
 		}
 		if timedOut {
 			return fmt.Errorf(
-				"processing timeout after %ds while waiting for pending initial sync of %s (run 'compair wait --all' or rerun the original command to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+				"processing timeout after %ds while waiting for pending initial sync of %s (run 'compair wait --all --timeout 20m' or rerun the original command to continue waiting; use 'compair wait --all --timeout 0' to wait indefinitely)",
 				syncProcessTimeoutSec,
 				item.Label,
 			)
@@ -2581,7 +2581,7 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 		}
 		if timedOut {
 			return completed, fmt.Errorf(
-				"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair wait' to continue waiting; increase with --process-timeout-sec or set 0 to wait indefinitely)",
+				"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair wait --timeout 20m' to continue waiting, or use 'compair wait --timeout 0' to wait indefinitely)",
 				syncProcessTimeoutSec,
 				item.Label,
 			)

@@ -28,7 +28,7 @@ func TestFormatCLIErrorAddsHostedChunkFailureGuidance(t *testing.T) {
 	if !strings.Contains(out, "compair wait") {
 		t.Fatalf("expected wait guidance, got %q", out)
 	}
-	if !strings.Contains(out, "--process-timeout-sec") {
+	if !strings.Contains(out, "compair wait --timeout 20m") {
 		t.Fatalf("expected process-timeout guidance, got %q", out)
 	}
 }

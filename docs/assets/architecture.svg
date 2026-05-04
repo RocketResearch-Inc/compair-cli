@@ -52,7 +52,7 @@
   </g>
   <text x="108" y="267" class="boxTitle">Developer Workflow</text>
   <text x="108" y="303" class="boxBody">`track`</text>
-  <text x="108" y="331" class="boxBody">`review` / `sync`</text>
+  <text x="108" y="331" class="boxBody">`review` / `wait`</text>
   <text x="108" y="359" class="boxBody">`reports` / `notifications`</text>
 
   <g filter="url(#shadow)">
