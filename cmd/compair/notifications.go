@@ -15,6 +15,7 @@ import (
 var notificationsAllGroups bool
 var notificationsIncludeAck bool
 var notificationsIncludeDismiss bool
+var notificationsIncludeDrop bool
 var notificationsPage int
 var notificationsPageSize int
 var notificationsJSON bool
@@ -112,11 +113,14 @@ var notificationsCmd = &cobra.Command{
 			PageSize:            notificationsPageSize,
 			IncludeAcknowledged: notificationsIncludeAck,
 			IncludeDismissed:    notificationsIncludeDismiss,
+			IncludeDrop:         notificationsIncludeDrop,
 		}
 		resp, err := client.ListNotificationEvents(opts)
 		if err != nil {
 			return err
 		}
+		resp.Events = visibleNotificationEvents(resp.Events, notificationsIncludeDrop)
+		resp.TotalCount = len(resp.Events)
 		if notificationsJSON {
 			printer.PrintJSON(resp)
 			return nil
@@ -181,6 +185,7 @@ func init() {
 	notificationsCmd.Flags().BoolVar(&notificationsAllGroups, "all-groups", false, "Include events from all groups")
 	notificationsCmd.Flags().BoolVar(&notificationsIncludeAck, "include-ack", false, "Include acknowledged events")
 	notificationsCmd.Flags().BoolVar(&notificationsIncludeDismiss, "include-dismiss", false, "Include dismissed events")
+	notificationsCmd.Flags().BoolVar(&notificationsIncludeDrop, "include-drop", false, "Include drop-only events in the output")
 	notificationsCmd.Flags().IntVar(&notificationsPage, "page", 1, "Page number")
 	notificationsCmd.Flags().IntVar(&notificationsPageSize, "page-size", 20, "Items per page")
 	notificationsCmd.Flags().BoolVar(&notificationsJSON, "json", false, "Output raw JSON")
@@ -253,17 +258,17 @@ func printNotificationEvent(event api.NotificationEvent, includeGroup bool) {
 	if includeDebug && len(event.PeerDocIDs) > 0 {
 		fmt.Println("  Peer docs:", strings.Join(event.PeerDocIDs, ", "))
 	}
-	rationale := nonEmptyLines(event.Rationale)
+	rationale := normalizedNotificationRationaleLines(event.Rationale)
 	if len(rationale) > 0 {
 		fmt.Println("  Rationale:")
 		for _, line := range rationale {
 			fmt.Println("   -", line)
 		}
 	}
-	if snippet := truncateText(event.EvidenceTarget, 180); snippet != "" {
+	if snippet := truncateText(event.EvidenceTarget, 600); snippet != "" {
 		fmt.Println("  Target evidence:", snippet)
 	}
-	if snippet := truncateText(event.EvidencePeer, 180); snippet != "" {
+	if snippet := truncateText(event.EvidencePeer, 600); snippet != "" {
 		fmt.Println("  Peer evidence:", snippet)
 	}
 }
@@ -326,7 +331,7 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 		if includeDebug && len(event.PeerDocIDs) > 0 {
 			lines = append(lines, fmt.Sprintf("**Peer Docs:** `%s`", strings.Join(event.PeerDocIDs, "`, `")))
 		}
-		rationale := nonEmptyLines(event.Rationale)
+		rationale := normalizedNotificationRationaleLines(event.Rationale)
 		if len(rationale) > 0 {
 			lines = append(lines, "", "**Rationale**", "")
 			for _, line := range rationale {
@@ -345,6 +350,51 @@ func renderNotificationEventsMarkdown(events []api.NotificationEvent, includeGro
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func visibleNotificationEvents(events []api.NotificationEvent, includeDrop bool) []api.NotificationEvent {
+	if includeDrop {
+		return events
+	}
+	filtered := make([]api.NotificationEvent, 0, len(events))
+	for _, event := range events {
+		if isDropNotificationEvent(event) {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	return filtered
+}
+
+func isDropNotificationEvent(event api.NotificationEvent) bool {
+	return strings.EqualFold(strings.TrimSpace(event.DeliveryAction), "drop")
+}
+
+func normalizedNotificationRationaleLines(lines []string) []string {
+	normalized := make([]string, 0, len(lines))
+	for _, line := range nonEmptyLines(lines) {
+		trimmed := strings.TrimSpace(line)
+		for {
+			switch {
+			case strings.HasPrefix(trimmed, "- "):
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))
+			case strings.HasPrefix(trimmed, "* "):
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "* "))
+			case strings.HasPrefix(trimmed, "• "):
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "• "))
+			case trimmed == "-" || trimmed == "*" || trimmed == "•":
+				trimmed = ""
+			default:
+				goto done
+			}
+		}
+	done:
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
 }
 
 func notificationPreferencesCapability(caps *api.Capabilities) (available bool, authoritative bool) {

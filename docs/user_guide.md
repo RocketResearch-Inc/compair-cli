@@ -361,6 +361,28 @@ compair sync --snapshot-max-files 80 --snapshot-max-total-bytes 500000
 compair push --snapshot-max-total-bytes 300000 --snapshot-max-files 60
 ```
 
+Before you reach for blunt caps, prefer trimming obviously low-signal tracked
+files with a repo-local `.compairignore`. This keeps the review surface closer
+to the product-surface scale that Compair handles best.
+
+Example `.compairignore`:
+
+```text
+package-lock.json
+scripts/*
+docs/third-party-notices*
+```
+
+Use `.compairignore` for things like:
+
+- generated model or reranker artifacts
+- evaluation or training scripts that are not part of the shipped product
+- giant lockfiles
+- third-party notice bundles
+
+Keep the patterns simple. `.compairignore` is not full `.gitignore` syntax; it
+does straightforward basename and repo-relative glob matching.
+
 What tends to produce the strongest cross-repo signal:
 
 - focused edits beat large mixed rewrites
@@ -385,6 +407,10 @@ compair self-feedback on
 compair track ~/code/compair_core --initial-sync --no-feedback
 compair track ~/code/compair_cloud --initial-sync --no-feedback
 compair track ~/code/compair-cli --initial-sync --no-feedback
+
+# Optional but recommended on larger suites:
+# add repo-local .compairignore files before the warm pass to exclude
+# generated artifacts and other low-signal tracked files
 
 # 2. Once all repo baselines exist in that group, run one warm snapshot pass
 compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
@@ -426,6 +452,10 @@ Summarize language mix and snapshot coverage:
 ```bash
 compair stats
 ```
+
+That makes `compair stats` a good first sanity check after adding a
+`.compairignore`: confirm that the included snapshot surface shrank in the way
+you expected before running the full review.
 
 When OCR uploads are disabled on the server, the CLI continues syncing but warns that OCR-based extraction is unavailable. Configure `COMPAIR_OCR_ENDPOINT` to point at your own OCR service or upgrade to Compair Cloud for full OCR support.
 

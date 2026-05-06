@@ -188,6 +188,11 @@ compair track ~/code/developer-cli --initial-sync --no-feedback
 compair track ~/code/desktop-client --initial-sync --no-feedback
 # repeat for any other repos in the shared product surface
 
+# Optional but recommended for larger suites:
+# keep generated artifacts and low-signal files out of the review surface
+# with repo-local .compairignore files before the first warm pass
+# examples: package-lock.json, scripts/*, docs/third-party-notices*
+
 # 3. Run the warm review pass across the whole group
 compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
 compair wait --all
@@ -205,6 +210,7 @@ After the first run:
 - After the warm pass, use normal `review` / `wait` cycles day to day
 - Use `review --detach` when you want the same workflow without blocking your terminal
 - Use `wait --timeout 20m` when a large baseline needs more time without resubmitting
+- Use repo-local `.compairignore` files to trim large generated artifacts before a full-suite baseline
 - Treat `sync` as the advanced/CI control surface rather than the default daily command
 - Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow
 

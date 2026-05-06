@@ -41,6 +41,24 @@ repos:
     pending_task_started_at: "2026-03-09T12:34:56Z"
 ```
 
+## Repo-local snapshot ignore file: `.compairignore`
+
+Optional file in the repo root:
+
+```text
+# one glob per line
+package-lock.json
+scripts/*
+docs/third-party-notices*
+```
+
+Notes:
+
+- Used by snapshot-based commands such as `review`, `sync`, `push`, `stats`, `diff`, and `snapshot preview`
+- Best for large generated or low-signal tracked files that would otherwise crowd out more useful product-surface evidence
+- Matching is intentionally simple: blank lines and `#` comments are ignored, and each pattern is matched against both the repo-relative path and the basename
+- Prefer straightforward patterns like `package-lock.json`, `scripts/*`, or `docs/third-party-notices*` over full `.gitignore`-style syntax
+
 ## Credentials
 `~/.compair/credentials.json`
 ```json

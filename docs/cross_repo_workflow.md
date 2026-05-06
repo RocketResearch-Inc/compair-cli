@@ -60,6 +60,18 @@ If you want to keep the generated `.compair/config.yaml` local-only instead of
 committing it, add `.compair/` to `.git/info/exclude` in that repo or ignore it
 through your usual local git workflow.
 
+If the suite includes large generated or low-utility tracked files, add a
+repo-local `.compairignore` before the first warm pass. Good candidates:
+
+- package-manager lockfiles that are huge but rarely meaningful for cross-repo behavior
+- generated model/reranker artifacts
+- evaluation or training scripts that are not part of the shipped product surface
+- third-party notice bundles
+
+Keep the patterns simple. `.compairignore` uses one glob per line with
+repo-relative or basename matching, so patterns like `package-lock.json`,
+`scripts/*`, and `docs/third-party-notices*` work well.
+
 ### 3. Run the warm pass
 
 ```bash
@@ -72,6 +84,7 @@ Why:
 - `--all` reviews every tracked repo in the active group
 - `--snapshot-mode snapshot` uploads full repo snapshots for the baseline-style pass
 - `--reanalyze-existing` tells Compair to generate feedback from already-indexed chunks when there are no new chunks
+- `.compairignore` is the cleanest way to keep the first baseline near the product-surface scale that Compair handles best
 
 ### 4. Inspect the results
 

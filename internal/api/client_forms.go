@@ -853,6 +853,7 @@ type NotificationEventsOptions struct {
 	PageSize            int
 	IncludeAcknowledged bool
 	IncludeDismissed    bool
+	IncludeDrop         bool
 }
 
 func (c *Client) ListNotificationEvents(opts NotificationEventsOptions) (NotificationEventsResponse, error) {
@@ -871,6 +872,9 @@ func (c *Client) ListNotificationEvents(opts NotificationEventsOptions) (Notific
 	}
 	if opts.IncludeDismissed {
 		q.Set("include_dismissed", "true")
+	}
+	if opts.IncludeDrop {
+		q.Set("include_drop", "true")
 	}
 	path := "/notification_events"
 	if len(q) > 0 {

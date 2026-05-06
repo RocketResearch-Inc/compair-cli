@@ -1065,6 +1065,9 @@ func buildNotificationIndex(client *api.Client, group string) map[string]*feedba
 		return index
 	}
 	for _, event := range resp.Events {
+		if isDropNotificationEvent(event) {
+			continue
+		}
 		chunkID := strings.TrimSpace(event.TargetChunkID)
 		if chunkID == "" {
 			continue

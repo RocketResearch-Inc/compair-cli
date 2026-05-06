@@ -115,6 +115,59 @@ func TestRenderNotificationEventsMarkdownIncludesDebugMetadataWhenVerbose(t *tes
 	}
 }
 
+func TestRenderNotificationEventsMarkdownNormalizesBulletRationale(t *testing.T) {
+	prevVerbose := viper.GetBool("verbose")
+	viper.Set("verbose", false)
+	defer viper.Set("verbose", prevVerbose)
+
+	md := renderNotificationEventsMarkdown([]api.NotificationEvent{
+		{
+			Severity:  "medium",
+			Intent:    "relevant_update",
+			CreatedAt: "2026-05-05T03:21:10Z",
+			Rationale: []string{
+				"•",
+				"• Both excerpts discuss release automation coverage.",
+				"- The peer reinforces parts of the target rather than disagreeing.",
+				"Generated feedback describes a mismatch/drift, so this is not treated as benign overlap.",
+			},
+		},
+	}, false)
+
+	if strings.Contains(md, "\n- •") || strings.Contains(md, "\n- -") {
+		t.Fatalf("expected normalized rationale bullets, got:\n%s", md)
+	}
+	for _, want := range []string{
+		"- Both excerpts discuss release automation coverage.",
+		"- The peer reinforces parts of the target rather than disagreeing.",
+		"- Generated feedback describes a mismatch/drift, so this is not treated as benign overlap.",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("expected markdown to contain %q, got:\n%s", want, md)
+		}
+	}
+}
+
+func TestVisibleNotificationEventsHidesDropByDefault(t *testing.T) {
+	events := []api.NotificationEvent{
+		{EventID: "evt_keep", DeliveryAction: "digest"},
+		{EventID: "evt_drop", DeliveryAction: "drop"},
+	}
+
+	filtered := visibleNotificationEvents(events, false)
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 visible event, got %d", len(filtered))
+	}
+	if filtered[0].EventID != "evt_keep" {
+		t.Fatalf("expected kept event to be evt_keep, got %#v", filtered[0])
+	}
+
+	unfiltered := visibleNotificationEvents(events, true)
+	if len(unfiltered) != 2 {
+		t.Fatalf("expected include-drop to keep both events, got %d", len(unfiltered))
+	}
+}
+
 func TestParseNotificationToggle(t *testing.T) {
 	value, err := parseNotificationToggle("push", "on")
 	if err != nil {

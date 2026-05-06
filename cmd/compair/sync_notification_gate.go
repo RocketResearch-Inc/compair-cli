@@ -149,6 +149,9 @@ func collectNotificationGateResult(events []api.NotificationEvent, result notifi
 	since := startedAt.Add(-30 * time.Second)
 
 	for _, event := range events {
+		if isDropNotificationEvent(event) {
+			continue
+		}
 		createdAt, ok := timestampAsTime(event.CreatedAt)
 		if !ok || createdAt.Before(since) {
 			continue
