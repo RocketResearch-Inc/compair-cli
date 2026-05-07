@@ -505,6 +505,7 @@ type ReviewNowResp struct {
 type ProcessDocOptions struct {
 	ChunkMode         string
 	ReanalyzeExisting bool
+	ReferenceDocIDs   []string
 }
 
 func (c *Client) ProcessDoc(docID, text string, generateFeedback bool) (ProcessDocResp, error) {
@@ -531,6 +532,11 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 	}
 	if opts.ReanalyzeExisting {
 		data.Set("reanalyze_existing", "true")
+	}
+	for _, docID := range opts.ReferenceDocIDs {
+		if trimmed := strings.TrimSpace(docID); trimmed != "" {
+			data.Add("reference_doc_ids", trimmed)
+		}
 	}
 	var out ProcessDocResp
 	if err := c.postForm("/process_doc", data, &out); err != nil {

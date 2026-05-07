@@ -85,6 +85,8 @@ Why:
 - `--snapshot-mode snapshot` uploads full repo snapshots for the baseline-style pass
 - `--reanalyze-existing` tells Compair to generate feedback from already-indexed chunks when there are no new chunks
 - `.compairignore` is the cleanest way to keep the first baseline near the product-surface scale that Compair handles best
+- If some repos are still finishing `track --initial-sync --no-feedback`, Compair will finish that baseline indexing before it submits the detached warm-pass review work
+- If you want a slower but broader repo-pair sweep after the normal warm pass, use `compair review --all --pairwise --cross-repo-only`
 
 ### 4. Inspect the results
 
@@ -168,6 +170,17 @@ When you want a broader integration check across the suite again, rerun:
 ```bash
 compair review --all
 ```
+
+When you specifically want to bias toward recall over speed, run the advanced pairwise mode:
+
+```bash
+compair review --all --pairwise
+compair review --all --pairwise --cross-repo-only
+```
+
+That replays each target repo against one peer repo at a time instead of using
+the shared peer pool. It is slower by design, but it is useful when the normal
+cross-repo pool feels crowded and you want a more deliberate repo-pair pass.
 
 ## Local CI Simulation
 

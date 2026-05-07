@@ -106,6 +106,12 @@ type pendingInitialSync struct {
 	Config config.Project
 }
 
+type pairwiseRepo struct {
+	Root       string
+	DocumentID string
+	Label      string
+}
+
 var (
 	reportDiffPathPattern     = regexp.MustCompile(`(?m)^diff --git a/([^\s]+) b/[^\s]+$`)
 	reportFileHeaderPattern   = regexp.MustCompile(`(?m)^### File:\s+([^\n(]+)`)
@@ -149,6 +155,8 @@ var syncFailOnSeverity []string
 var syncFailOnType []string
 var syncProcessTimeoutSec int
 var syncReanalyzeExisting bool
+var syncPairwise bool
+var syncCrossRepoOnly bool
 
 type syncInvocationMode struct {
 	FetchOnly           bool
@@ -280,12 +288,25 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	sort.Strings(rootList)
 	repoProgress := newRepoProgressTracker(len(rootList))
 
-	if doFetch && !modeFlags.SkipInitialSyncWait {
+	if shouldWaitForPendingInitialSyncs(doUpload, generateFeedback, modeFlags) {
+		if modeFlags.Detach {
+			printer.Info("Waiting for unfinished initial syncs before submitting detached review work.")
+		}
 		if err := waitForPendingInitialSyncs(cmd.Context(), client, group); err != nil {
 			return err
 		}
 	}
 	waitForProcessing := !modeFlags.Detach && (doFetch || modeFlags.AwaitProcessing)
+	if err := validatePairwiseMode(doUpload, waitForProcessing, generateFeedback, modeFlags); err != nil {
+		return err
+	}
+	pairwiseScopes := map[string][]pairwiseRepo{}
+	if syncPairwise {
+		pairwiseScopes, err = resolvePairwiseRepoScopes(group, rootList, syncCrossRepoOnly)
+		if err != nil {
+			return err
+		}
+	}
 
 	totalFeedback := 0
 	reportPath := ""
@@ -478,15 +499,86 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				printer.Info(fmt.Sprintf("[%d/%d] No new changes for %s", idx+1, len(rootList), repoLabel))
 				continue
 			}
-			var resp api.ProcessDocResp
-			if snapshotUsed {
-				resp, err = client.ProcessDocWithOptions(r.DocumentID, text, generateFeedback, api.ProcessDocOptions{
-					ChunkMode:         "client",
-					ReanalyzeExisting: reanalyzeExisting,
-				})
-			} else {
-				resp, err = client.ProcessDoc(r.DocumentID, text, generateFeedback)
+			if syncPairwise {
+				peers := pairwiseScopes[root]
+				if len(peers) == 0 {
+					printer.Warn(fmt.Sprintf("[%d/%d] No eligible pairwise peers found for %s in the active group", idx+1, len(rootList), repoLabel))
+					continue
+				}
+				pairFeedbackSnapshot := initialFeedback
+				for _, peer := range peers {
+					pairLabel := fmt.Sprintf("%s vs %s", repoLabel, peer.Label)
+					resp, err := submitRepoProcessDoc(
+						client,
+						r.DocumentID,
+						text,
+						generateFeedback,
+						snapshotUsed,
+						reanalyzeExisting,
+						[]string{peer.DocumentID},
+					)
+					if err != nil {
+						return err
+					}
+					if _, err := awaitRepoProcessDocTask(
+						cmd.Context(),
+						client,
+						root,
+						cfg,
+						r,
+						resp,
+						latest,
+						pairFeedbackSnapshot,
+						pairLabel,
+						idx+1,
+						len(rootList),
+						text,
+						fmt.Sprintf("%s vs %s", r.RemoteURL, peer.Label),
+						snapshotUsed,
+						doFetch,
+						reportOptions,
+						&lines,
+					); err != nil {
+						return err
+					}
+					if waitForFeedback {
+						waitForNewFeedback(
+							cmd.Context(),
+							client,
+							r.DocumentID,
+							pairFeedbackSnapshot,
+							time.Duration(feedbackWaitSec)*time.Second,
+							func(elapsed time.Duration, remaining time.Duration) {
+								printer.Info(
+									fmt.Sprintf(
+										"[%d/%d] Waiting for new feedback on %s (%s elapsed, est. %s remaining)",
+										idx+1,
+										len(rootList),
+										pairLabel,
+										humanDuration(elapsed),
+										humanDuration(remaining),
+									),
+								)
+							},
+						)
+						pairFeedbackSnapshot = feedbackSnapshotForDoc(client, r.DocumentID)
+					}
+				}
+				finalizeRepoSync(root, group, cfg, r, latest)
+				updatedDocs[r.DocumentID] = struct{}{}
+				printer.Info(repoProgress.completeLine(idx+1, repoLabel, time.Since(repoStartedAt)))
+				continue
 			}
+
+			resp, err := submitRepoProcessDoc(
+				client,
+				r.DocumentID,
+				text,
+				generateFeedback,
+				snapshotUsed,
+				reanalyzeExisting,
+				nil,
+			)
 			if err != nil {
 				return err
 			}
@@ -516,56 +608,27 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 			}
 			var st api.TaskStatus
 			if waitForProcessing {
-				persistPendingRepoTask(root, cfg, r, resp.TaskID, latest, initialFeedback)
-				if strings.TrimSpace(resp.TaskID) != "" {
-					printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", idx+1, len(rootList), repoLabel, shortTaskID(resp.TaskID)))
-				}
-				st, timedOut, err := waitForProcessingTask(cmd.Context(), client, resp.TaskID, func(st api.TaskStatus, elapsed time.Duration) {
-					printer.Info(formatTaskProgressLine(idx+1, len(rootList), "Still processing", repoLabel, st, elapsed))
-				})
+				st, err = awaitRepoProcessDocTask(
+					cmd.Context(),
+					client,
+					root,
+					cfg,
+					r,
+					resp,
+					latest,
+					initialFeedback,
+					repoLabel,
+					idx+1,
+					len(rootList),
+					text,
+					r.RemoteURL,
+					snapshotUsed,
+					doFetch,
+					reportOptions,
+					&lines,
+				)
 				if err != nil {
 					return err
-				}
-				if timedOut {
-					return fmt.Errorf(
-						"processing timeout after %ds (run 'compair wait --timeout 20m' or rerun the same command to continue waiting without resubmitting this repo; use 'compair wait --timeout 0' to wait indefinitely)",
-						syncProcessTimeoutSec,
-					)
-				}
-				switch strings.ToUpper(strings.TrimSpace(st.Status)) {
-				case "SUCCESS":
-				case "PROGRESS", "STARTED":
-					if len(extractChunkTaskIDsFromStatus(st)) == 0 {
-						clearPendingRepoTask(root, cfg, r)
-						return fmt.Errorf(
-							"processing task %s for %s is still in progress without recoverable chunk tasks",
-							shortTaskID(resp.TaskID),
-							repoLabel,
-						)
-					}
-				default:
-					clearPendingRepoTask(root, cfg, r)
-					return fmt.Errorf("processing task %s for %s ended with status %s", shortTaskID(resp.TaskID), repoLabel, st.Status)
-				}
-				chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
-				if err := waitForChunkTaskIDs(cmd.Context(), client, chunkTaskIDs, repoLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
-					printer.Info(
-						fmt.Sprintf(
-							"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
-							idx+1,
-							len(rootList),
-							taskIndex,
-							taskTotal,
-							repoLabel,
-							humanDuration(elapsed),
-						),
-					)
-				}); err != nil {
-					clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, r, err)
-					return err
-				}
-				if doFetch {
-					appendRepoServerResponse(&lines, r.RemoteURL, text, st.Result, snapshotUsed, reportOptions)
 				}
 			} else {
 				if snapshotUsed {
@@ -2473,6 +2536,116 @@ func pendingTaskElapsed(startedAt string, fallback time.Time) time.Duration {
 	return time.Since(fallback)
 }
 
+func shouldWaitForPendingInitialSyncs(doUpload bool, generateFeedback bool, modeFlags syncInvocationMode) bool {
+	if modeFlags.SkipInitialSyncWait {
+		return false
+	}
+	return doUpload && generateFeedback
+}
+
+func validatePairwiseMode(doUpload bool, waitForProcessing bool, generateFeedback bool, modeFlags syncInvocationMode) error {
+	if syncCrossRepoOnly && !syncPairwise {
+		return fmt.Errorf("--cross-repo-only requires --pairwise")
+	}
+	if !syncPairwise {
+		return nil
+	}
+	if !doUpload {
+		return fmt.Errorf("--pairwise requires an upload pass; remove --fetch-only")
+	}
+	if !generateFeedback {
+		return fmt.Errorf("--pairwise requires feedback generation")
+	}
+	if modeFlags.Detach {
+		return fmt.Errorf("--pairwise does not support --detach yet; run it attached so Compair can walk the repo pairs in sequence")
+	}
+	if !waitForProcessing {
+		return fmt.Errorf("--pairwise currently requires waiting for backend processing; omit --push-only")
+	}
+	return nil
+}
+
+func resolvePairwiseRepoScopes(group string, targetRoots []string, crossRepoOnly bool) (map[string][]pairwiseRepo, error) {
+	scopes := map[string][]pairwiseRepo{}
+	if len(targetRoots) == 0 {
+		return scopes, nil
+	}
+
+	allRoots := map[string]struct{}{}
+	for _, root := range targetRoots {
+		if trimmed := strings.TrimSpace(root); trimmed != "" {
+			allRoots[trimmed] = struct{}{}
+		}
+	}
+
+	store, err := db.Open()
+	if err == nil {
+		defer store.Close()
+		groupRoots, listErr := store.ListRepoRoots(context.Background(), group)
+		if listErr != nil {
+			return nil, listErr
+		}
+		for _, root := range groupRoots {
+			if trimmed := strings.TrimSpace(root); trimmed != "" {
+				allRoots[trimmed] = struct{}{}
+			}
+		}
+	}
+
+	allRootList := make([]string, 0, len(allRoots))
+	for root := range allRoots {
+		allRootList = append(allRootList, root)
+	}
+	sort.Strings(allRootList)
+
+	reposByRoot := map[string]pairwiseRepo{}
+	for _, root := range allRootList {
+		cfg, err := config.ReadProjectConfig(root)
+		if err != nil || len(cfg.Repos) == 0 {
+			continue
+		}
+		repo := cfg.Repos[0]
+		docID := strings.TrimSpace(repo.DocumentID)
+		if docID == "" {
+			continue
+		}
+		reposByRoot[root] = pairwiseRepo{
+			Root:       root,
+			DocumentID: docID,
+			Label:      repoDisplayLabel(root, repo.RemoteURL),
+		}
+	}
+
+	for _, targetRoot := range targetRoots {
+		targetRepo, ok := reposByRoot[targetRoot]
+		if !ok {
+			continue
+		}
+		peers := make([]pairwiseRepo, 0, len(allRootList))
+		for _, root := range allRootList {
+			peer, ok := reposByRoot[root]
+			if !ok {
+				continue
+			}
+			if crossRepoOnly && root == targetRoot {
+				continue
+			}
+			peers = append(peers, peer)
+		}
+		sort.SliceStable(peers, func(i, j int) bool {
+			leftSelf := peers[i].Root == targetRepo.Root
+			rightSelf := peers[j].Root == targetRepo.Root
+			if leftSelf != rightSelf {
+				return !leftSelf && rightSelf
+			}
+			return peers[i].Label < peers[j].Label
+		})
+		scopes[targetRoot] = peers
+	}
+
+	return scopes, nil
+}
+
 func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group string) error {
 	pending, err := listPendingInitialSyncs(ctx, group)
 	if err != nil || len(pending) == 0 {
@@ -2737,6 +2910,102 @@ func repoDisplayLabel(root, remote string) string {
 		return trimmed
 	}
 	return filepath.Base(root)
+}
+
+func submitRepoProcessDoc(
+	client *api.Client,
+	docID string,
+	text string,
+	generateFeedback bool,
+	snapshotUsed bool,
+	reanalyzeExisting bool,
+	referenceDocIDs []string,
+) (api.ProcessDocResp, error) {
+	opts := api.ProcessDocOptions{
+		ReferenceDocIDs: referenceDocIDs,
+	}
+	if snapshotUsed {
+		opts.ChunkMode = "client"
+		opts.ReanalyzeExisting = reanalyzeExisting
+	}
+	if snapshotUsed || reanalyzeExisting || len(referenceDocIDs) > 0 {
+		return client.ProcessDocWithOptions(docID, text, generateFeedback, opts)
+	}
+	return client.ProcessDoc(docID, text, generateFeedback)
+}
+
+func awaitRepoProcessDocTask(
+	ctx context.Context,
+	client *api.Client,
+	root string,
+	cfg config.Project,
+	repo *config.Repo,
+	resp api.ProcessDocResp,
+	latest string,
+	initialFeedback feedbackSnapshot,
+	displayLabel string,
+	progressIndex int,
+	progressTotal int,
+	text string,
+	responseLabel string,
+	snapshotUsed bool,
+	doFetch bool,
+	reportOptions reportRenderOptions,
+	lines *[]string,
+) (api.TaskStatus, error) {
+	var st api.TaskStatus
+	persistPendingRepoTask(root, cfg, repo, resp.TaskID, latest, initialFeedback)
+	if strings.TrimSpace(resp.TaskID) != "" {
+		printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", progressIndex, progressTotal, displayLabel, shortTaskID(resp.TaskID)))
+	}
+	st, timedOut, err := waitForProcessingTask(ctx, client, resp.TaskID, func(st api.TaskStatus, elapsed time.Duration) {
+		printer.Info(formatTaskProgressLine(progressIndex, progressTotal, "Still processing", displayLabel, st, elapsed))
+	})
+	if err != nil {
+		return api.TaskStatus{}, err
+	}
+	if timedOut {
+		return api.TaskStatus{}, fmt.Errorf(
+			"processing timeout after %ds (run 'compair wait --timeout 20m' or rerun the same command to continue waiting without resubmitting this repo; use 'compair wait --timeout 0' to wait indefinitely)",
+			syncProcessTimeoutSec,
+		)
+	}
+	switch strings.ToUpper(strings.TrimSpace(st.Status)) {
+	case "SUCCESS":
+	case "PROGRESS", "STARTED":
+		if len(extractChunkTaskIDsFromStatus(st)) == 0 {
+			clearPendingRepoTask(root, cfg, repo)
+			return api.TaskStatus{}, fmt.Errorf(
+				"processing task %s for %s is still in progress without recoverable chunk tasks",
+				shortTaskID(resp.TaskID),
+				displayLabel,
+			)
+		}
+	default:
+		clearPendingRepoTask(root, cfg, repo)
+		return api.TaskStatus{}, fmt.Errorf("processing task %s for %s ended with status %s", shortTaskID(resp.TaskID), displayLabel, st.Status)
+	}
+	chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
+	if err := waitForChunkTaskIDs(ctx, client, chunkTaskIDs, displayLabel, func(taskIndex int, taskTotal int, elapsed time.Duration) {
+		printer.Info(
+			fmt.Sprintf(
+				"[%d/%d] Waiting for chunk task %d/%d for %s (%s elapsed)",
+				progressIndex,
+				progressTotal,
+				taskIndex,
+				taskTotal,
+				displayLabel,
+				humanDuration(elapsed),
+			),
+		)
+	}); err != nil {
+		clearPendingRepoTaskOnTerminalChunkFailure(root, cfg, repo, err)
+		return api.TaskStatus{}, err
+	}
+	if doFetch {
+		appendRepoServerResponse(lines, responseLabel, text, st.Result, snapshotUsed, reportOptions)
+	}
+	return st, nil
 }
 
 func appendRepoServerResponse(lines *[]string, remoteURL, text string, result any, snapshotUsed bool, options reportRenderOptions) {
@@ -3381,6 +3650,8 @@ func addSyncFlags(cmd *cobra.Command, includeModeFlags bool) {
 	if includeModeFlags {
 		cmd.Flags().BoolVar(&fetchOnly, "fetch-only", false, "Only fetch feedback; do not send updates")
 		cmd.Flags().BoolVar(&pushOnly, "push-only", false, "Submit local updates but skip feedback retrieval")
+		cmd.Flags().BoolVar(&syncPairwise, "pairwise", false, "Run one review pass per target/peer repo combination instead of using the shared peer pool")
+		cmd.Flags().BoolVar(&syncCrossRepoOnly, "cross-repo-only", false, "When used with --pairwise, skip same-repo review pairs and only compare against other tracked repos")
 	}
 	cmd.Flags().IntVar(&feedbackWaitSec, "feedback-wait", 45, "Seconds to wait for new feedback after submitting updates (0 to disable)")
 	cmd.Flags().IntVar(&snapshotMaxTree, "snapshot-max-tree", defaultSnapshot.MaxTreeEntries, "Snapshot limit: max tree entries (0 = full repo)")

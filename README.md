@@ -197,6 +197,10 @@ compair track ~/code/desktop-client --initial-sync --no-feedback
 compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
 compair wait --all
 
+# Optional: if you want a slower, broader repo-pair sweep instead of the
+# standard shared-peer review pool, run the attached pairwise mode
+compair review --all --pairwise --cross-repo-only
+
 # 4. Inspect the results
 compair reports
 compair notifications
@@ -210,6 +214,7 @@ After the first run:
 - After the warm pass, use normal `review` / `wait` cycles day to day
 - Use `review --detach` when you want the same workflow without blocking your terminal
 - Use `wait --timeout 20m` when a large baseline needs more time without resubmitting
+- Use `review --pairwise` when you want a slower, higher-coverage repo-pair pass; `--cross-repo-only` skips same-repo pairs
 - Use repo-local `.compairignore` files to trim large generated artifacts before a full-suite baseline
 - Treat `sync` as the advanced/CI control surface rather than the default daily command
 - Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"io"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -85,6 +85,9 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 		if got := values.Get("reanalyze_existing"); got != "true" {
 			t.Fatalf("expected reanalyze_existing=true, got %q", got)
 		}
+		if got := values["reference_doc_ids"]; len(got) != 2 || got[0] != "peer_doc_1" || got[1] != "peer_doc_2" {
+			t.Fatalf("expected repeated reference_doc_ids values, got %#v", got)
+		}
 		if got := values.Get("doc_text"); got != "" {
 			t.Fatalf("expected doc_text to be omitted, got %q", got)
 		}
@@ -102,6 +105,7 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 	resp, err := client.ProcessDocWithOptions("doc_123", "hello", true, ProcessDocOptions{
 		ChunkMode:         "client",
 		ReanalyzeExisting: true,
+		ReferenceDocIDs:   []string{"peer_doc_1", "peer_doc_2"},
 	})
 	if err != nil {
 		t.Fatalf("ProcessDocWithOptions returned error: %v", err)

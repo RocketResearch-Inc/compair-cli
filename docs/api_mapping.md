@@ -14,7 +14,7 @@
 | `sync` | `POST /process_doc` (form: `doc_id`, `doc_text_b64`, `generate_feedback=true`, optional `chunk_mode=client`) → `GET /status/{task_id}` |
 | `watch` | Repeats `sync` on an interval; sends notifications and runs `--on-change` command |
 | `docs list` | `GET /load_documents` (filters: `group_id`, `filter_type`, `own_documents_only`) |
-| `activity` | `GET /get_activity_feed` |
+| `activity` | `GET /activity_feed` |
 | `notifications` | `GET /notification_events` |
 | `notifications ack <id>` | `POST /notification_events/{event_id}/acknowledge` |
 | `notifications dismiss <id>` | `POST /notification_events/{event_id}/dismiss` |

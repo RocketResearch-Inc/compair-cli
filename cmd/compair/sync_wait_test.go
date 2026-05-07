@@ -135,3 +135,55 @@ func TestHasNewFeedbackDetectsNewerTimestampAtSameCount(t *testing.T) {
 		t.Fatal("expected newer feedback timestamp at same count to be detected as new")
 	}
 }
+
+func TestShouldWaitForPendingInitialSyncs(t *testing.T) {
+	tests := []struct {
+		name             string
+		doUpload         bool
+		generateFeedback bool
+		mode             syncInvocationMode
+		want             bool
+	}{
+		{
+			name:             "normal feedback-generating upload waits",
+			doUpload:         true,
+			generateFeedback: true,
+			want:             true,
+		},
+		{
+			name:             "detached review still waits before submit",
+			doUpload:         true,
+			generateFeedback: true,
+			mode:             syncInvocationMode{Detach: true},
+			want:             true,
+		},
+		{
+			name:             "no upload means no wait",
+			doUpload:         false,
+			generateFeedback: true,
+			want:             false,
+		},
+		{
+			name:             "review now push skips per-chunk feedback wait",
+			doUpload:         true,
+			generateFeedback: false,
+			mode:             syncInvocationMode{PushOnly: true},
+			want:             false,
+		},
+		{
+			name:             "explicit skip disables wait",
+			doUpload:         true,
+			generateFeedback: true,
+			mode:             syncInvocationMode{SkipInitialSyncWait: true},
+			want:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldWaitForPendingInitialSyncs(tt.doUpload, tt.generateFeedback, tt.mode); got != tt.want {
+				t.Fatalf("shouldWaitForPendingInitialSyncs(%v, %v, %+v) = %v, want %v", tt.doUpload, tt.generateFeedback, tt.mode, got, tt.want)
+			}
+		})
+	}
+}

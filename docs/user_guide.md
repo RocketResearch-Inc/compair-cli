@@ -67,6 +67,7 @@ Use this mental model to stay out of the weeds:
 
 - `compair review`: the normal interactive command for reviewing the repo you changed
 - `compair review --detach`: submit the review work now and come back later
+- `compair review --pairwise`: slower advanced review that runs one pass per target/peer repo pair
 - `compair wait`: reattach to saved pending repo tasks and fetch the finished report
 - `compair wait --timeout 20m`: keep waiting longer when a large baseline needs more time
 - `compair push` / `compair pull`: lower-level async split when you want upload and fetch as separate steps
@@ -300,6 +301,8 @@ compair feedback-length verbose
 compair review --commits 10 --ext-detail
 compair review --all --snapshot-mode snapshot --reanalyze-existing
 compair review --detach   # submit now, then follow with `compair wait`
+compair review --all --pairwise
+compair review --all --pairwise --cross-repo-only
 compair wait
 compair wait --timeout 20m
 compair wait --timeout 0
@@ -340,6 +343,10 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - Sends text to `/process_doc` with `generate_feedback=true`
 - `--reanalyze-existing` is the warm-pass switch: when paired with `--snapshot-mode snapshot`, Compair can generate feedback from already-indexed repo chunks that do not yet have feedback
 - `compair review --detach` submits the review work and returns immediately; use `compair wait` to reattach later
+- `compair review --pairwise` is the heavier coverage mode: it replays the target repo against one peer repo at a time instead of relying on the shared peer pool
+- `compair review --pairwise --cross-repo-only` skips same-repo pairs and focuses only on other tracked repos in the active group
+- `--pairwise` currently runs attached only; use it when you intentionally want a slower, more exhaustive repo-pair sweep
+- If the repo was bootstrapped with `track --initial-sync --no-feedback`, a later feedback-generating review may first finish that unfinished baseline indexing before it can submit new review work. This also applies to `review --detach`.
 - `compair wait` resumes saved pending repo tasks, then fetches and renders the resulting report
 - `compair wait --timeout` is the friendly way to extend how long you stay attached to a large review; use `0` to wait indefinitely
 - `compair sync --feedback-wait` remains the lower-level knob when you want to cap only the post-processing feedback wait budget
