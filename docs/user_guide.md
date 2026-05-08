@@ -303,6 +303,8 @@ compair review --all --snapshot-mode snapshot --reanalyze-existing
 compair review --detach   # submit now, then follow with `compair wait`
 compair review --all --pairwise
 compair review --all --pairwise --cross-repo-only
+compair review --all --snapshot-mode snapshot --reanalyze-existing --now --yes
+compair review --all --snapshot-mode snapshot --reanalyze-existing --now --skip-index --yes
 compair wait
 compair wait --timeout 20m
 compair wait --timeout 0
@@ -346,6 +348,8 @@ compair sync --json --fail-on-feedback 1   # count-based fallback when detailed 
 - `compair review --pairwise` is the heavier coverage mode: it replays the target repo against one peer repo at a time instead of relying on the shared peer pool
 - `compair review --pairwise --cross-repo-only` skips same-repo pairs and focuses only on other tracked repos in the active group
 - `--pairwise` currently runs attached only; use it when you intentionally want a slower, more exhaustive repo-pair sweep
+- `compair review --now` runs a one-shot whole-bundle LLM review over the current tracked repo content instead of the normal per-chunk retrieval pipeline
+- `compair review --now --skip-index` keeps that one-shot review fast by skipping chunk/embedding refresh for the uploaded snapshot, but the normal indexed retrieval state stays stale until a later full sync/review
 - If the repo was bootstrapped with `track --initial-sync --no-feedback`, a later feedback-generating review may first finish that unfinished baseline indexing before it can submit new review work. This also applies to `review --detach`.
 - `compair wait` resumes saved pending repo tasks, then fetches and renders the resulting report
 - `compair wait --timeout` is the friendly way to extend how long you stay attached to a large review; use `0` to wait indefinitely

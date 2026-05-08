@@ -201,6 +201,11 @@ compair wait --all
 # standard shared-peer review pool, run the attached pairwise mode
 compair review --all --pairwise --cross-repo-only
 
+# Optional: if you want a one-shot whole-bundle read instead of the normal
+# per-chunk retrieval/index path, run review --now
+compair review --all --snapshot-mode snapshot --reanalyze-existing --now --yes
+compair review --all --snapshot-mode snapshot --reanalyze-existing --now --skip-index --yes
+
 # 4. Inspect the results
 compair reports
 compair notifications
@@ -215,6 +220,8 @@ After the first run:
 - Use `review --detach` when you want the same workflow without blocking your terminal
 - Use `wait --timeout 20m` when a large baseline needs more time without resubmitting
 - Use `review --pairwise` when you want a slower, higher-coverage repo-pair pass; `--cross-repo-only` skips same-repo pairs
+- Use `review --now` when you want one whole-bundle LLM pass over the current tracked repo set instead of the normal per-chunk retrieval path
+- Use `review --now --skip-index` when you want that bundle review faster and can tolerate the indexed retrieval state staying stale until a later full sync/review
 - Use repo-local `.compairignore` files to trim large generated artifacts before a full-suite baseline
 - Treat `sync` as the advanced/CI control surface rather than the default daily command
 - Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow

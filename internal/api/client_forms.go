@@ -467,7 +467,8 @@ func (c *Client) CreateDoc(title, docType, content, groupIDs string, published b
 
 // Processing
 type ProcessDocResp struct {
-	TaskID string `json:"task_id"`
+	TaskID       string `json:"task_id"`
+	SkippedIndex bool   `json:"skipped_index,omitempty"`
 }
 
 type ReviewNowOptions struct {
@@ -506,6 +507,7 @@ type ProcessDocOptions struct {
 	ChunkMode         string
 	ReanalyzeExisting bool
 	ReferenceDocIDs   []string
+	SkipIndex         bool
 }
 
 func (c *Client) ProcessDoc(docID, text string, generateFeedback bool) (ProcessDocResp, error) {
@@ -532,6 +534,9 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 	}
 	if opts.ReanalyzeExisting {
 		data.Set("reanalyze_existing", "true")
+	}
+	if opts.SkipIndex {
+		data.Set("skip_index", "true")
 	}
 	for _, docID := range opts.ReferenceDocIDs {
 		if trimmed := strings.TrimSpace(docID); trimmed != "" {

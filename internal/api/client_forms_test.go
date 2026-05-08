@@ -60,7 +60,7 @@ func TestCreateGroupFallsBackWhenResponseBodyIsEmpty(t *testing.T) {
 	}
 }
 
-func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
+func TestProcessDocWithOptionsIncludesReanalyzeExistingAndSkipIndex(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
@@ -85,6 +85,9 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 		if got := values.Get("reanalyze_existing"); got != "true" {
 			t.Fatalf("expected reanalyze_existing=true, got %q", got)
 		}
+		if got := values.Get("skip_index"); got != "true" {
+			t.Fatalf("expected skip_index=true, got %q", got)
+		}
 		if got := values["reference_doc_ids"]; len(got) != 2 || got[0] != "peer_doc_1" || got[1] != "peer_doc_2" {
 			t.Fatalf("expected repeated reference_doc_ids values, got %#v", got)
 		}
@@ -95,7 +98,7 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 			t.Fatal("expected doc_text_b64 to be populated")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"task_id":"task_123"}`)
+		_, _ = io.WriteString(w, `{"task_id":"task_123","skipped_index":true}`)
 	}))
 	defer server.Close()
 
@@ -106,12 +109,16 @@ func TestProcessDocWithOptionsIncludesReanalyzeExisting(t *testing.T) {
 		ChunkMode:         "client",
 		ReanalyzeExisting: true,
 		ReferenceDocIDs:   []string{"peer_doc_1", "peer_doc_2"},
+		SkipIndex:         true,
 	})
 	if err != nil {
 		t.Fatalf("ProcessDocWithOptions returned error: %v", err)
 	}
 	if strings.TrimSpace(resp.TaskID) != "task_123" {
 		t.Fatalf("expected task_id task_123, got %q", resp.TaskID)
+	}
+	if !resp.SkippedIndex {
+		t.Fatal("expected skipped_index=true in response")
 	}
 }
 

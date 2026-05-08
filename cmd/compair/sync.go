@@ -167,6 +167,7 @@ type syncInvocationMode struct {
 	ReanalyzeExisting   bool
 	ReportDetailLevel   *reportDetailLevel
 	SkipInitialSyncWait bool
+	SkipIndex           bool
 }
 
 var syncCmd = &cobra.Command{
@@ -515,6 +516,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						generateFeedback,
 						snapshotUsed,
 						reanalyzeExisting,
+						modeFlags.SkipIndex,
 						[]string{peer.DocumentID},
 					)
 					if err != nil {
@@ -577,6 +579,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				generateFeedback,
 				snapshotUsed,
 				reanalyzeExisting,
+				modeFlags.SkipIndex,
 				nil,
 			)
 			if err != nil {
@@ -2919,16 +2922,18 @@ func submitRepoProcessDoc(
 	generateFeedback bool,
 	snapshotUsed bool,
 	reanalyzeExisting bool,
+	skipIndex bool,
 	referenceDocIDs []string,
 ) (api.ProcessDocResp, error) {
 	opts := api.ProcessDocOptions{
 		ReferenceDocIDs: referenceDocIDs,
+		SkipIndex:       skipIndex,
 	}
 	if snapshotUsed {
 		opts.ChunkMode = "client"
 		opts.ReanalyzeExisting = reanalyzeExisting
 	}
-	if snapshotUsed || reanalyzeExisting || len(referenceDocIDs) > 0 {
+	if snapshotUsed || reanalyzeExisting || len(referenceDocIDs) > 0 || skipIndex {
 		return client.ProcessDocWithOptions(docID, text, generateFeedback, opts)
 	}
 	return client.ProcessDoc(docID, text, generateFeedback)
@@ -2954,6 +2959,18 @@ func awaitRepoProcessDocTask(
 	lines *[]string,
 ) (api.TaskStatus, error) {
 	var st api.TaskStatus
+	if strings.TrimSpace(resp.TaskID) == "" {
+		st.Status = "SUCCESS"
+		if resp.SkippedIndex {
+			st.Result = map[string]any{"detail": "document content updated without index refresh"}
+		} else {
+			st.Result = map[string]any{"detail": "processing completed locally"}
+		}
+		if doFetch {
+			appendRepoServerResponse(lines, responseLabel, text, st.Result, snapshotUsed, reportOptions)
+		}
+		return st, nil
+	}
 	persistPendingRepoTask(root, cfg, repo, resp.TaskID, latest, initialFeedback)
 	if strings.TrimSpace(resp.TaskID) != "" {
 		printer.Info(fmt.Sprintf("[%d/%d] Submitted %s; waiting for server task %s", progressIndex, progressTotal, displayLabel, shortTaskID(resp.TaskID)))
