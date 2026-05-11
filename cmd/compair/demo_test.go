@@ -23,6 +23,28 @@ func TestDemoDriftRecapLinesSummarizesInjectedMismatch(t *testing.T) {
 	}
 }
 
+func TestOfflineDemoReportIncludesPrebakedFinding(t *testing.T) {
+	report := offlineDemoReport("/tmp/compair-demo-123", []string{
+		"/tmp/compair-demo-123/demo-api",
+		"/tmp/compair-demo-123/demo-client",
+	})
+	want := []string{
+		"Compair Offline Demo Report",
+		"prebaked report",
+		"demo-api/api/openapi.yaml",
+		"demo-client/src/reviewFeed.ts",
+		"payload.items",
+		"reviews[]",
+		"severity/category/rationale",
+		"compair demo --mode local",
+	}
+	for _, snippet := range want {
+		if !strings.Contains(report, snippet) {
+			t.Fatalf("expected offline report to contain %q, got:\n%s", snippet, report)
+		}
+	}
+}
+
 func TestRunDemoCommandReportsProcessErrorWhenOutputIsEmpty(t *testing.T) {
 	err := runDemoCommand([]string{"compair-definitely-missing-binary"})
 	if err == nil {

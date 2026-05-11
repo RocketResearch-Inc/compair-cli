@@ -21,6 +21,7 @@ var (
 	demoMode         string
 	demoName         string
 	demoFeedbackWait int
+	demoOffline      bool
 )
 
 var demoCmd = &cobra.Command{
@@ -29,12 +30,26 @@ var demoCmd = &cobra.Command{
 	Long: "Create two temporary git repos with an intentional API/client mismatch, " +
 		"track them in a disposable demo group, and run a real Compair review.\n\n" +
 		"Use --mode local to run against the managed local Core runtime, or --mode cloud to run against the current Cloud API base. " +
+		"Use --offline for a prebaked sample that needs no Docker, Cloud login, or model API. " +
 		"If --mode is omitted on an interactive terminal, Compair will prompt.",
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if demoOffline || strings.EqualFold(strings.TrimSpace(demoMode), "offline") {
+			if err := ensureDemoPrereqs(); err != nil {
+				return err
+			}
+			return runOfflineDemo()
+		}
+
 		mode, err := resolveDemoMode()
 		if err != nil {
 			return err
+		}
+		if mode == "offline" {
+			if err := ensureDemoPrereqs(); err != nil {
+				return err
+			}
+			return runOfflineDemo()
 		}
 		if err := ensureDemoPrereqs(); err != nil {
 			return err
@@ -150,7 +165,8 @@ var demoCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(demoCmd)
-	demoCmd.Flags().StringVar(&demoMode, "mode", "", "Demo mode: local or cloud")
+	demoCmd.Flags().StringVar(&demoMode, "mode", "", "Demo mode: local, cloud, or offline")
+	demoCmd.Flags().BoolVar(&demoOffline, "offline", false, "Run the demo with a prebaked report and no Docker, Cloud login, or model API")
 	demoCmd.Flags().StringVar(&demoName, "group-name", "", "Optional group name for the disposable demo group")
 	demoCmd.Flags().IntVar(&demoFeedbackWait, "feedback-wait", 90, "Seconds to wait for feedback during the demo review")
 }
@@ -162,18 +178,19 @@ func resolveDemoMode() (string, error) {
 		return mode, nil
 	case "":
 	default:
-		return "", fmt.Errorf("unsupported demo mode %q (expected local or cloud)", demoMode)
+		return "", fmt.Errorf("unsupported demo mode %q (expected local, cloud, or offline)", demoMode)
 	}
 
 	if !isInteractiveTerminal() {
-		return "", fmt.Errorf("demo mode is required in non-interactive mode; use --mode local or --mode cloud")
+		return "", fmt.Errorf("demo mode is required in non-interactive mode; use --mode local, --mode cloud, or --offline")
 	}
 
 	fmt.Println("Choose a demo mode:")
 	fmt.Println("  1. Local Core (managed Docker container, no hosted account required)")
 	fmt.Println("  2. Cloud (hosted API, login required)")
+	fmt.Println("  3. Offline sample (no Docker, account, or model API)")
 	for {
-		choice, err := promptLine("Choose demo mode [1/2]: ")
+		choice, err := promptLine("Choose demo mode [1/2/3]: ")
 		if err != nil {
 			return "", err
 		}
@@ -182,9 +199,53 @@ func resolveDemoMode() (string, error) {
 			return "local", nil
 		case "2", "cloud", "hosted":
 			return "cloud", nil
+		case "3", "offline", "sample":
+			demoOffline = true
+			return "offline", nil
 		}
-		fmt.Println("Enter 1 for local Core or 2 for Cloud.")
+		fmt.Println("Enter 1 for local Core, 2 for Cloud, or 3 for Offline.")
 	}
+}
+
+func runOfflineDemo() error {
+	workspace, roots, err := createDemoWorkspace()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Created offline demo workspace:", workspace)
+	for _, root := range roots {
+		fmt.Println("  -", root)
+	}
+
+	fmt.Println()
+	fmt.Println("Introducing demo drift...")
+	if err := introduceDemoDrift(roots); err != nil {
+		return err
+	}
+
+	reportPath := filepath.Join(workspace, "demo-feedback.md")
+	report := offlineDemoReport(workspace, roots)
+	if err := os.WriteFile(reportPath, []byte(report), 0o644); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Println("Offline demo report:", reportPath)
+	if info, err := os.Stat(reportPath); err == nil {
+		_ = renderSingle(feedbackReport{Path: reportPath, ModTime: info.ModTime().UnixNano()})
+	}
+
+	fmt.Println()
+	fmt.Println("This offline report is prebaked. To run a live review next:")
+	fmt.Println("  compair demo --mode local")
+	fmt.Println("  compair demo --mode cloud")
+	fmt.Println()
+	fmt.Println("You can inspect the demo repos at:")
+	fmt.Println(" ", workspace)
+	fmt.Println("To remove them later:")
+	fmt.Printf("  rm -rf %q\n", workspace)
+	return nil
 }
 
 func isInteractiveTerminal() bool {
@@ -639,6 +700,96 @@ func demoDriftRecapLines() []string {
 		`  - demo-client/src/renderReview.ts: render severity/category -> priority/type`,
 		`  - demo-client/README.md is rewritten to describe the wrong client contract on purpose.`,
 	}
+}
+
+func offlineDemoReport(workspace string, roots []string) string {
+	apiRepo := "demo-api"
+	clientRepo := "demo-client"
+	if len(roots) > 0 {
+		apiRepo = filepath.Base(roots[0])
+	}
+	if len(roots) > 1 {
+		clientRepo = filepath.Base(roots[1])
+	}
+	generated := time.Now().Format(time.RFC3339)
+	return strings.Join([]string{
+		"# Compair Offline Demo Report",
+		"",
+		fmt.Sprintf("Generated: %s", generated),
+		"",
+		"This is a prebaked report from `compair demo --offline`. It uses the same disposable demo repos and intentional client/API drift as the live demo, but it does not contact Compair Cloud, start Docker, or call a model API.",
+		"",
+		"## Summary",
+		"",
+		"- 1 seeded cross-repo finding.",
+		fmt.Sprintf("- Demo workspace: `%s`", workspace),
+		fmt.Sprintf("- Compared repos: `%s`, `%s`", apiRepo, clientRepo),
+		"",
+		"## Potential Conflict 1",
+		"",
+		"Type: Potential Conflict  ",
+		"Severity: HIGH  ",
+		"Delivery: digest",
+		"",
+		"### Compared Files",
+		"",
+		fmt.Sprintf("- `%s/api/openapi.yaml`", apiRepo),
+		fmt.Sprintf("- `%s/src/reviewFeed.ts`", clientRepo),
+		fmt.Sprintf("- `%s/src/reviewClient.ts`", clientRepo),
+		fmt.Sprintf("- `%s/src/renderReview.ts`", clientRepo),
+		fmt.Sprintf("- `%s/README.md`", clientRepo),
+		"",
+		"### Target Evidence",
+		"",
+		"~~~typescript",
+		"const payload = await response.json();",
+		"return (payload.items ?? []).map((item: any) => renderReviewCard(item));",
+		"~~~",
+		"",
+		"~~~typescript",
+		"export type Review = {",
+		`  priority: "high" | "medium" | "low";`,
+		"  type: string;",
+		"  rationale: string;",
+		"};",
+		"~~~",
+		"",
+		"### Peer Evidence",
+		"",
+		"~~~yaml",
+		"paths:",
+		"  /reviews:",
+		"    get:",
+		"      responses:",
+		"        '200':",
+		"          content:",
+		"            application/json:",
+		"              schema:",
+		"                properties:",
+		"                  reviews:",
+		"                    type: array",
+		"                    items:",
+		"                      required: [severity, category, rationale]",
+		"~~~",
+		"",
+		"### Feedback",
+		"",
+		"The client was changed to read `payload.items` and render `priority/type`, but the API contract still returns `reviews[]` objects with `severity/category/rationale`. That means the client can silently render fallback values or an empty review list even though `/reviews` is still returning valid data. Align the client back to the published API shape, or update the API contract and backend response in the same change.",
+		"",
+		"### Why This Matters",
+		"",
+		"This is the kind of drift Compair is designed to catch: one repo looks reasonable on its own, but another repo still owns the contract it depends on.",
+		"",
+		"## Try The Live Demo",
+		"",
+		"Run one of these when you want Compair to generate fresh feedback instead of reading the prebaked sample:",
+		"",
+		"~~~bash",
+		"compair demo --mode local",
+		"compair demo --mode cloud",
+		"~~~",
+		"",
+	}, "\n")
 }
 
 func ensureDemoPrereqs() error {

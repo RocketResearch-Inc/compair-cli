@@ -4,7 +4,7 @@ This guide walks through installing, authenticating, and using the Compair CLI.
 
 Repository note: the binary and product name are `compair` / "Compair CLI". In this workspace, the repository directory is `compair-cli`.
 
-Looking for the fastest first run? Start with `compair demo` in the README. Use this guide when you want the full command reference and workflow details.
+Looking for the fastest first run? Start with `compair demo --offline` to see the output shape without Docker, a model key, or a Cloud account. Use this guide when you want the full command reference and workflow details.
 
 ## Install
 
@@ -50,16 +50,39 @@ mv compair /usr/local/bin/
 ## Quick demo
 If you want the fastest end-to-end check, run:
 ```bash
-compair demo
+compair demo --offline
+```
+
+That creates the disposable demo repos, seeds the same client/API drift as the live demo, and renders a prebaked report. It does not start Docker, call OpenAI, or require a Compair Cloud account.
+
+When you want Compair to run a real review, use:
+```bash
+compair demo --mode local
+compair demo --mode cloud
 ```
 
 On an interactive terminal, Compair will ask whether to run:
+- an offline sample with a prebaked report
 - a local Core demo using the managed Docker runtime
 - or a Cloud demo against the current hosted API/profile
 
-The demo creates a disposable workspace with two small repos, tracks them in a dedicated demo group, and runs a real Compair review.
+The live demo creates a disposable workspace with two small repos, tracks them in a dedicated demo group, and runs a real Compair review.
 
 If you want the recommended multi-repo product workflow instead of the disposable demo, follow [cross_repo_workflow.md](cross_repo_workflow.md).
+
+## Help test Compair
+
+Compair CLI is ready for early developer testing.
+
+Feedback is especially useful from developers maintaining:
+
+- backend + frontend repos
+- API + SDK repos
+- CLI + cloud service repos
+- docs + implementation repos
+- multi-repo internal tools
+
+Please open an issue with what worked, what broke, and where the output was confusing. If you can include your repo shape, operating system, install path, and whether you tested `--offline`, local Core, or Cloud, that makes the feedback much easier to act on.
 
 ## Choose the right command
 

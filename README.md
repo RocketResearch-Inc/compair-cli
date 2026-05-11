@@ -39,18 +39,26 @@ The fastest way to see what Compair does:
 
 ```bash
 # 1) Install Compair CLI
-# 2) Run the disposable demo
-compair demo
+# 2) Run the offline sample
+compair demo --offline
 ```
 
-**What the demo does**
+**What the offline demo does**
 
 - creates a disposable workspace
-- tracks two small related repos
-- runs a real Compair review
-- shows the kind of cross-repo issues Compair is built to catch
+- seeds two small related repos with an intentional API/client mismatch
+- renders a prebaked Compair report
+- requires no Docker, OpenAI API key, or Cloud account
 
 **Start here if:** you want the fastest possible first pass before trying Compair on your own repos.
+
+When you want a real review, run:
+
+```bash
+compair demo --mode local
+# or
+compair demo --mode cloud
+```
 
 ## Install
 
@@ -114,8 +122,10 @@ If you want source-based install details or deeper command reference material, s
 Use this if you want to see Compair end-to-end in a disposable workspace.
 
 ```bash
-compair demo
+compair demo --offline
 ```
+
+Use `compair demo --mode local` or `compair demo --mode cloud` when you want fresh generated feedback instead of the prebaked sample.
 
 ### Local / self-hosted
 
@@ -140,9 +150,31 @@ compair login
 
 Cloud is the best default when you want the strongest first impression, the least setup friction, and the best shared team workflow.
 
-**New here? Start with `compair demo`.**
+**New here? Start with `compair demo --offline`.**
 **Evaluating open/local? Start with Local.**
 **Working with teammates right away? Start with Cloud.**
+
+## Help Test Compair
+
+Compair CLI is ready for early developer testing.
+
+The fastest path:
+
+```bash
+compair demo --offline
+```
+
+Then, if you want a real review:
+
+```bash
+compair demo --mode local
+# or
+compair demo --mode cloud
+```
+
+Feedback is especially useful from developers maintaining backend + frontend repos, API + SDK repos, CLI + cloud service repos, docs + implementation repos, or multi-repo internal tools.
+
+Please open an issue with what worked, what broke, and where the output was confusing. Include your OS, install path, and whether you tested offline, local Core, or Cloud when you can.
 
 ## Example
 
