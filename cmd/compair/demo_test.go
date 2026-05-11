@@ -29,13 +29,18 @@ func TestOfflineDemoReportIncludesPrebakedFinding(t *testing.T) {
 		"/tmp/compair-demo-123/demo-client",
 	})
 	want := []string{
-		"Compair Offline Demo Report",
+		"Compair Sync Report",
 		"prebaked report",
-		"demo-api/api/openapi.yaml",
-		"demo-client/src/reviewFeed.ts",
+		"Notification Rationale",
+		"Compared Files",
+		"Target Evidence",
+		"Peer Evidence",
+		"Reference Excerpts",
+		"api/openapi.yaml",
+		"src/reviewFeed.ts",
 		"payload.items",
 		"reviews[]",
-		"severity/category/rationale",
+		"`severity` / `category` / `rationale`",
 		"compair demo --mode local",
 	}
 	for _, snippet := range want {
