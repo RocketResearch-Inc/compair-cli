@@ -82,7 +82,7 @@ nfpms:
       Compair CLI helps developers catch cross-repo drift from the terminal.
       Track related repos together and review changes in the context of the
       backend, frontend, docs, SDKs, and other connected surfaces.
-    license: Apache-2.0
+    license: MIT
     bindir: /usr/bin
     section: utils
     priority: optional
@@ -114,7 +114,7 @@ homebrew_casks:
     url:
       verified: github.com/RocketResearch-Inc/compair-cli/
     caveats: |-
-      Run `compair demo` for the fastest first run.
+      Run `compair demo --offline` for the fastest first run.
     hooks:
       post:
         install: |
@@ -131,7 +131,7 @@ winget:
       Compair CLI helps developers catch cross-repo drift by reviewing a repo in
       the context of the backend, frontend, docs, SDKs, and other repos it
       depends on.
-    license: Apache-2.0
+    license: MIT
     publisher_url: https://compair.sh
     publisher_support_url: https://github.com/RocketResearch-Inc/compair-cli/issues
     package_identifier: RocketResearchInc.Compair

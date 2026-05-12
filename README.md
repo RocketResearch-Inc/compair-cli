@@ -16,22 +16,21 @@ Instead of asking one model call to hold your whole product in working memory, C
 - Review changes in the context of the rest of your product
 - Turn high-confidence findings into CI checks when you're ready
 
+## Install
+
+Choose the path that fits your platform, then run `compair demo --offline` for the fastest first look.
+
+| Platform | Recommended install | Notes |
+| -------- | ------------------- | ----- |
+| macOS | `brew tap RocketResearch-Inc/tap`<br>`brew install --cask compair` | Fastest macOS path. |
+| Debian / Ubuntu | `curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh \| bash` | Installs from the Compair APT repo. |
+| Fedora / RHEL | `curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo \| sudo tee /etc/yum.repos.d/compair.repo >/dev/null`<br>`sudo dnf install -y compair` | Omit `sudo` if you are already root. |
+| Windows | Download the latest zip from [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases), unzip it, then run `.\compair.exe version`. | WinGet is pending upstream approval. |
+| Any | `go build -o compair .` | Best for contributors and local hacking. |
+
+Release archives are published for macOS, Linux, and Windows on the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page. If you want deeper install details or command reference material, see [docs/user_guide.md](docs/user_guide.md).
+
 **Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, with two meaningful bring-your-own-key paths: keep embeddings local and use OpenAI for generation as the lower-outsourced-cost default, or use OpenAI for both generation and embeddings when you want the strongest current self-hosted quality.
-
-## Why This Isn't Just RAG
-
-Traditional RAG is good at answering questions from retrieved snippets. Repo-scoped AI review is good at helping inside one repo or one pull request.
-
-Compair is built for a different problem:
-
-- start from what changed, not from a free-form query
-- search across the other repos that make up the product surface
-- look for contradictions, drift, hidden overlap, and missing downstream updates
-- turn high-confidence findings into notifications and CI gates
-
-This matters because larger context windows do not mean every token is equally weighted, inspected, or analyzed. Important evidence still gets lost when it is buried inside a huge prompt, especially once instructions, history, and output budget are sharing that same window. Compair improves signal by focusing attention on the changed chunk and the most relevant cross-repo evidence instead of asking the model to reason over the whole product at once.
-
-The practical takeaway is simple: Compair wins less by stuffing everything into one prompt and more by repeatedly compressing a large shared code and document surface into a small grounded evidence pack around each change.
 
 ## Care to Compair? Try It In 5 Minutes
 
@@ -60,61 +59,6 @@ compair demo --mode local
 compair demo --mode cloud
 ```
 
-## Install
-
-Choose the path that fits your workflow:
-
-| Platform | Recommended path | Status |
-| -------- | ---------------- | ------ |
-| macOS | Homebrew cask | Live |
-| Linux (Debian/Ubuntu) | APT repo or GitHub Release | Live |
-| Linux (Fedora/RHEL) | RPM repo or GitHub Release | Live |
-| Windows | GitHub Release zip | Live |
-| Windows | WinGet | Pending upstream approval |
-| Any | Build from source | Live |
-
-### Homebrew cask (macOS)
-
-```bash
-brew tap RocketResearch-Inc/tap
-brew install --cask compair
-```
-
-### Linux package repos
-
-Debian / Ubuntu:
-
-```bash
-curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh | bash
-```
-
-Fedora / RHEL:
-
-```bash
-# Omit sudo if you are already root (for example, inside a container).
-curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
-sudo dnf install -y compair
-```
-
-### Download a release
-
-Start from the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page. Release archives are published for macOS, Linux, and Windows.
-
-Windows example:
-
-```powershell
-# Download the latest Windows zip from GitHub Releases, unzip it, then:
-.\compair.exe version
-```
-
-### Build from source
-
-```bash
-go build -o compair .
-```
-
-If you want source-based install details or deeper command reference material, see [docs/user_guide.md](docs/user_guide.md).
-
 ## Choose Your Start
 
 ### Demo
@@ -137,7 +81,15 @@ compair core up
 compair login
 ```
 
-If you stay fully local with the bundled no-key providers, expect functional but simpler summaries than Cloud. For the best lower-outsourced-cost self-hosted start, keep embeddings local and use your own OpenAI key for generation. If you want the strongest current self-hosted review quality, use your own OpenAI key for both generation and embeddings.
+If you stay fully local with the bundled no-key providers, expect functional but simpler summaries than Cloud. For the best lower-outsourced-cost self-hosted start, keep embeddings local and use your own OpenAI key for generation:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"
+compair core restart
+```
+
+If you do not want the key saved in `~/.compair/core_runtime.yaml`, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` in your shell and omit `--openai-api-key`.
 
 ### Cloud
 
@@ -145,10 +97,11 @@ Use this if you want the simplest shared setup.
 
 ```bash
 compair profile use cloud
+compair signup --email you@example.com --name "Your Name"
 compair login
 ```
 
-Cloud is the best default when you want the strongest first impression, the least setup friction, and the best shared team workflow.
+Skip `compair signup` if you already have an account. Cloud is the best default when you want the strongest first impression, the least setup friction, and the best shared team workflow.
 
 **New here? Start with `compair demo --offline`.**
 **Evaluating open/local? Start with Local.**
@@ -300,6 +253,21 @@ If the term `gate` is unfamiliar, treat it as the rule that decides whether CI s
 **Recommended rollout:** start with visibility, then fail only on the highest-confidence issues, then tighten thresholds later.
 
 See [docs/ci_review_examples.md](docs/ci_review_examples.md) for GitHub Actions and GitLab CI examples.
+
+## Why This Isn't Just RAG
+
+Traditional RAG is good at answering questions from retrieved snippets. Repo-scoped AI review is good at helping inside one repo or one pull request.
+
+Compair is built for a different problem:
+
+- start from what changed, not from a free-form query
+- search across the other repos that make up the product surface
+- look for contradictions, drift, hidden overlap, and missing downstream updates
+- turn high-confidence findings into notifications and CI gates
+
+This matters because larger context windows do not mean every token is equally weighted, inspected, or analyzed. Important evidence still gets lost when it is buried inside a huge prompt, especially once instructions, history, and output budget are sharing that same window. Compair improves signal by focusing attention on the changed chunk and the most relevant cross-repo evidence instead of asking the model to reason over the whole product at once.
+
+The practical takeaway is simple: Compair wins less by stuffing everything into one prompt and more by repeatedly compressing a large shared code and document surface into a small grounded evidence pack around each change.
 
 ## Docs
 

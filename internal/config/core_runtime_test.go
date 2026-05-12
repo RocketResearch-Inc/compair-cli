@@ -10,6 +10,14 @@ func TestDefaultCoreRuntimeUsesGPT54Mini(t *testing.T) {
 	}
 }
 
+func TestNormalizeCoreRuntimeMigratesLegacyNanoDefault(t *testing.T) {
+	cfg := normalizeCoreRuntime(&CoreRuntime{OpenAIModel: "gpt-5-nano"})
+
+	if got := cfg.OpenAIModel; got != "gpt-5.4-mini" {
+		t.Fatalf("expected legacy gpt-5-nano default to migrate to gpt-5.4-mini, got %q", got)
+	}
+}
+
 func TestCoreRuntimeResolvedOpenAIBaseURLPrefersSavedConfig(t *testing.T) {
 	t.Setenv("COMPAIR_OPENAI_BASE_URL", "https://env.example/v1")
 	cfg := &CoreRuntime{OpenAIBaseURL: "https://saved.example/v1"}

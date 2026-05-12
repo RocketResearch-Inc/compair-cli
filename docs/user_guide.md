@@ -8,44 +8,15 @@ Looking for the fastest first run? Start with `compair demo --offline` to see th
 
 ## Install
 
-| Platform | Recommended path | Notes |
+| Platform | Recommended command | Notes |
 | --- | --- | --- |
-| macOS | Homebrew cask | Fastest install path today |
-| Debian / Ubuntu | Compair APT repo | Falls back to GitHub Release `.deb` if preferred |
-| Fedora / RHEL | Compair RPM repo | Falls back to GitHub Release `.rpm` if preferred |
-| Windows | GitHub Release zip | WinGet is not broadly available until the upstream package PR merges |
-| Any | Source build | Best for contributors and local hacking |
+| macOS | `brew tap RocketResearch-Inc/tap`<br>`brew install --cask compair` | Fastest macOS path today. |
+| Debian / Ubuntu | `curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh \| bash` | Installs from the Compair APT repo. |
+| Fedora / RHEL | `curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo \| sudo tee /etc/yum.repos.d/compair.repo >/dev/null`<br>`sudo dnf install -y compair` | Omit `sudo` if you are already root. |
+| Windows | Download the latest zip from [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases), unzip it, then run `.\compair.exe version`. | WinGet is pending upstream approval. |
+| Any | `go build -o compair .`<br>`mv compair /usr/local/bin/` | Best for contributors and local hacking. |
 
-### Recommended on macOS
-
-```bash
-brew tap RocketResearch-Inc/tap
-brew install --cask compair
-```
-
-### Recommended on Debian / Ubuntu
-
-```bash
-curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/debian.sh | bash
-```
-
-### Recommended on Fedora / RHEL
-
-```bash
-curl -fsSL https://rocketresearch-inc.github.io/compair-packages/install/compair.repo | sudo tee /etc/yum.repos.d/compair.repo >/dev/null
-sudo dnf install -y compair
-```
-
-### Download a release
-
-Start from the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page for macOS, Linux, and Windows archives.
-
-### Install from source
-```bash
-# From source
-go build -o compair .
-mv compair /usr/local/bin/
-```
+Release archives are published for macOS, Linux, and Windows on the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page.
 
 ## Quick demo
 If you want the fastest end-to-end check, run:
@@ -149,6 +120,16 @@ compair profile set staging --api-base https://staging.compair.local/api
 compair profile use cloud
 ```
 
+Cloud setup is:
+
+```bash
+compair profile use cloud
+compair signup --email you@example.com --name "Your Name"
+compair login
+```
+
+Skip `compair signup` if you already have an account.
+
 Resolution order for the API base: `--api-base` flag → `COMPAIR_API_BASE` → selected profile (or `COMPAIR_PROFILE`) → default profile (`cloud`). Switching profiles clears cached capability info so commands adapt immediately.
 
 When you use the managed local Core runtime, `compair core up` automatically rewrites the `local` profile to match the configured localhost port.
@@ -211,8 +192,13 @@ compair core up
 compair profile use local
 compair login
 
-# Switch the local runtime to use your own OpenAI key
-compair core config set --provider openai --openai-api-key "$OPENAI_API_KEY"
+# Switch the local runtime to OpenAI generation with local embeddings
+export OPENAI_API_KEY="sk-..."
+compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"
+compair core up
+
+# Quality-first option: use OpenAI for both generation and embeddings
+compair core config set --provider openai --openai-model gpt-5.4 --openai-api-key "$OPENAI_API_KEY"
 compair core up
 
 # Run Core with local auth-enabled accounts instead of single-user mode
@@ -237,11 +223,12 @@ compair core down --purge
 
 Notes:
 - `compair core up` runs the published `compairsteven/compair-core` container on the configured localhost port and updates the `local` CLI profile automatically.
-- `--provider openai` sets both generation and embeddings to OpenAI.
+- `--generation-provider openai --embedding-provider local` is the recommended bring-your-own-key starting point.
+- `--provider openai` sets both generation and embeddings to OpenAI for the quality-first path.
 - `--openai-code-model` and `--openai-notif-model` let you tune local Core review generation and notification scoring separately.
 - `--openai-base-url` lets local Core talk to an OpenAI-compatible endpoint instead of the default OpenAI base URL.
 - `--provider fallback` keeps local embeddings but disables model-generated feedback in favor of reference-only fallback behavior.
-- If you prefer to source the key from the shell, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` and omit `--openai-api-key`.
+- If you prefer not to save the key in `~/.compair/core_runtime.yaml`, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` and omit `--openai-api-key`.
 - `compair core doctor` validates Docker, the local profile, container state, the Core `/health` endpoint, and auth-mode alignment.
 
 ## Global options and active group

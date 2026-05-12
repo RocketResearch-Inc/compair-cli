@@ -3,7 +3,7 @@
 Use this path if you want to evaluate Compair locally without creating a cloud account.
 Compair CLI can manage a local Core container for you, so the quickest self-hosted trial is only a few commands.
 
-## Fastest Path: Managed Single-User Core Container
+## Managed Single-User Core Container
 
 The CLI can manage the local Core container for you. This is the intended self-hosted evaluation path.
 
@@ -37,9 +37,10 @@ compair core down
 
 ## Bring Your Own OpenAI Key
 
-Recommended default for `compair demo --mode local`: use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight, avoids outsourced embeddings, and is the best lower-outsourced-cost self-hosted path we have validated so far.
+Recommended default for live local demos (`compair demo --mode local`): use OpenAI for feedback generation and keep embeddings local. That keeps the local setup lightweight, avoids outsourced embeddings, and is the best lower-outsourced-cost self-hosted path we have validated so far.
 
 ```bash
+export OPENAI_API_KEY="sk-..."
 compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key "$OPENAI_API_KEY"
 compair core restart
 ```

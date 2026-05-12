@@ -12,7 +12,7 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 	cfg := &config.CoreRuntime{
 		GenerationProvider:            "openai",
 		EmbeddingProvider:             "openai",
-		OpenAIModel:                   "gpt-5-nano",
+		OpenAIModel:                   "gpt-5.4-mini",
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
@@ -24,7 +24,7 @@ func TestRuntimeConfigMismatchesIncludesReferenceTraceAndTimeouts(t *testing.T) 
 	env := map[string]string{
 		"COMPAIR_GENERATION_PROVIDER":              "openai",
 		"COMPAIR_EMBEDDING_PROVIDER":               "openai",
-		"COMPAIR_OPENAI_MODEL":                     "gpt-5-nano",
+		"COMPAIR_OPENAI_MODEL":                     "gpt-5.4-mini",
 		"COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S":   "30",
 		"COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES": "2",
 	}
@@ -40,7 +40,7 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 	cfg := &config.CoreRuntime{
 		GenerationProvider:            "openai",
 		EmbeddingProvider:             "openai",
-		OpenAIModel:                   "gpt-5-nano",
+		OpenAIModel:                   "gpt-5.4-mini",
 		NotificationScoringTimeoutS:   90,
 		NotificationScoringMaxRetries: 1,
 		ReferenceTrace:                true,
@@ -52,7 +52,7 @@ func TestRuntimeConfigMismatchesAllowsInheritedNotifModelAndMatchingTrace(t *tes
 	env := map[string]string{
 		"COMPAIR_GENERATION_PROVIDER":              "openai",
 		"COMPAIR_EMBEDDING_PROVIDER":               "openai",
-		"COMPAIR_OPENAI_MODEL":                     "gpt-5-nano",
+		"COMPAIR_OPENAI_MODEL":                     "gpt-5.4-mini",
 		"COMPAIR_NOTIFICATION_SCORING_TIMEOUT_S":   "90",
 		"COMPAIR_NOTIFICATION_SCORING_MAX_RETRIES": "1",
 		"COMPAIR_REFERENCE_TRACE":                  "1",

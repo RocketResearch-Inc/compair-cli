@@ -20,14 +20,25 @@ Current launch read:
 ## Quick Start
 
 ```bash
-compair demo
+compair demo --offline
+```
+
+For a real local Core review:
+
+```bash
 compair profile use local
 compair core up
+compair login
+compair demo --mode local
 ```
+
+For Cloud:
 
 ```bash
 compair profile use cloud
+compair signup --email you@example.com --name "Your Name"
 compair login
+compair demo --mode cloud
 ```
 
 ## Docs

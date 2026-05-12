@@ -128,8 +128,11 @@ func normalizeCoreRuntime(cfg *CoreRuntime) *CoreRuntime {
 	cfg.AuthMode = normalizeCoreAuthMode(cfg.AuthMode)
 	cfg.GenerationProvider = normalizeGenerationProvider(cfg.GenerationProvider)
 	cfg.EmbeddingProvider = normalizeEmbeddingProvider(cfg.EmbeddingProvider)
-	if strings.TrimSpace(cfg.OpenAIModel) == "" {
+	openAIModel := strings.TrimSpace(cfg.OpenAIModel)
+	if openAIModel == "" || strings.EqualFold(openAIModel, "gpt-5-nano") {
 		cfg.OpenAIModel = defaultOpenAIModel
+	} else {
+		cfg.OpenAIModel = openAIModel
 	}
 	cfg.OpenAICodeModel = strings.TrimSpace(cfg.OpenAICodeModel)
 	cfg.OpenAINotifModel = strings.TrimSpace(cfg.OpenAINotifModel)

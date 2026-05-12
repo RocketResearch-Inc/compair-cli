@@ -242,7 +242,7 @@ var coreDoctorCmd = &cobra.Command{
 
 		if cfg.UsesOpenAI() {
 			if strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) == "" {
-				coreDoctorFail(&report, &summary, emit, "OpenAI API key", "missing", "Run 'compair core config set --provider openai --openai-api-key <key>' or set COMPAIR_OPENAI_API_KEY.")
+				coreDoctorFail(&report, &summary, emit, "OpenAI API key", "missing", "Run 'compair core config set --generation-provider openai --embedding-provider local --openai-api-key <key>' or set COMPAIR_OPENAI_API_KEY.")
 			} else {
 				coreDoctorOK(&report, emit, "OpenAI API key", "present")
 			}
@@ -1067,7 +1067,7 @@ func runCoreUp() error {
 		return err
 	}
 	if cfg.UsesOpenAI() && strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) == "" {
-		return fmt.Errorf("OpenAI mode is configured but no API key is available; run 'compair core config set --provider openai --openai-api-key <key>' or set COMPAIR_OPENAI_API_KEY")
+		return fmt.Errorf("OpenAI mode is configured but no API key is available; run 'compair core config set --generation-provider openai --embedding-provider local --openai-api-key <key>' or set COMPAIR_OPENAI_API_KEY")
 	}
 	if cfg.GenerationProvider == "http" && strings.TrimSpace(cfg.GenerationEndpoint) == "" {
 		return fmt.Errorf("generation provider 'http' requires a configured generation endpoint")
@@ -1175,7 +1175,7 @@ func runCoreUp() error {
 		fmt.Println()
 		fmt.Println("Note: the bundled no-key local providers are functional, but review quality is lower-fidelity than Cloud.")
 		if strings.TrimSpace(cfg.ResolvedOpenAIAPIKey()) != "" {
-			fmt.Println("For stronger local review quality, switch Core to your OpenAI-backed setup with 'compair core config set --provider openai --openai-model gpt-5.4' or 'compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini', then run 'compair core restart'.")
+			fmt.Println("For stronger local review quality, switch Core to OpenAI generation with 'compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini'. Use '--provider openai --openai-model gpt-5.4' only when you want OpenAI for both generation and embeddings.")
 		} else {
 			fmt.Println("For stronger local review quality, configure your own OpenAI key with 'compair core config set --generation-provider openai --embedding-provider local --openai-model gpt-5.4-mini --openai-api-key <key>' and then run 'compair core restart'.")
 		}

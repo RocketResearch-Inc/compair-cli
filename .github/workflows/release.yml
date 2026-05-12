@@ -15,6 +15,11 @@ jobs:
       LINUX_REPO_GPG_PRIVATE_KEY: ${{ secrets.LINUX_REPO_GPG_PRIVATE_KEY }}
       LINUX_REPO_GPG_PASSPHRASE: ${{ secrets.LINUX_REPO_GPG_PASSPHRASE }}
       WINGET_PUBLISH_ENABLED: ${{ vars.WINGET_PUBLISH_ENABLED || 'false' }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -33,6 +38,76 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ env.WINGET_PUBLISH_ENABLED == 'true' && secrets.WINGET_GITHUB_TOKEN || '' }}
+      - name: Upload CLI artifacts to R2
+        run: |
+          set -euo pipefail
+
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ] || [ -z "$R2_ENDPOINT" ] || [ -z "$R2_BUCKET" ]; then
+            echo "R2 secrets not set; skipping upload." >&2
+            exit 0
+          fi
+
+          python -m pip install --upgrade awscli
+
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="auto"
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION_PREFIX="compair-cli/${VERSION}"
+          LATEST_PREFIX="compair-cli/latest"
+          LATEST_CHECKSUMS="$RUNNER_TEMP/compair-cli-latest-checksums.txt"
+          : > "$LATEST_CHECKSUMS"
+
+          content_type() {
+            case "$1" in
+              *.tar.gz) printf 'application/gzip' ;;
+              *.zip) printf 'application/zip' ;;
+              *.deb) printf 'application/vnd.debian.binary-package' ;;
+              *.rpm) printf 'application/x-rpm' ;;
+              *.txt) printf 'text/plain; charset=utf-8' ;;
+              *) printf 'application/octet-stream' ;;
+            esac
+          }
+
+          upload_file() {
+            local file=$1
+            local key=$2
+            local cache_control=$3
+            aws --endpoint-url "$R2_ENDPOINT" s3 cp "$file" "s3://$R2_BUCKET/$key" \
+              --content-type "$(content_type "$file")" \
+              --cache-control "$cache_control"
+            if [ -n "$R2_PUBLIC_BASE_URL" ]; then
+              echo "Uploaded: $R2_PUBLIC_BASE_URL/$key"
+            fi
+          }
+
+          upload_latest() {
+            local file=$1
+            local name=$2
+            if [ ! -f "$file" ]; then
+              echo "Expected CLI artifact missing: $file" >&2
+              exit 1
+            fi
+            upload_file "$file" "$LATEST_PREFIX/$name" "public, max-age=3600"
+            sha256sum "$file" | awk -v name="$name" '{ print $1 "  " name }' >> "$LATEST_CHECKSUMS"
+          }
+
+          find dist -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do
+            upload_file "$file" "$VERSION_PREFIX/$(basename "$file")" "public, max-age=31536000, immutable"
+          done
+
+          upload_latest "dist/compair_${VERSION}_darwin_arm64.tar.gz" "compair-cli-latest-macos-arm64.tar.gz"
+          upload_latest "dist/compair_${VERSION}_darwin_amd64.tar.gz" "compair-cli-latest-macos-amd64.tar.gz"
+          upload_latest "dist/compair_${VERSION}_windows_amd64.zip" "compair-cli-latest-windows-amd64.zip"
+          upload_latest "dist/compair_${VERSION}_windows_arm64.zip" "compair-cli-latest-windows-arm64.zip"
+          upload_latest "dist/compair_${VERSION}_linux_amd64.tar.gz" "compair-cli-latest-linux-amd64.tar.gz"
+          upload_latest "dist/compair_${VERSION}_linux_arm64.tar.gz" "compair-cli-latest-linux-arm64.tar.gz"
+          upload_latest "dist/compair_${VERSION}_linux_amd64.deb" "compair-cli-latest-linux-amd64.deb"
+          upload_latest "dist/compair_${VERSION}_linux_arm64.deb" "compair-cli-latest-linux-arm64.deb"
+          upload_latest "dist/compair_${VERSION}_linux_amd64.rpm" "compair-cli-latest-linux-amd64.rpm"
+          upload_latest "dist/compair_${VERSION}_linux_arm64.rpm" "compair-cli-latest-linux-arm64.rpm"
+          upload_file "$LATEST_CHECKSUMS" "$LATEST_PREFIX/checksums.txt" "public, max-age=3600"
       - name: Install Linux repo tooling
         if: ${{ env.LINUX_PACKAGES_GITHUB_TOKEN != '' && env.LINUX_REPO_GPG_PRIVATE_KEY != '' && env.LINUX_REPO_GPG_PASSPHRASE != '' }}
         run: |
