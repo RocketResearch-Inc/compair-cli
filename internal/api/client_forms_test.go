@@ -253,3 +253,88 @@ func TestReviewNowPostsJSONPayload(t *testing.T) {
 		t.Fatalf("expected meta.model gpt-5.4, got %#v", got)
 	}
 }
+
+func TestReviewNowQuotePostsJSONPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/review_now/quote" {
+			t.Fatalf("expected /review_now/quote, got %s", r.URL.Path)
+		}
+		var payload ReviewNowOptions
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if payload.GroupID != "grp_123" {
+			t.Fatalf("expected group_id grp_123, got %q", payload.GroupID)
+		}
+		if payload.MaxFindings != 8 {
+			t.Fatalf("expected max_findings 8, got %d", payload.MaxFindings)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"group_id":"grp_123",
+			"group_name":"demo",
+			"document_ids":["doc_1","doc_2"],
+			"meta":{
+				"model":"gpt-5.4",
+				"prompt_estimated_tokens":4200,
+				"max_output_tokens":2200,
+				"cost_estimate_usd":{"total_cost_usd":0.0325}
+			}
+		}`)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.http = server.Client()
+
+	resp, err := client.ReviewNowQuote(ReviewNowOptions{
+		GroupID:     "grp_123",
+		DocumentIDs: []string{"doc_1", "doc_2"},
+		MaxFindings: 8,
+		Model:       "gpt-5.4",
+	})
+	if err != nil {
+		t.Fatalf("ReviewNowQuote returned error: %v", err)
+	}
+	if resp.GroupName != "demo" {
+		t.Fatalf("expected group name demo, got %q", resp.GroupName)
+	}
+	if got := resp.Meta["prompt_estimated_tokens"]; got != float64(4200) {
+		t.Fatalf("expected prompt_estimated_tokens 4200, got %#v", got)
+	}
+}
+
+func TestReviewNowCreditCheckoutPostsJSONPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/review_now/credits/checkout" {
+			t.Fatalf("expected /review_now/credits/checkout, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"url":"https://checkout.stripe.test/session",
+			"credit_pack_cents":1000,
+			"currency":"usd"
+		}`)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.http = server.Client()
+
+	resp, err := client.CreateReviewNowCreditCheckout()
+	if err != nil {
+		t.Fatalf("CreateReviewNowCreditCheckout returned error: %v", err)
+	}
+	if resp.URL != "https://checkout.stripe.test/session" {
+		t.Fatalf("expected checkout URL, got %q", resp.URL)
+	}
+	if resp.CreditPackCents != 1000 {
+		t.Fatalf("expected credit pack cents 1000, got %d", resp.CreditPackCents)
+	}
+}

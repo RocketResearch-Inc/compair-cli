@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,24 +100,208 @@ func resolveNowDocumentIDs(args []string, groupID string) ([]string, error) {
 	return out, nil
 }
 
-func confirmNowReview(groupID string, documentIDs []string) error {
-	if reviewNowYes {
+func nowQuoteString(meta map[string]interface{}, key string) string {
+	if meta == nil {
+		return ""
+	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func nowQuoteInt(meta map[string]interface{}, key string) (int, bool) {
+	if meta == nil {
+		return 0, false
+	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return 0, false
+	}
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(v))
+		return i, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func nowQuoteBool(meta map[string]interface{}, key string) bool {
+	if meta == nil {
+		return false
+	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	default:
+		return false
+	}
+}
+
+func nowQuoteMap(meta map[string]interface{}, key string) map[string]interface{} {
+	if meta == nil {
 		return nil
 	}
+	value, ok := meta[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch v := value.(type) {
+	case map[string]interface{}:
+		return v
+	default:
+		return nil
+	}
+}
+
+func nowQuoteCost(meta map[string]interface{}) (float64, bool) {
+	if meta == nil {
+		return 0, false
+	}
+	raw, ok := meta["cost_estimate_usd"]
+	if !ok || raw == nil {
+		return 0, false
+	}
+	cost, ok := raw.(map[string]interface{})
+	if !ok {
+		return 0, false
+	}
+	total, ok := cost["total_cost_usd"]
+	if !ok || total == nil {
+		return 0, false
+	}
+	switch v := total.(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func nowQuoteCanRun(meta map[string]interface{}) (bool, string) {
+	billing := nowQuoteMap(meta, "billing")
+	if billing == nil {
+		return true, ""
+	}
+	if raw, ok := billing["can_run"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			if !v {
+				return false, nowQuoteString(billing, "blocking_reason")
+			}
+			return true, ""
+		case string:
+			parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+			if err == nil && !parsed {
+				return false, nowQuoteString(billing, "blocking_reason")
+			}
+		}
+	}
+	return true, ""
+}
+
+func formatNowTokens(value int, estimated bool) string {
+	suffix := ""
+	if estimated {
+		suffix = " estimated"
+	}
+	return fmt.Sprintf("%d%s", value, suffix)
+}
+
+func printNowReviewQuote(groupID string, documentIDs []string, quote *api.ReviewNowQuoteResp) {
 	docScope := "the active group's accessible documents"
 	if len(documentIDs) > 0 {
 		docScope = fmt.Sprintf("%d targeted document(s)", len(documentIDs))
 	}
-	warn := fmt.Sprintf(
-		"This will upload current changes without generating the normal per-chunk feedback, then run a one-shot `review --now` against %s in group `%s` using the configured OpenAI-compatible model server.",
-		docScope,
-		groupID,
-	)
-	if reviewNowSkipIndex {
-		warn += "\nIndex refresh will be skipped for this run, so standard indexed retrieval for these documents may remain stale until you run a normal sync/review later."
+
+	meta := map[string]interface{}{}
+	if quote != nil && quote.Meta != nil {
+		meta = quote.Meta
 	}
-	warn += "\nThis may be slow and expensive.\nContinue? [y/N]: "
-	fmt.Fprint(os.Stderr, warn)
+	model := nowQuoteString(meta, "model")
+	if model == "" {
+		model = "configured default"
+	}
+	docCount, ok := nowQuoteInt(meta, "document_count")
+	if !ok {
+		docCount = len(documentIDs)
+	}
+	promptTokens, promptOK := nowQuoteInt(meta, "prompt_estimated_tokens")
+	maxOutputTokens, outputOK := nowQuoteInt(meta, "max_output_tokens")
+	tokenMethod := nowQuoteString(meta, "prompt_token_count_method")
+	if tokenMethod == "" {
+		tokenMethod = "unknown"
+	}
+
+	fmt.Fprintf(os.Stderr, "Compair review --now quote\n")
+	fmt.Fprintf(os.Stderr, "  Scope: %s in group `%s`\n", docScope, groupID)
+	fmt.Fprintf(os.Stderr, "  Model: %s\n", model)
+	if docCount > 0 {
+		fmt.Fprintf(os.Stderr, "  Documents: %d\n", docCount)
+	}
+	if promptOK {
+		fmt.Fprintf(os.Stderr, "  Prompt tokens: %s (%s)\n", formatNowTokens(promptTokens, nowQuoteBool(meta, "prompt_tokens_estimated")), tokenMethod)
+	}
+	if outputOK {
+		fmt.Fprintf(os.Stderr, "  Output token budget: %d\n", maxOutputTokens)
+	}
+	if cost, ok := nowQuoteCost(meta); ok {
+		fmt.Fprintf(os.Stderr, "  Estimated maximum model cost: $%.6f\n", cost)
+	} else {
+		fmt.Fprintf(os.Stderr, "  Estimated maximum model cost: unavailable; configure now-review pricing rates on the Core server to display this.\n")
+	}
+	if billing := nowQuoteMap(meta, "billing"); billing != nil {
+		if balance, ok := nowQuoteInt(billing, "balance_cents"); ok {
+			fmt.Fprintf(os.Stderr, "  Cloud credit balance: $%.2f\n", float64(balance)/100.0)
+		}
+		if estimated, ok := nowQuoteInt(billing, "estimated_cost_cents"); ok {
+			fmt.Fprintf(os.Stderr, "  Cloud credit hold: $%.2f max\n", float64(estimated)/100.0)
+		}
+		if canRun, reason := nowQuoteCanRun(meta); !canRun {
+			if reason == "" {
+				reason = "not allowed"
+			}
+			fmt.Fprintf(os.Stderr, "  Cloud credit status: blocked (%s)\n", reason)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "  Final provider usage will be included in the generated report when the model returns it.\n")
+	if reviewNowSkipIndex {
+		fmt.Fprintf(os.Stderr, "  Note: index refresh was skipped, so standard indexed retrieval may remain stale until a normal sync/review later.\n")
+	}
+}
+
+func confirmNowReview(groupID string, documentIDs []string, quote *api.ReviewNowQuoteResp) error {
+	printNowReviewQuote(groupID, documentIDs, quote)
+	if reviewNowYes {
+		fmt.Fprintln(os.Stderr, "Continuing because --yes was set.")
+		return nil
+	}
+	fmt.Fprint(os.Stderr, "Run the one-shot model review now? [y/N]: ")
 	in := bufio.NewReader(os.Stdin)
 	line, _ := in.ReadString('\n')
 	choice := strings.TrimSpace(strings.ToLower(line))
@@ -176,13 +361,6 @@ func runNowReview(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	documentIDs, err := resolveNowDocumentIDs(args, groupID)
-	if err != nil {
-		return err
-	}
-	if err := confirmNowReview(groupID, documentIDs); err != nil {
-		return err
-	}
 
 	reportPath := writeMD
 	if reportPath == "" {
@@ -202,13 +380,45 @@ func runNowReview(cmd *cobra.Command, args []string) error {
 	}); err != nil {
 		return err
 	}
+	documentIDs, err := resolveNowDocumentIDs(args, groupID)
+	if err != nil {
+		return err
+	}
 
-	resp, err := client.ReviewNow(api.ReviewNowOptions{
+	nowOpts := api.ReviewNowOptions{
 		GroupID:     groupID,
 		DocumentIDs: documentIDs,
 		MaxFindings: reviewNowMaxFindings,
 		Model:       strings.TrimSpace(reviewNowModel),
-	})
+	}
+	quote, err := client.ReviewNowQuote(nowOpts)
+	if err != nil {
+		return fmt.Errorf("could not fetch review --now quote: %w", err)
+	}
+	if quoteID := nowQuoteString(quote.Meta, "quote_id"); quoteID != "" {
+		nowOpts.QuoteID = quoteID
+	}
+	if canRun, reason := nowQuoteCanRun(quote.Meta); !canRun {
+		printNowReviewQuote(groupID, documentIDs, &quote)
+		if reason == "insufficient_credits" {
+			checkout, checkoutErr := client.CreateReviewNowCreditCheckout()
+			if checkoutErr == nil && strings.TrimSpace(checkout.URL) != "" {
+				return fmt.Errorf("review --now needs prepaid Cloud credits for this quote. Buy credits here: %s", strings.TrimSpace(checkout.URL))
+			}
+			if checkoutErr != nil {
+				return fmt.Errorf("review --now needs prepaid Cloud credits for this quote, but checkout could not be created: %w", checkoutErr)
+			}
+		}
+		if reason == "" {
+			reason = "not allowed"
+		}
+		return fmt.Errorf("review --now quote is blocked: %s", reason)
+	}
+	if err := confirmNowReview(groupID, documentIDs, &quote); err != nil {
+		return err
+	}
+
+	resp, err := client.ReviewNow(nowOpts)
 	if err != nil {
 		return err
 	}

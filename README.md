@@ -205,7 +205,7 @@ After the first run:
 - Use `review --detach` when you want the same workflow without blocking your terminal
 - Use `wait --timeout 20m` when a large baseline needs more time without resubmitting
 - Use `review --pairwise` when you want a slower, higher-coverage repo-pair pass; `--cross-repo-only` skips same-repo pairs
-- Use `review --now` when you want one whole-bundle LLM pass over the current tracked repo set instead of the normal per-chunk retrieval path
+- Use `review --now` when you want one whole-bundle LLM pass over the current tracked repo set instead of the normal per-chunk retrieval path; the CLI prints a token/cost quote before the model call, and Cloud runs require prepaid credits once that feature is enabled
 - Use `review --now --skip-index` when you want that bundle review faster and can tolerate the indexed retrieval state staying stale until a later full sync/review
 - Use repo-local `.compairignore` files to trim large generated artifacts before a full-suite baseline
 - Treat `sync` as the advanced/CI control surface rather than the default daily command

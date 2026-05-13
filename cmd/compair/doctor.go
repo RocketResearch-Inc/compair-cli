@@ -175,9 +175,16 @@ var doctorCmd = &cobra.Command{
 		} else if sessionErr != nil {
 			doctorWarn(&report, &summary, emit, "Repo document", repo.DocumentID, "Auth is unavailable, so the server binding could not be verified.")
 		} else {
-			doc, err := client.GetDocumentByID(repo.DocumentID)
+			doc, err := client.GetDocumentMetadataByID(repo.DocumentID)
 			if err != nil {
-				doctorFail(&report, &summary, emit, "Repo document", repo.DocumentID, "The server could not load this document. Re-run 'compair track --group <current-group-id>' to repair the binding.")
+				errText := strings.ToLower(err.Error())
+				if strings.Contains(errText, "document not found") {
+					doctorFail(&report, &summary, emit, "Repo document", repo.DocumentID, "The server reports this document no longer exists. Re-run 'compair track --group <current-group-id>' to repair the binding.")
+				} else if strings.Contains(errText, "not found") {
+					doctorWarn(&report, &summary, emit, "Repo document metadata", "not exposed by this server", "Upgrade the backend to safely verify large repo document bindings, or use 'compair pull'/'compair wait' for current sync state.")
+				} else {
+					doctorFail(&report, &summary, emit, "Repo document metadata", repo.DocumentID, "The server could not verify this document without loading full content. Retry after the API is healthy; if it persists, re-run 'compair track --group <current-group-id>'.")
+				}
 			} else {
 				doctorOK(&report, emit, "Repo document", fmt.Sprintf("%s (%s)", repo.DocumentID, doc.Title))
 				if doc.DocType != "" && doc.DocType != "code-repo" {

@@ -65,12 +65,12 @@ func (c *Client) clientForPath(path string) *http.Client {
 	if c == nil || c.http == nil {
 		return &http.Client{Timeout: defaultHTTPTimeout}
 	}
-	if path != "/process_doc" && path != "/review_now" {
+	if path != "/process_doc" && path != "/review_now" && path != "/review_now/quote" {
 		return c.http
 	}
 	clone := *c.http
 	timeout := processDocHTTPTimeout()
-	if path == "/review_now" {
+	if path == "/review_now" || path == "/review_now/quote" {
 		timeout = reviewNowHTTPTimeout()
 	}
 	if clone.Timeout <= 0 || clone.Timeout < timeout {

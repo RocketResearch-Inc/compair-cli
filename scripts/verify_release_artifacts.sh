@@ -21,6 +21,7 @@ need_cmd sha256sum
 need_cmd dpkg-deb
 need_cmd rpm
 need_cmd grep
+need_cmd git
 
 shopt -s nullglob
 
@@ -82,6 +83,14 @@ select_host_archive() {
   printf '%s\n' "$1"
 }
 
+smoke_test_host_binary() {
+  local label=$1
+  local bin=$2
+  echo "Smoke testing $label binary"
+  "$bin" version >/dev/null
+  "$bin" demo --offline >/dev/null
+}
+
 echo "Verifying release checksums"
 (
   cd "$DIST_DIR"
@@ -102,8 +111,7 @@ if [[ -z "$linux_bin" ]]; then
   exit 1
 fi
 if [[ "$host_os" == "linux" ]]; then
-  echo "Smoke testing Linux binary"
-  "$linux_bin" version >/dev/null
+  smoke_test_host_binary "Linux" "$linux_bin"
 fi
 
 echo "Checking Darwin archive structure"
@@ -120,8 +128,7 @@ if [[ -z "$darwin_bin" ]]; then
   exit 1
 fi
 if [[ "$host_os" == "darwin" ]]; then
-  echo "Smoke testing Darwin binary"
-  "$darwin_bin" version >/dev/null
+  smoke_test_host_binary "Darwin" "$darwin_bin"
 fi
 
 echo "Checking Windows archive structure"

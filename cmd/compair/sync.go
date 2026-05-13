@@ -876,7 +876,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 		sort.Strings(ids)
 		notificationIndex := buildNotificationIndex(client, group)
 		for _, docID := range ids {
-			doc, _ := client.GetDocumentByID(docID)
+			doc, _ := client.GetDocumentMetadataByID(docID)
 			title := strings.TrimSpace(doc.Title)
 			if title == "" {
 				title = "(untitled)"
@@ -3457,7 +3457,7 @@ func ensureRepoDocumentPublished(client *api.Client, docID, root string) {
 	if strings.TrimSpace(docID) == "" {
 		return
 	}
-	doc, err := client.GetDocumentByID(docID)
+	doc, err := client.GetDocumentMetadataByID(docID)
 	if err != nil || doc.IsPublished {
 		return
 	}

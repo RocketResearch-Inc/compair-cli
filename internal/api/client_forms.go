@@ -476,6 +476,7 @@ type ReviewNowOptions struct {
 	DocumentIDs []string `json:"document_ids,omitempty"`
 	MaxFindings int      `json:"max_findings,omitempty"`
 	Model       string   `json:"model,omitempty"`
+	QuoteID     string   `json:"quote_id,omitempty"`
 }
 
 type ReviewNowFinding struct {
@@ -501,6 +502,28 @@ type ReviewNowResp struct {
 	Markdown    string                 `json:"markdown"`
 	Findings    []ReviewNowFinding     `json:"findings"`
 	Meta        map[string]interface{} `json:"meta"`
+}
+
+type ReviewNowQuoteResp struct {
+	GroupID     string                 `json:"group_id"`
+	GroupName   string                 `json:"group_name"`
+	DocumentIDs []string               `json:"document_ids"`
+	Meta        map[string]interface{} `json:"meta"`
+}
+
+type ReviewNowCreditsResp struct {
+	BalanceCents    int    `json:"balance_cents"`
+	Currency        string `json:"currency"`
+	CreditUnit      string `json:"credit_unit"`
+	CreditPackCents int    `json:"credit_pack_cents"`
+	CheckoutEnabled bool   `json:"checkout_enabled"`
+	MaxQuoteCents   int    `json:"max_quote_cents"`
+}
+
+type ReviewNowCreditCheckoutResp struct {
+	URL             string `json:"url"`
+	CreditPackCents int    `json:"credit_pack_cents"`
+	Currency        string `json:"currency"`
 }
 
 type ProcessDocOptions struct {
@@ -559,6 +582,36 @@ func (c *Client) ReviewNow(opts ReviewNowOptions) (ReviewNowResp, error) {
 		opts.MaxFindings = 12
 	}
 	if err := c.post("/review_now", opts, &out); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+func (c *Client) ReviewNowQuote(opts ReviewNowOptions) (ReviewNowQuoteResp, error) {
+	var out ReviewNowQuoteResp
+	if strings.TrimSpace(opts.GroupID) == "" {
+		return out, fmt.Errorf("group id is required")
+	}
+	if opts.MaxFindings <= 0 {
+		opts.MaxFindings = 12
+	}
+	if err := c.post("/review_now/quote", opts, &out); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+func (c *Client) LoadReviewNowCredits() (ReviewNowCreditsResp, error) {
+	var out ReviewNowCreditsResp
+	if err := c.get("/review_now/credits", &out); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateReviewNowCreditCheckout() (ReviewNowCreditCheckoutResp, error) {
+	var out ReviewNowCreditCheckoutResp
+	if err := c.post("/review_now/credits/checkout", map[string]string{}, &out); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -670,6 +723,21 @@ func (c *Client) GetDocumentByID(docID string) (Document, error) {
 	var out Document
 	if err := c.get("/load_document_by_id?document_id="+url.QueryEscape(docID), &out); err != nil {
 		return Document{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetDocumentMetadataByID(docID string) (Document, error) {
+	docID = strings.TrimSpace(docID)
+	if docID == "" {
+		return Document{}, fmt.Errorf("document id is required")
+	}
+	var out Document
+	if err := c.get("/documents/"+url.PathEscape(docID)+"/metadata", &out); err != nil {
+		return Document{}, err
+	}
+	if strings.TrimSpace(out.DocumentID) == "" {
+		return Document{}, fmt.Errorf("document metadata returned no document_id")
 	}
 	return out, nil
 }

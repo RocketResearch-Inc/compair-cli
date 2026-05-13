@@ -21,6 +21,11 @@ jobs:
         run: go test ./...
       - name: Vet
         run: go vet ./...
+      - name: GoReleaser config check
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
       - name: GoReleaser snapshot build
         uses: goreleaser/goreleaser-action@v6
         with:
