@@ -2217,6 +2217,20 @@ func isPendingStatusWithoutProgress(st api.TaskStatus) bool {
 		len(extractChunkTaskIDsFromStatus(st)) == 0
 }
 
+func displayTaskStatus(st api.TaskStatus, err error) string {
+	status := strings.TrimSpace(st.Status)
+	if status != "" {
+		return status
+	}
+	if err != nil {
+		msg := strings.TrimSpace(err.Error())
+		if msg != "" {
+			return "unknown (" + msg + ")"
+		}
+	}
+	return "unknown"
+}
+
 func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
 	cutoff := processProgressStaleAfter()
 	if cutoff <= 0 {
@@ -2714,17 +2728,18 @@ func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group s
 		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
 			st, err = client.GetTaskStatus(repo.PendingTaskID)
 			if err != nil || strings.ToUpper(strings.TrimSpace(st.Status)) != "SUCCESS" {
-				status := strings.TrimSpace(st.Status)
-				if status == "" {
-					status = "unknown"
-				}
-				return fmt.Errorf(
-					"pending initial sync for %s is stale (%s old; cutoff %s; server status %s); rerun the baseline sync for that repo before generating feedback",
+				status := displayTaskStatus(st, err)
+				clearPendingRepoTask(item.Root, cfg, repo)
+				printer.Warn(fmt.Sprintf(
+					"[%d/%d] Cleared stale pending initial sync for %s (%s old; cutoff %s; server status %s). The next review will resubmit current content.",
+					idx+1,
+					len(pending),
 					item.Label,
 					humanDuration(age),
 					humanDuration(cutoff),
 					status,
-				)
+				))
+				continue
 			}
 			printer.Info(fmt.Sprintf("[%d/%d] Pending initial sync for %s already completed on the server; finalizing local sync state", idx+1, len(pending), item.Label))
 		} else {
@@ -2806,17 +2821,18 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 			status := strings.ToUpper(strings.TrimSpace(st.Status))
 			recoverable := status == "SUCCESS" || ((status == "PROGRESS" || status == "STARTED") && len(extractChunkTaskIDsFromStatus(st)) > 0)
 			if err != nil || !recoverable {
-				displayStatus := strings.TrimSpace(st.Status)
-				if displayStatus == "" {
-					displayStatus = "unknown"
-				}
-				return completed, fmt.Errorf(
-					"saved processing task for %s is stale (%s old; cutoff %s; server status %s); rerun 'compair review' or 'compair review --detach' to resubmit current changes",
+				displayStatus := displayTaskStatus(st, err)
+				clearPendingRepoTask(item.Root, cfg, repo)
+				printer.Warn(fmt.Sprintf(
+					"[%d/%d] Cleared stale saved task for %s (%s old; cutoff %s; server status %s). Rerun 'compair review' to resubmit current changes.",
+					idx+1,
+					len(pending),
 					item.Label,
 					humanDuration(age),
 					humanDuration(cutoff),
 					displayStatus,
-				)
+				))
+				continue
 			}
 			printer.Info(fmt.Sprintf("[%d/%d] Saved processing task for %s is stale locally but recoverable from server status %s", idx+1, len(pending), item.Label, st.Status))
 		} else {
