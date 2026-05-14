@@ -83,6 +83,29 @@ func TestFormatTaskProgressLineIncludesDetailAndETA(t *testing.T) {
 	}
 }
 
+func TestFormatTaskProgressLineLabelsBarePendingAsQueued(t *testing.T) {
+	st := api.TaskStatus{Status: "PENDING"}
+	line := formatTaskProgressLine(1, 1, "Still processing", "example/repo", st, 20*time.Second)
+	if !strings.Contains(line, "queued on server; waiting for worker progress") {
+		t.Fatalf("expected pending queue detail in progress line, got %q", line)
+	}
+}
+
+func TestPendingStatusStaleAfterCanBeDisabled(t *testing.T) {
+	oldEnv := os.Getenv("COMPAIR_PENDING_STATUS_STALE_AFTER_SEC")
+	t.Cleanup(func() {
+		if oldEnv == "" {
+			_ = os.Unsetenv("COMPAIR_PENDING_STATUS_STALE_AFTER_SEC")
+		} else {
+			_ = os.Setenv("COMPAIR_PENDING_STATUS_STALE_AFTER_SEC", oldEnv)
+		}
+	})
+	_ = os.Setenv("COMPAIR_PENDING_STATUS_STALE_AFTER_SEC", "0")
+	if got := pendingStatusStaleAfter(); got != 0 {
+		t.Fatalf("expected disabled pending cutoff, got %s", got)
+	}
+}
+
 func TestIsTaskProgressStaleUsesLastProgressAt(t *testing.T) {
 	oldEnv := os.Getenv("COMPAIR_PROCESS_PROGRESS_STALE_AFTER_SEC")
 	t.Cleanup(func() {

@@ -386,12 +386,21 @@ Before you reach for blunt caps, prefer trimming obviously low-signal tracked
 files with a repo-local `.compairignore`. This keeps the review surface closer
 to the product-surface scale that Compair handles best.
 
+Ask the CLI for a conservative starter list:
+
+```bash
+compair ignore suggest
+compair ignore suggest --all
+compair ignore suggest --write
+```
+
 Example `.compairignore`:
 
 ```text
 package-lock.json
 scripts/*
 docs/third-party-notices*
+generated-sdk/docs/
 ```
 
 Use `.compairignore` for things like:
@@ -402,7 +411,9 @@ Use `.compairignore` for things like:
 - third-party notice bundles
 
 Keep the patterns simple. `.compairignore` is not full `.gitignore` syntax; it
-does straightforward basename and repo-relative glob matching.
+does straightforward basename and repo-relative glob matching. A trailing slash
+acts as a directory-prefix rule, so `generated-sdk/docs/` ignores everything
+under that repo-relative directory.
 
 What tends to produce the strongest cross-repo signal:
 

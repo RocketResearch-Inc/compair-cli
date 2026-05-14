@@ -2186,6 +2186,37 @@ func processProgressStaleAfter() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+func pendingStatusStaleAfter() time.Duration {
+	const defaultCutoff = 5 * time.Minute
+	raw := strings.TrimSpace(os.Getenv("COMPAIR_PENDING_STATUS_STALE_AFTER_SEC"))
+	if raw == "" {
+		return defaultCutoff
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultCutoff
+	}
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func isPendingStatusWithoutProgress(st api.TaskStatus) bool {
+	if strings.ToUpper(strings.TrimSpace(st.Status)) != "PENDING" {
+		return false
+	}
+	progress := parseTaskProgressMeta(st)
+	return progress.Stage == "" &&
+		progress.Message == "" &&
+		progress.TotalChunks == 0 &&
+		progress.NewChunksTotal == 0 &&
+		progress.IndexedChunksTotal == 0 &&
+		progress.FeedbackChunksTotal == 0 &&
+		len(progress.ChunkTaskIDs) == 0 &&
+		len(extractChunkTaskIDsFromStatus(st)) == 0
+}
+
 func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
 	cutoff := processProgressStaleAfter()
 	if cutoff <= 0 {
@@ -2283,6 +2314,9 @@ func taskProgressRemaining(progress taskProgressMeta, elapsed time.Duration) tim
 func formatTaskProgressLine(index int, total int, action string, label string, st api.TaskStatus, elapsed time.Duration) string {
 	progress := parseTaskProgressMeta(st)
 	detail := taskProgressSummary(progress)
+	if detail == "" && isPendingStatusWithoutProgress(st) {
+		detail = "queued on server; waiting for worker progress"
+	}
 	remaining := taskProgressRemaining(progress, elapsed)
 	if detail != "" {
 		if remaining > 0 {
@@ -2323,6 +2357,15 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 			return st, false, nil
 		}
 		progress := parseTaskProgressMeta(st)
+		if isPendingStatusWithoutProgress(st) {
+			if cutoff := pendingStatusStaleAfter(); cutoff > 0 && time.Since(startedAt) >= cutoff {
+				return st, false, fmt.Errorf(
+					"processing task %s is still PENDING after %s with no worker progress; this usually means the worker has not consumed the task, the API and worker are using different result backends, or task status was lost after completion",
+					shortTaskID(taskID),
+					humanDuration(time.Since(startedAt)),
+				)
+			}
+		}
 		if stale, age, cutoff := isTaskProgressStale(progress, startedAt); stale {
 			if len(extractChunkTaskIDsFromStatus(st)) > 0 {
 				return st, false, nil
@@ -2665,27 +2708,40 @@ func waitForPendingInitialSyncs(ctx context.Context, client *api.Client, group s
 		if strings.TrimSpace(repo.PendingTaskID) == "" {
 			continue
 		}
-		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
-			return fmt.Errorf(
-				"pending initial sync for %s is stale (%s old; cutoff %s); rerun the baseline sync for that repo before generating feedback",
-				item.Label,
-				humanDuration(age),
-				humanDuration(cutoff),
-			)
-		}
 		waitStartedAt := time.Now()
-		st, timedOut, err := waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
-			printer.Info(formatTaskProgressLine(idx+1, len(pending), "Waiting for initial indexing of", item.Label, st, elapsed))
-		})
-		if err != nil {
-			return err
-		}
-		if timedOut {
-			return fmt.Errorf(
-				"processing timeout after %ds while waiting for pending initial sync of %s (run 'compair wait --all --timeout 20m' or rerun the original command to continue waiting; use 'compair wait --all --timeout 0' to wait indefinitely)",
-				syncProcessTimeoutSec,
-				item.Label,
-			)
+		var st api.TaskStatus
+		var err error
+		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			st, err = client.GetTaskStatus(repo.PendingTaskID)
+			if err != nil || strings.ToUpper(strings.TrimSpace(st.Status)) != "SUCCESS" {
+				status := strings.TrimSpace(st.Status)
+				if status == "" {
+					status = "unknown"
+				}
+				return fmt.Errorf(
+					"pending initial sync for %s is stale (%s old; cutoff %s; server status %s); rerun the baseline sync for that repo before generating feedback",
+					item.Label,
+					humanDuration(age),
+					humanDuration(cutoff),
+					status,
+				)
+			}
+			printer.Info(fmt.Sprintf("[%d/%d] Pending initial sync for %s already completed on the server; finalizing local sync state", idx+1, len(pending), item.Label))
+		} else {
+			var timedOut bool
+			st, timedOut, err = waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
+				printer.Info(formatTaskProgressLine(idx+1, len(pending), "Waiting for initial indexing of", item.Label, st, elapsed))
+			})
+			if err != nil {
+				return err
+			}
+			if timedOut {
+				return fmt.Errorf(
+					"processing timeout after %ds while waiting for pending initial sync of %s (run 'compair wait --all --timeout 20m' or rerun the original command to continue waiting; use 'compair wait --all --timeout 0' to wait indefinitely)",
+					syncProcessTimeoutSec,
+					item.Label,
+				)
+			}
 		}
 		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 		case "SUCCESS":
@@ -2742,28 +2798,43 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 		if strings.TrimSpace(repo.PendingTaskID) == "" {
 			continue
 		}
-		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
-			return completed, fmt.Errorf(
-				"saved processing task for %s is stale (%s old; cutoff %s); rerun 'compair review' or 'compair review --detach' to resubmit current changes",
-				item.Label,
-				humanDuration(age),
-				humanDuration(cutoff),
-			)
-		}
 		waitStartedAt := time.Now()
-		printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(pending), item.Label))
-		st, timedOut, err := waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
-			printer.Info(formatTaskProgressLine(idx+1, len(pending), "Still processing", item.Label, st, elapsed))
-		})
-		if err != nil {
-			return completed, err
-		}
-		if timedOut {
-			return completed, fmt.Errorf(
-				"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair wait --timeout 20m' to continue waiting, or use 'compair wait --timeout 0' to wait indefinitely)",
-				syncProcessTimeoutSec,
-				item.Label,
-			)
+		var st api.TaskStatus
+		var err error
+		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			st, err = client.GetTaskStatus(repo.PendingTaskID)
+			status := strings.ToUpper(strings.TrimSpace(st.Status))
+			recoverable := status == "SUCCESS" || ((status == "PROGRESS" || status == "STARTED") && len(extractChunkTaskIDsFromStatus(st)) > 0)
+			if err != nil || !recoverable {
+				displayStatus := strings.TrimSpace(st.Status)
+				if displayStatus == "" {
+					displayStatus = "unknown"
+				}
+				return completed, fmt.Errorf(
+					"saved processing task for %s is stale (%s old; cutoff %s; server status %s); rerun 'compair review' or 'compair review --detach' to resubmit current changes",
+					item.Label,
+					humanDuration(age),
+					humanDuration(cutoff),
+					displayStatus,
+				)
+			}
+			printer.Info(fmt.Sprintf("[%d/%d] Saved processing task for %s is stale locally but recoverable from server status %s", idx+1, len(pending), item.Label, st.Status))
+		} else {
+			printer.Info(fmt.Sprintf("[%d/%d] Resuming pending processing task for %s", idx+1, len(pending), item.Label))
+			var timedOut bool
+			st, timedOut, err = waitForProcessingTask(ctx, client, repo.PendingTaskID, func(st api.TaskStatus, elapsed time.Duration) {
+				printer.Info(formatTaskProgressLine(idx+1, len(pending), "Still processing", item.Label, st, elapsed))
+			})
+			if err != nil {
+				return completed, err
+			}
+			if timedOut {
+				return completed, fmt.Errorf(
+					"processing timeout after %ds while waiting for the saved task for %s (rerun 'compair wait --timeout 20m' to continue waiting, or use 'compair wait --timeout 0' to wait indefinitely)",
+					syncProcessTimeoutSec,
+					item.Label,
+				)
+			}
 		}
 		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 		case "SUCCESS":

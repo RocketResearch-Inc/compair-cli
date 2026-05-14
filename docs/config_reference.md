@@ -50,6 +50,7 @@ Optional file in the repo root:
 package-lock.json
 scripts/*
 docs/third-party-notices*
+generated-sdk/docs/
 ```
 
 Notes:
@@ -57,7 +58,9 @@ Notes:
 - Used by snapshot-based commands such as `review`, `sync`, `push`, `stats`, `diff`, and `snapshot preview`
 - Best for large generated or low-signal tracked files that would otherwise crowd out more useful product-surface evidence
 - Matching is intentionally simple: blank lines and `#` comments are ignored, and each pattern is matched against both the repo-relative path and the basename
-- Prefer straightforward patterns like `package-lock.json`, `scripts/*`, or `docs/third-party-notices*` over full `.gitignore`-style syntax
+- A trailing slash is a directory-prefix rule, so `generated-sdk/docs/` ignores every tracked file under that repo-relative directory
+- Prefer straightforward patterns like `package-lock.json`, `scripts/*`, `generated-sdk/docs/`, or `docs/third-party-notices*` over full `.gitignore`-style syntax
+- Run `compair ignore suggest` to print conservative candidates, or `compair ignore suggest --write` to append high-confidence suggestions
 
 ## Credentials
 `~/.compair/credentials.json`

@@ -176,7 +176,8 @@ compair track ~/code/desktop-client --initial-sync --no-feedback
 # Optional but recommended for larger suites:
 # keep generated artifacts and low-signal files out of the review surface
 # with repo-local .compairignore files before the first warm pass
-# examples: package-lock.json, scripts/*, docs/third-party-notices*
+compair ignore suggest ~/code/backend-api
+# add --write to append high-confidence suggestions after review
 
 # 3. Run the warm review pass across the whole group
 compair review --all --snapshot-mode snapshot --reanalyze-existing --detach
@@ -207,7 +208,7 @@ After the first run:
 - Use `review --pairwise` when you want a slower, higher-coverage repo-pair pass; `--cross-repo-only` skips same-repo pairs
 - Use `review --now` when you want one whole-bundle LLM pass over the current tracked repo set instead of the normal per-chunk retrieval path; the CLI prints a token/cost quote before the model call, and Cloud runs require prepaid credits once that feature is enabled
 - Use `review --now --skip-index` when you want that bundle review faster and can tolerate the indexed retrieval state staying stale until a later full sync/review
-- Use repo-local `.compairignore` files to trim large generated artifacts before a full-suite baseline
+- Use `ignore suggest` to find repo-local `.compairignore` candidates before a full-suite baseline
 - Treat `sync` as the advanced/CI control surface rather than the default daily command
 - Treat `--initial-sync --no-feedback` as a one-time bootstrap step, not the normal daily workflow
 
