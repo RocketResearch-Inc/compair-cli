@@ -2867,8 +2867,9 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 				item.Label,
 			)
 		default:
+			failedTaskID := repo.PendingTaskID
 			clearPendingRepoTask(item.Root, cfg, repo)
-			return completed, fmt.Errorf("saved processing task %s for %s ended with status %s", shortTaskID(repo.PendingTaskID), item.Label, st.Status)
+			return completed, fmt.Errorf("saved processing task %s for %s ended with status %s", shortTaskID(failedTaskID), item.Label, st.Status)
 		}
 		chunkTaskIDs := extractChunkTaskIDsFromStatus(st)
 		if err := waitForChunkTaskIDs(ctx, client, chunkTaskIDs, item.Label, func(taskIndex int, taskTotal int, elapsed time.Duration) {
