@@ -461,7 +461,7 @@ func readLimitedTextFile(path string, maxBytes int) (string, bool, error) {
 		if err != nil {
 			return "", false, err
 		}
-		return string(data), false, nil
+		return validSnapshotText(data), false, nil
 	}
 	limited := int64(maxBytes + 1)
 	data, err := io.ReadAll(io.LimitReader(f, limited))
@@ -472,7 +472,11 @@ func readLimitedTextFile(path string, maxBytes int) (string, bool, error) {
 	if truncated {
 		data = data[:maxBytes]
 	}
-	return string(data), truncated, nil
+	return validSnapshotText(data), truncated, nil
+}
+
+func validSnapshotText(data []byte) string {
+	return strings.ToValidUTF8(string(data), "\uFFFD")
 }
 
 func snapshotChunkProfile() string {

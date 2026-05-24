@@ -35,6 +35,24 @@ func TestFitChunkAllowsUnlimitedBudget(t *testing.T) {
 	}
 }
 
+func TestReadLimitedTextFileKeepsTruncatedUTF8Valid(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "example.md")
+	if err := os.WriteFile(path, []byte("hello é world\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	got, truncated, err := readLimitedTextFile(path, len("hello ")+1)
+	if err != nil {
+		t.Fatalf("readLimitedTextFile returned error: %v", err)
+	}
+	if !truncated {
+		t.Fatalf("expected truncated file")
+	}
+	if !strings.Contains(got, "\uFFFD") {
+		t.Fatalf("expected replacement character for split UTF-8 rune, got %q", got)
+	}
+}
+
 func TestSnapshotChunkProfileDefaultsAndAcceptsKnownValues(t *testing.T) {
 	t.Setenv("COMPAIR_SNAPSHOT_CHUNK_PROFILE", "")
 	if got := snapshotChunkProfile(); got != snapshotChunkProfileDefault {
