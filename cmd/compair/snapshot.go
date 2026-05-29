@@ -476,7 +476,7 @@ func readLimitedTextFile(path string, maxBytes int) (string, bool, error) {
 }
 
 func validSnapshotText(data []byte) string {
-	return strings.ToValidUTF8(string(data), "\uFFFD")
+	return strings.ReplaceAll(strings.ToValidUTF8(string(data), "\uFFFD"), "\x00", "\uFFFD")
 }
 
 func snapshotChunkProfile() string {

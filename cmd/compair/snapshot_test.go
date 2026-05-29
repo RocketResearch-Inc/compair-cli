@@ -53,6 +53,16 @@ func TestReadLimitedTextFileKeepsTruncatedUTF8Valid(t *testing.T) {
 	}
 }
 
+func TestReadLimitedTextFileReplacesNULBytes(t *testing.T) {
+	got := validSnapshotText([]byte("hello \x00 world\n"))
+	if strings.Contains(got, "\x00") {
+		t.Fatalf("expected NUL byte to be replaced, got %q", got)
+	}
+	if !strings.Contains(got, "\uFFFD") {
+		t.Fatalf("expected replacement character for NUL byte, got %q", got)
+	}
+}
+
 func TestSnapshotChunkProfileDefaultsAndAcceptsKnownValues(t *testing.T) {
 	t.Setenv("COMPAIR_SNAPSHOT_CHUNK_PROFILE", "")
 	if got := snapshotChunkProfile(); got != snapshotChunkProfileDefault {
