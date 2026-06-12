@@ -189,6 +189,9 @@ func suggestCompairIgnore(root string, opts ignoreSuggestOptions) (ignoreSuggest
 			addIgnoreSuggestion(generatedFilePatterns, existingSet, pattern, "high", reason, rel, size)
 		}
 		dirPattern, dirReason := generatedDirectoryIgnorePattern(rel)
+		if dirPattern == "" {
+			dirPattern, dirReason = mediaAssetDirectoryIgnorePattern(rel)
+		}
 		if dirPattern != "" {
 			stat := dirs[dirPattern]
 			if stat == nil {
@@ -226,9 +229,13 @@ func suggestCompairIgnore(root string, opts ignoreSuggestOptions) (ignoreSuggest
 		}
 		confidence := "review"
 		reason := stat.reason
-		if stat.markerFiles > 0 || isHighConfidenceGeneratedDir(pattern) {
+		if stat.markerFiles > 0 || isHighConfidenceGeneratedDir(pattern) || isHighConfidenceMediaAssetDir(pattern) {
 			confidence = "high"
-			reason = reason + " Generated markers or path conventions suggest this is safe to ignore after review."
+			if isHighConfidenceMediaAssetDir(pattern) {
+				reason = reason + " Media asset path conventions suggest this is safe to ignore while preserving adjacent prose and config."
+			} else {
+				reason = reason + " Generated markers or path conventions suggest this is safe to ignore after review."
+			}
 		}
 		addIgnoreSuggestion(suggestions, existingSet, pattern, confidence, reason, "", stat.bytes)
 		if s := suggestions[pattern]; s != nil {
@@ -456,9 +463,44 @@ func generatedDirectoryIgnorePattern(path string) (string, string) {
 	return "", ""
 }
 
+func mediaAssetDirectoryIgnorePattern(path string) (string, string) {
+	if !isMediaAssetFile(path) {
+		return "", ""
+	}
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts[:maxInt(0, len(parts)-1)] {
+		lower := strings.ToLower(part)
+		if lower == "assets" && i == 0 {
+			continue
+		}
+		if isMediaAssetDirName(lower) {
+			return strings.Join(parts[:i+1], "/") + "/", "Media asset directory detected by path and file type."
+		}
+	}
+	return "", ""
+}
+
 func isGeneratedDirName(name string) bool {
 	switch name {
 	case ".cache", ".next", ".nuxt", ".turbo", "__generated__", "__snapshots__", "coverage", "generated", "generated-sources", "gen", "out", "storybook-static":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMediaAssetDirName(name string) bool {
+	switch name {
+	case "assets", "image", "images", "img", "media", "screenshot", "screenshots", "video", "videos":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMediaAssetFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".avif", ".eot", ".gif", ".ico", ".jpeg", ".jpg", ".mov", ".mp4", ".png", ".svg", ".ttf", ".webm", ".webp", ".woff", ".woff2":
 		return true
 	default:
 		return false
@@ -474,6 +516,14 @@ func isHighConfidenceGeneratedDir(pattern string) bool {
 		strings.HasSuffix(lower, "/generated/") ||
 		strings.Contains(lower, "/coverage/") ||
 		strings.HasSuffix(lower, "/coverage/")
+}
+
+func isHighConfidenceMediaAssetDir(pattern string) bool {
+	parts := strings.Split(strings.Trim(strings.ToLower(pattern), "/"), "/")
+	if len(parts) == 0 {
+		return false
+	}
+	return isMediaAssetDirName(parts[len(parts)-1])
 }
 
 func fileHasGeneratedMarker(path string) bool {

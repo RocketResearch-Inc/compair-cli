@@ -19,6 +19,9 @@ func TestSuggestCompairIgnoreFindsGeneratedSurfaces(t *testing.T) {
 	for _, name := range []string{"run.md", "sdk.md"} {
 		writeTestFile(t, root, filepath.Join("internal", "studio", "sdk", "docs", "sdks", name), "<!-- This file was automatically generated. -->\n")
 	}
+	for _, name := range []string{"search.png", "flow.svg", "demo.mp4"} {
+		writeTestFile(t, root, filepath.Join("content", "docs", "insights", "assets", name), "media")
+	}
 	runGit(t, root, "add", ".")
 
 	report, err := suggestCompairIgnore(root, ignoreSuggestOptions{
@@ -34,7 +37,7 @@ func TestSuggestCompairIgnoreFindsGeneratedSurfaces(t *testing.T) {
 	for _, s := range report.Suggestions {
 		got[s.Pattern] = true
 	}
-	for _, want := range []string{"go.sum", "*.pb.go", "internal/studio/sdk/docs/"} {
+	for _, want := range []string{"go.sum", "*.pb.go", "internal/studio/sdk/docs/", "content/docs/insights/assets/"} {
 		if !got[want] {
 			t.Fatalf("missing suggested pattern %q in %#v", want, report.Suggestions)
 		}

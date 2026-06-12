@@ -4,21 +4,20 @@
 [![Release](https://img.shields.io/github/v/release/RocketResearch-Inc/compair-cli)](https://github.com/RocketResearch-Inc/compair-cli/releases)
 [![License](https://img.shields.io/github/license/RocketResearch-Inc/compair-cli)](LICENSE)
 
-**Compair CLI helps developers catch cross-repo drift from the terminal.**
-Track your backend, frontend, SDK, CLI, desktop app, and docs in one shared review context. Compair compares changes across related repos and surfaces conflicts, hidden overlap, and missing updates before they turn into broken workflows or user-facing issues.
+**Compair is a semantic CI check for docs/code drift.**
+Tests tell you whether code still runs. Docs builds tell you whether pages still render. Compair checks whether docs, code, examples, configs, SDKs, CLIs, and related repos still agree.
 
-**Compair is a context manager for teams.**
-Instead of asking one model call to hold your whole product in working memory, Compair keeps a shared, persistent cross-repo context for the team, narrows attention to the changed surface, and brings in the few related snippets that actually matter.
+Under the hood, Compair acts like a shared context manager for your product surface. Instead of asking one model call to hold your whole product in working memory, Compair keeps persistent cross-repo context, narrows attention to the changed surface, and brings in the few related snippets that actually matter.
 
 **Why it's different:** most AI review tools look at one pull request in one repo. Compair reviews a repo in the context of the other repos it depends on.
 
-- Catch backend/frontend/SDK/docs drift earlier
+- Catch docs/code/API/SDK/config drift earlier
 - Review changes in the context of the rest of your product
-- Turn high-confidence findings into CI checks when you're ready
+- Turn high-confidence findings into advisory or failing CI checks when you're ready
 
 ## Install
 
-Choose the path that fits your platform, then run `compair demo --offline` for the fastest first look.
+Choose the path that fits your platform.
 
 | Platform | Recommended install | Notes |
 | -------- | ------------------- | ----- |
@@ -30,46 +29,30 @@ Choose the path that fits your platform, then run `compair demo --offline` for t
 
 Release archives are published for macOS, Linux, and Windows on the [GitHub Releases](https://github.com/RocketResearch-Inc/compair-cli/releases) page. If you want deeper install details or command reference material, see [docs/user_guide.md](docs/user_guide.md).
 
-**Positioning note:** Compair Cloud is the strongest out-of-the-box experience today. It gives you the best review quality without bringing your own model key, plus hosted auth, shared accounts, email delivery, and the most polished team workflow. Local Core remains the right fit for self-hosting, evaluation, and offline/local setups, with two meaningful bring-your-own-key paths: keep embeddings local and use OpenAI for generation as the lower-outsourced-cost default, or use OpenAI for both generation and embeddings when you want the strongest current self-hosted quality.
+## Try It In 5 Minutes
 
-## Care to Compair? Try It In 5 Minutes
-
-The fastest way to see what Compair does:
+After installing, run the offline demo and skim the report it writes:
 
 ```bash
-# 1) Install Compair CLI
-# 2) Run the offline sample
 compair demo --offline
 ```
+
+No production repo setup, Cloud account, Docker, or model key required.
 
 **What the offline demo does**
 
 - creates a disposable workspace
 - seeds two small related repos with an intentional API/client mismatch
 - renders a prebaked Compair report
-- requires no Docker, OpenAI API key, or Cloud account
+- leaves your real repos untouched
 
-**Start here if:** you want the fastest possible first pass before trying Compair on your own repos.
+Want to preview the report before installing? Open the demo-generated [sample output](docs/sample_output.md).
 
-When you want a real review, run:
-
-```bash
-compair demo --mode local
-# or
-compair demo --mode cloud
-```
+When you want fresh generated feedback instead of the prebaked sample, use `compair demo --mode local` or `compair demo --mode cloud`.
 
 ## Choose Your Start
 
-### Demo
-
-Use this if you want to see Compair end-to-end in a disposable workspace.
-
-```bash
-compair demo --offline
-```
-
-Use `compair demo --mode local` or `compair demo --mode cloud` when you want fresh generated feedback instead of the prebaked sample.
+Use the offline demo for the first look. When you are ready for fresh feedback, choose one of these live paths.
 
 ### Local / self-hosted
 
@@ -103,27 +86,13 @@ compair login
 
 Skip `compair signup` if you already have an account. Cloud is the best default when you want the strongest first impression, the least setup friction, and the best shared team workflow.
 
-**New here? Start with `compair demo --offline`.**
-**Evaluating open/local? Start with Local.**
-**Working with teammates right away? Start with Cloud.**
+If you are unsure, use Local for open or self-hosted evaluation and Cloud for the simplest shared team setup.
 
 ## Help Test Compair
 
 Compair CLI is ready for early developer testing.
 
-The fastest path:
-
-```bash
-compair demo --offline
-```
-
-Then, if you want a real review:
-
-```bash
-compair demo --mode local
-# or
-compair demo --mode cloud
-```
+Try the offline demo first. If you want a live review, rerun it with `--mode local` or `--mode cloud`.
 
 Feedback is especially useful from developers maintaining backend + frontend repos, API + SDK repos, CLI + cloud service repos, docs + implementation repos, or multi-repo internal tools.
 
@@ -278,6 +247,7 @@ The practical takeaway is simple: Compair wins less by stuffing everything into 
 ### Start Here
 
 - [Try it in 5 minutes](#try-it-in-5-minutes)
+- [Sample Output](docs/sample_output.md)
 - [User Guide](docs/user_guide.md)
 - [Cross-Repo Workflow](docs/cross_repo_workflow.md)
 - [Core Quickstart](docs/core_quickstart.md)
