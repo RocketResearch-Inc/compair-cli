@@ -122,6 +122,47 @@ func TestProcessDocWithOptionsIncludesReanalyzeExistingAndSkipIndex(t *testing.T
 	}
 }
 
+func TestProcessDocWithOptionsUsesJSONForLargePayloads(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/process_doc" {
+			t.Fatalf("expected /process_doc, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+			t.Fatalf("expected JSON content type, got %q", got)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode JSON: %v", err)
+		}
+		if got := payload["doc_id"]; got != "doc_large" {
+			t.Fatalf("expected doc_id doc_large, got %#v", got)
+		}
+		if got, ok := payload["doc_text_b64"].(string); !ok || got == "" {
+			t.Fatalf("expected doc_text_b64 string, got %#v", payload["doc_text_b64"])
+		}
+		if got := payload["generate_feedback"]; got != false {
+			t.Fatalf("expected generate_feedback=false, got %#v", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"task_id":"task_large"}`)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.http = server.Client()
+
+	resp, err := client.ProcessDocWithOptions("doc_large", strings.Repeat("x", processDocJSONPayloadThreshold), false, ProcessDocOptions{})
+	if err != nil {
+		t.Fatalf("ProcessDocWithOptions returned error: %v", err)
+	}
+	if got := resp.TaskID; got != "task_large" {
+		t.Fatalf("expected task_large, got %q", got)
+	}
+}
+
 func TestListGroupsFetchesMultiplePages(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/load_groups" {

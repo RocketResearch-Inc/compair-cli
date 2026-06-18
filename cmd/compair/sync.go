@@ -106,6 +106,11 @@ type pendingInitialSync struct {
 	Config config.Project
 }
 
+type savedPendingParentStatus struct {
+	Status        api.TaskStatus
+	WaitStartedAt time.Time
+}
+
 type pairwiseRepo struct {
 	Root       string
 	DocumentID string
@@ -2406,6 +2411,125 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 	}
 }
 
+func waitForSavedPendingParentTasks(ctx context.Context, client *api.Client, pending []pendingInitialSync) (map[int]savedPendingParentStatus, error) {
+	type activeParent struct {
+		Index                 int
+		Label                 string
+		TaskID                string
+		StartedAt             time.Time
+		LastProgressAt        time.Time
+		ConsecutivePollErrors int
+	}
+
+	active := make([]*activeParent, 0, len(pending))
+	now := time.Now()
+	for idx, item := range pending {
+		if len(item.Config.Repos) == 0 {
+			continue
+		}
+		repo := item.Config.Repos[0]
+		taskID := strings.TrimSpace(repo.PendingTaskID)
+		if taskID == "" {
+			continue
+		}
+		if stale, _, _ := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+			continue
+		}
+		active = append(active, &activeParent{
+			Index:     idx,
+			Label:     item.Label,
+			TaskID:    taskID,
+			StartedAt: now,
+		})
+	}
+	if len(active) <= 1 {
+		return nil, nil
+	}
+
+	printer.Info(fmt.Sprintf("Polling %d saved parent task(s) before waiting for chunk tasks.", len(active)))
+	deadline := processingDeadline()
+	remaining := make(map[int]*activeParent, len(active))
+	for _, item := range active {
+		remaining[item.Index] = item
+	}
+	resolved := make(map[int]savedPendingParentStatus, len(active))
+	for len(remaining) > 0 {
+		keys := make([]int, 0, len(remaining))
+		for idx := range remaining {
+			keys = append(keys, idx)
+		}
+		sort.Ints(keys)
+		for _, idx := range keys {
+			item := remaining[idx]
+			st, err := client.GetTaskStatus(item.TaskID)
+			if err != nil {
+				if isRetryableStatusPollError(err) && item.ConsecutivePollErrors < 5 {
+					item.ConsecutivePollErrors++
+					continue
+				}
+				return nil, err
+			}
+			item.ConsecutivePollErrors = 0
+			status := strings.ToUpper(strings.TrimSpace(st.Status))
+			switch status {
+			case "SUCCESS", "FAILURE", "FAILED", "REVOKED":
+				resolved[idx] = savedPendingParentStatus{Status: st, WaitStartedAt: item.StartedAt}
+				delete(remaining, idx)
+				continue
+			case "PROGRESS", "STARTED":
+				if len(extractChunkTaskIDsFromStatus(st)) > 0 {
+					resolved[idx] = savedPendingParentStatus{Status: st, WaitStartedAt: item.StartedAt}
+					delete(remaining, idx)
+					continue
+				}
+			}
+
+			progress := parseTaskProgressMeta(st)
+			if isPendingStatusWithoutProgress(st) {
+				if cutoff := pendingStatusStaleAfter(); cutoff > 0 && time.Since(item.StartedAt) >= cutoff {
+					return nil, fmt.Errorf(
+						"processing task %s is still PENDING after %s with no worker progress; this usually means the worker has not consumed the task, the API and worker are using different result backends, or task status was lost after completion",
+						shortTaskID(item.TaskID),
+						humanDuration(time.Since(item.StartedAt)),
+					)
+				}
+			}
+			if stale, age, cutoff := isTaskProgressStale(progress, item.StartedAt); stale {
+				if len(extractChunkTaskIDsFromStatus(st)) > 0 {
+					resolved[idx] = savedPendingParentStatus{Status: st, WaitStartedAt: item.StartedAt}
+					delete(remaining, idx)
+					continue
+				}
+				return nil, fmt.Errorf(
+					"processing task %s appears stalled; last progress update was %s ago (cutoff %s)",
+					shortTaskID(item.TaskID),
+					humanDuration(age),
+					humanDuration(cutoff),
+				)
+			}
+			if !deadline.IsZero() && time.Now().After(deadline) {
+				return nil, fmt.Errorf(
+					"processing timeout after %ds while waiting for saved parent tasks",
+					syncProcessTimeoutSec,
+				)
+			}
+			if item.LastProgressAt.IsZero() || time.Since(item.LastProgressAt) >= 15*time.Second {
+				printer.Info(formatTaskProgressLine(idx+1, len(pending), "Still processing", item.Label, st, taskStatusElapsed(st, item.StartedAt)))
+				item.LastProgressAt = time.Now()
+			}
+		}
+		if len(remaining) == 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return resolved, nil
+}
+
 func isRetryableStatusPollError(err error) bool {
 	if err == nil {
 		return false
@@ -2803,6 +2927,10 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 	}
 	printer.Info(fmt.Sprintf("Waiting for %d saved pending task(s).", len(pending)))
 	progress := newRepoProgressTracker(len(pending))
+	prefetchedParents, err := waitForSavedPendingParentTasks(ctx, client, pending)
+	if err != nil {
+		return 0, err
+	}
 	completed := 0
 	for idx, item := range pending {
 		cfg := item.Config
@@ -2816,7 +2944,11 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 		waitStartedAt := time.Now()
 		var st api.TaskStatus
 		var err error
-		if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
+		if prefetched, ok := prefetchedParents[idx]; ok {
+			st = prefetched.Status
+			waitStartedAt = prefetched.WaitStartedAt
+			printer.Info(fmt.Sprintf("[%d/%d] Saved processing task for %s has parent status %s; waiting for chunk tasks", idx+1, len(pending), item.Label, st.Status))
+		} else if stale, age, cutoff := isPendingRepoTaskStale(repo.PendingTaskStartedAt); stale {
 			st, err = client.GetTaskStatus(repo.PendingTaskID)
 			status := strings.ToUpper(strings.TrimSpace(st.Status))
 			recoverable := status == "SUCCESS" || ((status == "PROGRESS" || status == "STARTED") && len(extractChunkTaskIDsFromStatus(st)) > 0)

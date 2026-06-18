@@ -533,6 +533,18 @@ type ProcessDocOptions struct {
 	SkipIndex         bool
 }
 
+const processDocJSONPayloadThreshold = 768 * 1024
+
+type processDocJSONRequest struct {
+	DocID             string   `json:"doc_id"`
+	DocTextB64        string   `json:"doc_text_b64"`
+	GenerateFeedback  bool     `json:"generate_feedback"`
+	ChunkMode         string   `json:"chunk_mode,omitempty"`
+	ReanalyzeExisting bool     `json:"reanalyze_existing,omitempty"`
+	ReferenceDocIDs   []string `json:"reference_doc_ids,omitempty"`
+	SkipIndex         bool     `json:"skip_index,omitempty"`
+}
+
 func (c *Client) ProcessDoc(docID, text string, generateFeedback bool) (ProcessDocResp, error) {
 	return c.ProcessDocWithOptions(docID, text, generateFeedback, ProcessDocOptions{})
 }
@@ -544,9 +556,13 @@ func (c *Client) ProcessDocWithMode(docID, text string, generateFeedback bool, c
 }
 
 func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool, opts ProcessDocOptions) (ProcessDocResp, error) {
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	if len(encoded) >= processDocJSONPayloadThreshold {
+		return c.processDocJSON(docID, encoded, generateFeedback, opts)
+	}
 	data := url.Values{}
 	data.Set("doc_id", docID)
-	data.Set("doc_text_b64", base64.StdEncoding.EncodeToString([]byte(text)))
+	data.Set("doc_text_b64", encoded)
 	if generateFeedback {
 		data.Set("generate_feedback", "true")
 	} else {
@@ -568,6 +584,27 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 	}
 	var out ProcessDocResp
 	if err := c.postForm("/process_doc", data, &out); err != nil {
+		return ProcessDocResp{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) processDocJSON(docID, encodedText string, generateFeedback bool, opts ProcessDocOptions) (ProcessDocResp, error) {
+	var out ProcessDocResp
+	req := processDocJSONRequest{
+		DocID:             docID,
+		DocTextB64:        encodedText,
+		GenerateFeedback:  generateFeedback,
+		ChunkMode:         strings.TrimSpace(opts.ChunkMode),
+		ReanalyzeExisting: opts.ReanalyzeExisting,
+		SkipIndex:         opts.SkipIndex,
+	}
+	for _, docID := range opts.ReferenceDocIDs {
+		if trimmed := strings.TrimSpace(docID); trimmed != "" {
+			req.ReferenceDocIDs = append(req.ReferenceDocIDs, trimmed)
+		}
+	}
+	if err := c.post("/process_doc", req, &out); err != nil {
 		return ProcessDocResp{}, err
 	}
 	return out, nil
