@@ -215,6 +215,19 @@ func TestGetTaskStatusIncludesMeta(t *testing.T) {
 			"status":"PROGRESS",
 			"result":"Task is running.",
 			"message":"Indexing chunks",
+			"lifecycle":"running",
+			"health":"healthy",
+			"recommended_action":"continue_waiting",
+			"retryable":false,
+			"terminal":false,
+			"child_task_ids":["chunk_a","chunk_b"],
+			"last_progress_age_sec":7.5,
+			"children":{
+				"total":2,
+				"running":1,
+				"succeeded":1,
+				"task_ids":["chunk_a","chunk_b"]
+			},
 			"meta":{
 				"stage":"indexing",
 				"indexed_chunks_done":12,
@@ -242,6 +255,18 @@ func TestGetTaskStatusIncludesMeta(t *testing.T) {
 	}
 	if got := status.Meta["indexed_chunks_total"]; got != float64(48) {
 		t.Fatalf("expected indexed_chunks_total to decode as 48, got %#v", got)
+	}
+	if status.Lifecycle != "running" || status.Health != "healthy" || status.RecommendedAction != "continue_waiting" {
+		t.Fatalf("unexpected lifecycle fields: lifecycle=%q health=%q action=%q", status.Lifecycle, status.Health, status.RecommendedAction)
+	}
+	if len(status.ChildTaskIDs) != 2 || status.ChildTaskIDs[0] != "chunk_a" || status.ChildTaskIDs[1] != "chunk_b" {
+		t.Fatalf("unexpected child task ids: %#v", status.ChildTaskIDs)
+	}
+	if status.Children == nil || status.Children.Total != 2 || status.Children.Succeeded != 1 || status.Children.Running != 1 {
+		t.Fatalf("unexpected child summary: %#v", status.Children)
+	}
+	if status.LastProgressAgeSec != 7.5 {
+		t.Fatalf("expected last_progress_age_sec=7.5, got %#v", status.LastProgressAgeSec)
 	}
 }
 

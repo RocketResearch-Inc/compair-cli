@@ -655,10 +655,37 @@ func (c *Client) CreateReviewNowCreditCheckout() (ReviewNowCreditCheckoutResp, e
 }
 
 type TaskStatus struct {
-	Status  string         `json:"status"` // PENDING|STARTED|PROGRESS|SUCCESS|FAILED
-	Result  interface{}    `json:"result,omitempty"`
-	Message string         `json:"message,omitempty"`
-	Meta    map[string]any `json:"meta,omitempty"`
+	Status             string              `json:"status"` // PENDING|STARTED|PROGRESS|SUCCESS|FAILED
+	Result             interface{}         `json:"result,omitempty"`
+	Message            string              `json:"message,omitempty"`
+	Meta               map[string]any      `json:"meta,omitempty"`
+	Lifecycle          string              `json:"lifecycle,omitempty"`
+	Health             string              `json:"health,omitempty"`
+	RecommendedAction  string              `json:"recommended_action,omitempty"`
+	Retryable          bool                `json:"retryable,omitempty"`
+	Terminal           bool                `json:"terminal,omitempty"`
+	ChildTaskIDs       []string            `json:"child_task_ids,omitempty"`
+	StartedAt          string              `json:"started_at,omitempty"`
+	StartedAgeSec      float64             `json:"started_age_sec,omitempty"`
+	LastProgressAt     string              `json:"last_progress_at,omitempty"`
+	LastProgressAgeSec float64             `json:"last_progress_age_sec,omitempty"`
+	Children           *TaskChildrenStatus `json:"children,omitempty"`
+}
+
+type TaskChildrenStatus struct {
+	Total                  int      `json:"total,omitempty"`
+	Succeeded              int      `json:"succeeded,omitempty"`
+	Running                int      `json:"running,omitempty"`
+	Queued                 int      `json:"queued,omitempty"`
+	Retrying               int      `json:"retrying,omitempty"`
+	Failed                 int      `json:"failed,omitempty"`
+	Revoked                int      `json:"revoked,omitempty"`
+	Unknown                int      `json:"unknown,omitempty"`
+	Terminal               int      `json:"terminal,omitempty"`
+	Healthy                int      `json:"healthy,omitempty"`
+	FailedTaskIDs          []string `json:"failed_task_ids,omitempty"`
+	RetryableFailedTaskIDs []string `json:"retryable_failed_task_ids,omitempty"`
+	TaskIDs                []string `json:"task_ids,omitempty"`
 }
 
 // ---- Feedback & Documents ----

@@ -42,6 +42,26 @@ func TestParseWaitTimeoutSeconds(t *testing.T) {
 	}
 }
 
+func TestResolveWaitProcessTimeoutRespectsExplicitProcessTimeout(t *testing.T) {
+	t.Parallel()
+
+	got, err := resolveWaitProcessTimeout("240m", 0, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != 0 {
+		t.Fatalf("expected explicit process timeout 0 to be preserved, got %d", got)
+	}
+
+	got, err = resolveWaitProcessTimeout("30m", 600, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != 1800 {
+		t.Fatalf("expected timeout-derived process timeout, got %d", got)
+	}
+}
+
 func TestReviewAndWaitFlagSurface(t *testing.T) {
 	t.Parallel()
 

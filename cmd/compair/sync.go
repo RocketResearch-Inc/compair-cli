@@ -2225,6 +2225,9 @@ func isPendingStatusWithoutProgress(st api.TaskStatus) bool {
 func displayTaskStatus(st api.TaskStatus, err error) string {
 	status := strings.TrimSpace(st.Status)
 	if status != "" {
+		if lifecycle := strings.TrimSpace(st.Lifecycle); lifecycle != "" && !strings.EqualFold(lifecycle, status) {
+			return status + "/" + lifecycle
+		}
 		return status
 	}
 	if err != nil {
@@ -2234,6 +2237,15 @@ func displayTaskStatus(st api.TaskStatus, err error) string {
 		}
 	}
 	return "unknown"
+}
+
+func isTaskLifecycleTerminal(st api.TaskStatus) bool {
+	lifecycle := strings.ToLower(strings.TrimSpace(st.Lifecycle))
+	switch lifecycle {
+	case "succeeded", "failed_terminal", "revoked":
+		return true
+	}
+	return st.Terminal && lifecycle != "retrying"
 }
 
 func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
@@ -2256,6 +2268,18 @@ func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time)
 }
 
 func extractChunkTaskIDsFromStatus(st api.TaskStatus) []string {
+	if len(st.ChildTaskIDs) > 0 {
+		ids := make([]string, 0, len(st.ChildTaskIDs))
+		for _, raw := range st.ChildTaskIDs {
+			taskID := strings.TrimSpace(raw)
+			if taskID != "" {
+				ids = append(ids, taskID)
+			}
+		}
+		if len(ids) > 0 {
+			return ids
+		}
+	}
 	if ids := extractChunkTaskIDs(st.Result); len(ids) > 0 {
 		return ids
 	}
@@ -2375,6 +2399,9 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 		case "FAILURE", "FAILED", "REVOKED":
 			return st, false, nil
 		}
+		if isTaskLifecycleTerminal(st) {
+			return st, false, nil
+		}
 		progress := parseTaskProgressMeta(st)
 		if isPendingStatusWithoutProgress(st) {
 			if cutoff := pendingStatusStaleAfter(); cutoff > 0 && time.Since(startedAt) >= cutoff {
@@ -2471,6 +2498,11 @@ func waitForSavedPendingParentTasks(ctx context.Context, client *api.Client, pen
 			}
 			item.ConsecutivePollErrors = 0
 			status := strings.ToUpper(strings.TrimSpace(st.Status))
+			if isTaskLifecycleTerminal(st) {
+				resolved[idx] = savedPendingParentStatus{Status: st, WaitStartedAt: item.StartedAt}
+				delete(remaining, idx)
+				continue
+			}
 			switch status {
 			case "SUCCESS", "FAILURE", "FAILED", "REVOKED":
 				resolved[idx] = savedPendingParentStatus{Status: st, WaitStartedAt: item.StartedAt}
@@ -2545,6 +2577,10 @@ func isRetryableStatusPollError(err error) bool {
 	return strings.Contains(msg, "operation timed out") ||
 		strings.Contains(msg, "client.timeout") ||
 		strings.Contains(msg, "timeout awaiting response headers") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "temporary failure in name resolution") ||
+		strings.Contains(msg, "name or service not known") ||
+		strings.Contains(msg, "nodename nor servname provided") ||
 		strings.Contains(msg, "connection reset by peer") ||
 		strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "tls handshake timeout")
@@ -2576,7 +2612,7 @@ func waitForChunkTaskIDs(ctx context.Context, client *api.Client, taskIDs []stri
 		switch strings.ToUpper(strings.TrimSpace(st.Status)) {
 		case "SUCCESS":
 		default:
-			return fmt.Errorf("chunk task %s for %s ended with status %s", shortTaskID(taskID), label, st.Status)
+			return fmt.Errorf("chunk task %s for %s ended with status %s", shortTaskID(taskID), label, displayTaskStatus(st, nil))
 		}
 	}
 	return nil

@@ -38,6 +38,13 @@ func parseWaitTimeoutSeconds(raw string) (int, error) {
 	return int((d + time.Second - 1) / time.Second), nil
 }
 
+func resolveWaitProcessTimeout(rawTimeout string, currentProcessTimeout int, processTimeoutChanged bool) (int, error) {
+	if processTimeoutChanged {
+		return currentProcessTimeout, nil
+	}
+	return parseWaitTimeoutSeconds(rawTimeout)
+}
+
 var waitCmd = &cobra.Command{
 	Use:          "wait [PATH ...]",
 	Short:        "Wait for saved pending Compair processing tasks and fetch the resulting feedback",
@@ -45,21 +52,15 @@ var waitCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		oldProcessTimeout := syncProcessTimeoutSec
 		defer func() { syncProcessTimeoutSec = oldProcessTimeout }()
-		timeoutChanged := false
-		if flag := cmd.Flags().Lookup("timeout"); flag != nil {
-			timeoutChanged = flag.Changed
-		}
 		processTimeoutChanged := false
 		if flag := cmd.Flags().Lookup("process-timeout-sec"); flag != nil {
 			processTimeoutChanged = flag.Changed
 		}
-		if timeoutChanged || !processTimeoutChanged {
-			timeoutSec, err := parseWaitTimeoutSeconds(waitTimeout)
-			if err != nil {
-				return err
-			}
-			syncProcessTimeoutSec = timeoutSec
+		timeoutSec, err := resolveWaitProcessTimeout(waitTimeout, syncProcessTimeoutSec, processTimeoutChanged)
+		if err != nil {
+			return err
 		}
+		syncProcessTimeoutSec = timeoutSec
 
 		reportPath := writeMD
 		if reportPath == "" {

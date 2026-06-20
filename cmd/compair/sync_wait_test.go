@@ -23,6 +23,9 @@ func TestIsRetryableStatusPollError(t *testing.T) {
 	if !isRetryableStatusPollError(errors.New("read: operation timed out")) {
 		t.Fatal("expected operation timed out error to be retryable")
 	}
+	if !isRetryableStatusPollError(errors.New("dial tcp: lookup app.compair.sh: no such host")) {
+		t.Fatal("expected DNS lookup failure to be retryable")
+	}
 	if isRetryableStatusPollError(errors.New("unauthorized")) {
 		t.Fatal("did not expect unauthorized error to be retryable")
 	}
