@@ -83,6 +83,9 @@ func (ig *Ignore) ShouldIgnore(path string, isDir bool) bool {
 			if path == prefix || strings.HasPrefix(path, prefix+"/") {
 				return true
 			}
+			if !strings.Contains(prefix, "/") && strings.Contains(path, "/"+prefix+"/") {
+				return true
+			}
 			continue
 		}
 		if path == g || base == g {

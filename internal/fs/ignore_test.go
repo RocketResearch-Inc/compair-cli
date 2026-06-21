@@ -10,7 +10,7 @@ func TestCompairIgnoreDirectoryPrefix(t *testing.T) {
 	root := t.TempDir()
 	err := os.WriteFile(
 		filepath.Join(root, ".compairignore"),
-		[]byte("internal/studio/sdk/docs/\n*.pb.go\n"),
+		[]byte("internal/studio/sdk/docs/\n__snapshots__/\n*.pb.go\n"),
 		0o644,
 	)
 	if err != nil {
@@ -23,6 +23,9 @@ func TestCompairIgnoreDirectoryPrefix(t *testing.T) {
 	}
 	if !ig.ShouldIgnore("proto/service.pb.go", false) {
 		t.Fatal("expected basename glob to ignore generated protobuf files")
+	}
+	if !ig.ShouldIgnore("packages/app/src/__snapshots__/example.snap", false) {
+		t.Fatal("expected unqualified directory pattern to ignore matching nested directories")
 	}
 	if ig.ShouldIgnore("internal/studio/sdk/sdk.go", false) {
 		t.Fatal("did not expect sibling source file to be ignored")

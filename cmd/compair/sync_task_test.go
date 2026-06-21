@@ -1,7 +1,8 @@
 package compair
 
-import "testing"
 import "github.com/RocketResearch-Inc/compair-cli/internal/api"
+import "strings"
+import "testing"
 
 func TestExtractChunkTaskIDs(t *testing.T) {
 	result := map[string]any{
@@ -73,5 +74,36 @@ func TestTaskLifecycleTerminalAllowsServerTerminalProgress(t *testing.T) {
 	}
 	if got := displayTaskStatus(st, nil); got != "PROGRESS/failed_terminal" {
 		t.Fatalf("unexpected display status: %q", got)
+	}
+}
+
+func TestServerStaleTaskStatusIsDetected(t *testing.T) {
+	st := api.TaskStatus{
+		Status:             "PROGRESS",
+		Health:             "stale",
+		RecommendedAction:  "inspect_worker",
+		LastProgressAgeSec: 901,
+	}
+	if !isServerStaleTask(st) {
+		t.Fatal("expected server-stale task to be detected")
+	}
+	err := serverStaleTaskError("12345678-aaaa-bbbb-cccc-123456789abc", st)
+	msg := err.Error()
+	for _, want := range []string{"12345678", "health=stale", "recommended_action=inspect_worker", "last_progress=15m1s ago"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("expected stale task error to include %q, got %q", want, msg)
+		}
+	}
+}
+
+func TestServerStaleTaskIgnoresTerminalLifecycle(t *testing.T) {
+	st := api.TaskStatus{
+		Status:    "PROGRESS",
+		Lifecycle: "failed_terminal",
+		Terminal:  true,
+		Health:    "stale",
+	}
+	if isServerStaleTask(st) {
+		t.Fatal("did not expect terminal task to be treated as server-stale")
 	}
 }

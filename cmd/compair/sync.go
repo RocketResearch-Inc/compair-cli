@@ -2248,6 +2248,45 @@ func isTaskLifecycleTerminal(st api.TaskStatus) bool {
 	return st.Terminal && lifecycle != "retrying"
 }
 
+func isServerStaleTask(st api.TaskStatus) bool {
+	if isTaskLifecycleTerminal(st) {
+		return false
+	}
+	health := strings.ToLower(strings.TrimSpace(st.Health))
+	action := strings.ToLower(strings.TrimSpace(st.RecommendedAction))
+	return health == "stale" || action == "inspect_worker"
+}
+
+func serverStaleTaskError(taskID string, st api.TaskStatus) error {
+	details := make([]string, 0, 4)
+	if health := strings.TrimSpace(st.Health); health != "" {
+		details = append(details, "health="+health)
+	}
+	if action := strings.TrimSpace(st.RecommendedAction); action != "" {
+		details = append(details, "recommended_action="+action)
+	}
+	if st.LastProgressAgeSec > 0 {
+		age := time.Duration(st.LastProgressAgeSec * float64(time.Second))
+		details = append(details, "last_progress="+humanDuration(age)+" ago")
+	} else {
+		progress := parseTaskProgressMeta(st)
+		if !progress.LastProgressAt.IsZero() {
+			details = append(details, "last_progress="+humanDuration(time.Since(progress.LastProgressAt))+" ago")
+		}
+	}
+	if msg := strings.TrimSpace(st.Message); msg != "" {
+		details = append(details, "message="+msg)
+	}
+	if len(details) == 0 {
+		details = append(details, "server reported stale task health")
+	}
+	return fmt.Errorf(
+		"processing task %s appears stalled according to server status (%s)",
+		shortTaskID(taskID),
+		strings.Join(details, ", "),
+	)
+}
+
 func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
 	cutoff := processProgressStaleAfter()
 	if cutoff <= 0 {
@@ -2401,6 +2440,9 @@ func waitForProcessingTask(ctx context.Context, client *api.Client, taskID strin
 		}
 		if isTaskLifecycleTerminal(st) {
 			return st, false, nil
+		}
+		if isServerStaleTask(st) {
+			return st, false, serverStaleTaskError(taskID, st)
 		}
 		progress := parseTaskProgressMeta(st)
 		if isPendingStatusWithoutProgress(st) {

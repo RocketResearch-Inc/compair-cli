@@ -439,6 +439,10 @@ func generatedFileIgnorePattern(path string) (string, string) {
 		return "*_generated.go", "Generated Go files are usually redundant with source templates or schemas."
 	case strings.HasSuffix(base, ".tsbuildinfo"):
 		return "*.tsbuildinfo", "TypeScript build-info files are generated compiler metadata."
+	case base == "api.schemas.ts":
+		return "api.schemas.ts", "Generated API schema files are usually redundant with API/source definitions."
+	case base == "api.zod.ts":
+		return "api.zod.ts", "Generated API validation files are usually redundant with API/source definitions."
 	}
 	return "", ""
 }
@@ -449,6 +453,9 @@ func generatedDirectoryIgnorePattern(path string) (string, string) {
 		lower := strings.ToLower(part)
 		if isGeneratedDirName(lower) {
 			return strings.Join(parts[:i+1], "/") + "/", "Generated/cache directory detected by path name."
+		}
+		if isAlwaysMediaAssetDirName(lower) {
+			return strings.Join(parts[:i+1], "/") + "/", "Media asset directory detected by path name."
 		}
 		if lower == "sdk" && i+1 < len(parts)-1 && strings.ToLower(parts[i+1]) == "docs" {
 			return strings.Join(parts[:i+2], "/") + "/", "SDK documentation trees are often generated and can duplicate SDK source surfaces."
@@ -464,10 +471,16 @@ func generatedDirectoryIgnorePattern(path string) (string, string) {
 }
 
 func mediaAssetDirectoryIgnorePattern(path string) (string, string) {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts[:maxInt(0, len(parts)-1)] {
+		lower := strings.ToLower(part)
+		if isAlwaysMediaAssetDirName(lower) {
+			return strings.Join(parts[:i+1], "/") + "/", "Media asset directory detected by path name."
+		}
+	}
 	if !isMediaAssetFile(path) {
 		return "", ""
 	}
-	parts := strings.Split(filepath.ToSlash(path), "/")
 	for i, part := range parts[:maxInt(0, len(parts)-1)] {
 		lower := strings.ToLower(part)
 		if lower == "assets" && i == 0 {
@@ -482,7 +495,7 @@ func mediaAssetDirectoryIgnorePattern(path string) (string, string) {
 
 func isGeneratedDirName(name string) bool {
 	switch name {
-	case ".cache", ".next", ".nuxt", ".turbo", "__generated__", "__snapshots__", "coverage", "generated", "generated-sources", "gen", "out", "storybook-static":
+	case ".cache", ".next", ".nuxt", ".turbo", "__generated__", "__image_snapshots__", "__mocks__", "__snapshots__", "audio_samples", "coverage", "generated", "generated-sources", "gen", "out", "storybook-static", "test_data":
 		return true
 	default:
 		return false
@@ -492,6 +505,15 @@ func isGeneratedDirName(name string) bool {
 func isMediaAssetDirName(name string) bool {
 	switch name {
 	case "assets", "image", "images", "img", "media", "screenshot", "screenshots", "video", "videos":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAlwaysMediaAssetDirName(name string) bool {
+	switch name {
+	case "lottie", "lotties", "template_art", "wp-content":
 		return true
 	default:
 		return false
@@ -510,9 +532,13 @@ func isMediaAssetFile(path string) bool {
 func isHighConfidenceGeneratedDir(pattern string) bool {
 	lower := strings.ToLower(pattern)
 	return strings.Contains(lower, "__generated__") ||
+		strings.Contains(lower, "__image_snapshots__") ||
+		strings.Contains(lower, "__mocks__") ||
 		strings.Contains(lower, "__snapshots__") ||
+		strings.Contains(lower, "/audio_samples/") ||
 		strings.Contains(lower, "/generated/") ||
 		strings.Contains(lower, "/generated-sources/") ||
+		strings.Contains(lower, "/test_data/") ||
 		strings.HasSuffix(lower, "/generated/") ||
 		strings.Contains(lower, "/coverage/") ||
 		strings.HasSuffix(lower, "/coverage/")
@@ -523,7 +549,7 @@ func isHighConfidenceMediaAssetDir(pattern string) bool {
 	if len(parts) == 0 {
 		return false
 	}
-	return isMediaAssetDirName(parts[len(parts)-1])
+	return isMediaAssetDirName(parts[len(parts)-1]) || isAlwaysMediaAssetDirName(parts[len(parts)-1])
 }
 
 func fileHasGeneratedMarker(path string) bool {

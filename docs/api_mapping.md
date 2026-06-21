@@ -32,4 +32,4 @@
 **Notes**
 - Requests include `Authorization: Bearer` and `auth-token` (for SaaS compatibility)
 - Most create/update endpoints are `form` or `multipart`
-- `status` returns `PENDING|SUCCESS|FAILED` and may include a result payload
+- `status` returns the raw Celery status plus lifecycle fields (`lifecycle`, `health`, `terminal`, `recommended_action`) and may include `child_task_ids` for downstream chunk tasks.
