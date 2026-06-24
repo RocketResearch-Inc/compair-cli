@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/RocketResearch-Inc/compair-cli/internal/api"
+	"github.com/spf13/viper"
 )
 
 type timeoutNetErr struct{}
@@ -91,6 +92,57 @@ func TestFormatTaskProgressLineLabelsBarePendingAsQueued(t *testing.T) {
 	line := formatTaskProgressLine(1, 1, "Still processing", "example/repo", st, 20*time.Second)
 	if !strings.Contains(line, "queued on server; waiting for worker progress") {
 		t.Fatalf("expected pending queue detail in progress line, got %q", line)
+	}
+}
+
+func TestSuggestReviewResubmitCommandIncludesContextAndQuotes(t *testing.T) {
+	oldWriteMD := writeMD
+	oldProfile := viper.GetString("profile.active")
+	t.Cleanup(func() {
+		writeMD = oldWriteMD
+		viper.Set("profile.active", oldProfile)
+	})
+	writeMD = "/tmp/report path.md"
+	viper.Set("profile.active", "cloud")
+
+	command := suggestReviewResubmitCommand("group-123", "/tmp/repo with spaces")
+
+	if !strings.Contains(command, "compair --profile cloud --group group-123 review '/tmp/repo with spaces'") {
+		t.Fatalf("expected profile, group, and quoted repo path in %q", command)
+	}
+	if !strings.Contains(command, "--snapshot-mode auto --detach --process-timeout-sec 0") {
+		t.Fatalf("expected review resubmit flags in %q", command)
+	}
+	if !strings.Contains(command, "--write-md '/tmp/report path.md'") {
+		t.Fatalf("expected quoted write-md path in %q", command)
+	}
+}
+
+func TestStaleSavedRunningTaskGuidancePreservesLocalPointer(t *testing.T) {
+	oldProfile := viper.GetString("profile.active")
+	t.Cleanup(func() {
+		viper.Set("profile.active", oldProfile)
+	})
+	viper.Set("profile.active", "cloud")
+
+	err := staleSavedTaskNeedsInspectionError(
+		"https://github.com/acme/repo.git",
+		"/tmp/repo",
+		"group-123",
+		"65842549-0000-0000-0000-000000000000",
+		api.TaskStatus{Status: "PROGRESS", Lifecycle: "running"},
+		nil,
+	)
+	message := err.Error()
+
+	if !strings.Contains(message, "not clearing the local task pointer") {
+		t.Fatalf("expected no-clear guidance, got %q", message)
+	}
+	if !strings.Contains(message, "PROGRESS/running") {
+		t.Fatalf("expected running status detail, got %q", message)
+	}
+	if !strings.Contains(message, "compair --profile cloud --group group-123 review /tmp/repo") {
+		t.Fatalf("expected resubmit command with root/group, got %q", message)
 	}
 }
 

@@ -2254,7 +2254,7 @@ func isServerStaleTask(st api.TaskStatus) bool {
 	}
 	health := strings.ToLower(strings.TrimSpace(st.Health))
 	action := strings.ToLower(strings.TrimSpace(st.RecommendedAction))
-	return health == "stale" || action == "inspect_worker"
+	return strings.HasPrefix(health, "stale") || strings.Contains(action, "inspect_worker")
 }
 
 func serverStaleTaskError(taskID string, st api.TaskStatus) error {
@@ -2277,6 +2277,9 @@ func serverStaleTaskError(taskID string, st api.TaskStatus) error {
 	if msg := strings.TrimSpace(st.Message); msg != "" {
 		details = append(details, "message="+msg)
 	}
+	if isPrechunkStaleStatus(st) {
+		details = append(details, "hint=parent task stalled before chunk tasks were queued; inspect/revoke worker task before resubmitting with smaller snapshot limits")
+	}
 	if len(details) == 0 {
 		details = append(details, "server reported stale task health")
 	}
@@ -2285,6 +2288,17 @@ func serverStaleTaskError(taskID string, st api.TaskStatus) error {
 		shortTaskID(taskID),
 		strings.Join(details, ", "),
 	)
+}
+
+func isPrechunkStaleStatus(st api.TaskStatus) bool {
+	health := strings.ToLower(strings.TrimSpace(st.Health))
+	action := strings.ToLower(strings.TrimSpace(st.RecommendedAction))
+	if strings.Contains(health, "prechunk") || strings.Contains(action, "resubmit_smaller") {
+		return true
+	}
+	progress := parseTaskProgressMeta(st)
+	stage := strings.ToLower(strings.TrimSpace(progress.Stage))
+	return stage == "preparing" || stage == "chunking" || stage == "prioritizing"
 }
 
 func isTaskProgressStale(progress taskProgressMeta, fallbackStartedAt time.Time) (bool, time.Duration, time.Duration) {
@@ -3030,17 +3044,24 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 			st, err = client.GetTaskStatus(repo.PendingTaskID)
 			status := strings.ToUpper(strings.TrimSpace(st.Status))
 			recoverable := status == "SUCCESS" || ((status == "PROGRESS" || status == "STARTED") && len(extractChunkTaskIDsFromStatus(st)) > 0)
-			if err != nil || !recoverable {
+			if err != nil {
+				return completed, staleSavedTaskNeedsInspectionError(item.Label, item.Root, group, repo.PendingTaskID, st, err)
+			}
+			if !recoverable && !isTaskLifecycleTerminal(st) {
+				return completed, staleSavedTaskNeedsInspectionError(item.Label, item.Root, group, repo.PendingTaskID, st, nil)
+			}
+			if !recoverable {
 				displayStatus := displayTaskStatus(st, err)
 				clearPendingRepoTask(item.Root, cfg, repo)
 				printer.Warn(fmt.Sprintf(
-					"[%d/%d] Cleared stale saved task for %s (%s old; cutoff %s; server status %s). Rerun 'compair review' to resubmit current changes.",
+					"[%d/%d] Cleared stale saved task for %s (%s old; cutoff %s; server status %s). Resubmit current changes with: %s",
 					idx+1,
 					len(pending),
 					item.Label,
 					humanDuration(age),
 					humanDuration(cutoff),
 					displayStatus,
+					suggestReviewResubmitCommand(group, item.Root),
 				))
 				continue
 			}
@@ -3114,6 +3135,63 @@ func waitForSavedPendingRepoTasks(ctx context.Context, client *api.Client, group
 		}
 	}
 	return completed, nil
+}
+
+func staleSavedTaskNeedsInspectionError(label string, root string, group string, taskID string, st api.TaskStatus, err error) error {
+	detail := displayTaskStatus(st, err)
+	if detail == "unknown" {
+		detail = "unknown status"
+	}
+	action := strings.TrimSpace(st.RecommendedAction)
+	if action != "" {
+		detail += " recommended_action=" + action
+	}
+	hint := "Inspect worker logs/status"
+	if isPrechunkStaleStatus(st) {
+		hint = "The parent task stalled before child chunk tasks were queued; inspect/revoke the worker task"
+	}
+	return fmt.Errorf(
+		"saved processing task %s for %s is stale locally but server status is %s without recoverable child chunk tasks; not clearing the local task pointer to avoid duplicate Cloud work. %s for task %s, then rerun 'compair wait' if the task is still alive. Only resubmit after confirming the Cloud task is dead; suggested resubmit command: %s",
+		shortTaskID(taskID),
+		label,
+		detail,
+		hint,
+		shortTaskID(taskID),
+		suggestReviewResubmitCommand(group, root),
+	)
+}
+
+func suggestReviewResubmitCommand(group string, root string) string {
+	parts := []string{"compair"}
+	if profile := strings.TrimSpace(viper.GetString("profile.active")); profile != "" {
+		parts = append(parts, "--profile", profile)
+	}
+	if group = strings.TrimSpace(group); group != "" {
+		parts = append(parts, "--group", group)
+	}
+	parts = append(parts, "review", root, "--snapshot-mode", "auto", "--detach", "--process-timeout-sec", "0")
+	if strings.TrimSpace(writeMD) != "" {
+		parts = append(parts, "--write-md", writeMD)
+	}
+	return shellJoin(parts)
+}
+
+func shellJoin(parts []string) string {
+	quoted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		quoted = append(quoted, shellQuote(part))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(s, " \t\n'\"\\$`!*?[]{}();&|<>") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
 func clearPendingRepoTaskOnTerminalChunkFailure(root string, cfg config.Project, repo *config.Repo, err error) {

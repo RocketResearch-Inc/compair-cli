@@ -96,6 +96,35 @@ func TestServerStaleTaskStatusIsDetected(t *testing.T) {
 	}
 }
 
+func TestServerPrechunkStaleTaskStatusIncludesSpecificGuidance(t *testing.T) {
+	st := api.TaskStatus{
+		Status:             "PROGRESS",
+		Health:             "stale_prechunk",
+		RecommendedAction:  "resubmit_smaller_or_inspect_worker",
+		LastProgressAgeSec: 902,
+		Message:            "Preparing document for indexing",
+		Meta: map[string]any{
+			"stage": "preparing",
+		},
+	}
+	if !isServerStaleTask(st) {
+		t.Fatal("expected pre-chunk stale task to be detected")
+	}
+	err := serverStaleTaskError("abcdef12-aaaa-bbbb-cccc-123456789abc", st)
+	msg := err.Error()
+	for _, want := range []string{
+		"abcdef12",
+		"health=stale_prechunk",
+		"recommended_action=resubmit_smaller_or_inspect_worker",
+		"parent task stalled before chunk tasks were queued",
+		"smaller snapshot limits",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("expected pre-chunk stale task error to include %q, got %q", want, msg)
+		}
+	}
+}
+
 func TestServerStaleTaskIgnoresTerminalLifecycle(t *testing.T) {
 	st := api.TaskStatus{
 		Status:    "PROGRESS",
