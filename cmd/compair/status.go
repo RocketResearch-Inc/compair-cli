@@ -218,6 +218,8 @@ func printRepoStatus() {
 		} else {
 			fmt.Println("  Tip: run 'compair wait' to reattach, 'compair pull' to check for finished feedback, or 'compair doctor' for deeper diagnostics.")
 		}
+	} else {
+		fmt.Println("  Pending processing task: none")
 	}
 }
 
