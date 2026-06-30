@@ -88,6 +88,9 @@ func TestProcessDocWithOptionsIncludesReanalyzeExistingAndSkipIndex(t *testing.T
 		if got := values.Get("skip_index"); got != "true" {
 			t.Fatalf("expected skip_index=true, got %q", got)
 		}
+		if got := values.Get("focus_manifest"); !strings.Contains(got, `"docs/**"`) {
+			t.Fatalf("expected focus_manifest to be included, got %q", got)
+		}
 		if got := values["reference_doc_ids"]; len(got) != 2 || got[0] != "peer_doc_1" || got[1] != "peer_doc_2" {
 			t.Fatalf("expected repeated reference_doc_ids values, got %#v", got)
 		}
@@ -110,6 +113,7 @@ func TestProcessDocWithOptionsIncludesReanalyzeExistingAndSkipIndex(t *testing.T
 		ReanalyzeExisting: true,
 		ReferenceDocIDs:   []string{"peer_doc_1", "peer_doc_2"},
 		SkipIndex:         true,
+		FocusManifest:     `{"areas":[{"glob":"docs/**","weight":2.5}]}`,
 	})
 	if err != nil {
 		t.Fatalf("ProcessDocWithOptions returned error: %v", err)
@@ -146,6 +150,9 @@ func TestProcessDocWithOptionsUsesJSONForLargePayloads(t *testing.T) {
 		if got := payload["generate_feedback"]; got != false {
 			t.Fatalf("expected generate_feedback=false, got %#v", got)
 		}
+		if got, ok := payload["focus_manifest"].(string); !ok || !strings.Contains(got, `"src/**"`) {
+			t.Fatalf("expected focus_manifest string, got %#v", payload["focus_manifest"])
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"task_id":"task_large"}`)
 	}))
@@ -154,7 +161,9 @@ func TestProcessDocWithOptionsUsesJSONForLargePayloads(t *testing.T) {
 	client := NewClient(server.URL)
 	client.http = server.Client()
 
-	resp, err := client.ProcessDocWithOptions("doc_large", strings.Repeat("x", processDocJSONPayloadThreshold), false, ProcessDocOptions{})
+	resp, err := client.ProcessDocWithOptions("doc_large", strings.Repeat("x", processDocJSONPayloadThreshold), false, ProcessDocOptions{
+		FocusManifest: `{"areas":[{"glob":"src/**","weight":3}]}`,
+	})
 	if err != nil {
 		t.Fatalf("ProcessDocWithOptions returned error: %v", err)
 	}

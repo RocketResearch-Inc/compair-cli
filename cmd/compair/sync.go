@@ -162,6 +162,7 @@ var syncProcessTimeoutSec int
 var syncReanalyzeExisting bool
 var syncPairwise bool
 var syncCrossRepoOnly bool
+var syncFocusManifest string
 
 type syncInvocationMode struct {
 	FetchOnly           bool
@@ -323,6 +324,10 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 	}
 
 	snapshotOpts := resolveSnapshotOptions(cmd)
+	focusManifestJSON, err := loadFocusManifest(syncFocusManifest)
+	if err != nil {
+		return err
+	}
 	if syncDryRun {
 		if modeFlags.FetchOnly || modeFlags.PushOnly {
 			printer.Warn("--fetch-only/--push-only ignored in --dry-run mode.")
@@ -523,6 +528,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 						reanalyzeExisting,
 						modeFlags.SkipIndex,
 						[]string{peer.DocumentID},
+						focusManifestJSON,
 					)
 					if err != nil {
 						return err
@@ -586,6 +592,7 @@ func runSyncCommand(cmd *cobra.Command, args []string, modeFlags syncInvocationM
 				reanalyzeExisting,
 				modeFlags.SkipIndex,
 				nil,
+				focusManifestJSON,
 			)
 			if err != nil {
 				return err
@@ -3300,19 +3307,43 @@ func submitRepoProcessDoc(
 	reanalyzeExisting bool,
 	skipIndex bool,
 	referenceDocIDs []string,
+	focusManifestJSON string,
 ) (api.ProcessDocResp, error) {
 	opts := api.ProcessDocOptions{
 		ReferenceDocIDs: referenceDocIDs,
 		SkipIndex:       skipIndex,
+		FocusManifest:   focusManifestJSON,
 	}
 	if snapshotUsed {
 		opts.ChunkMode = "client"
 		opts.ReanalyzeExisting = reanalyzeExisting
 	}
-	if snapshotUsed || reanalyzeExisting || len(referenceDocIDs) > 0 || skipIndex {
+	if snapshotUsed || reanalyzeExisting || len(referenceDocIDs) > 0 || skipIndex || strings.TrimSpace(focusManifestJSON) != "" {
 		return client.ProcessDocWithOptions(docID, text, generateFeedback, opts)
 	}
 	return client.ProcessDoc(docID, text, generateFeedback)
+}
+
+func loadFocusManifest(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+	raw, err := os.ReadFile(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("read --focus-manifest: %w", err)
+	}
+	payload := strings.TrimSpace(string(raw))
+	if payload == "" {
+		return "", fmt.Errorf("--focus-manifest %s is empty", trimmed)
+	}
+	if len([]byte(payload)) > 256000 {
+		return "", fmt.Errorf("--focus-manifest %s is too large; keep focused manifests under 256KB", trimmed)
+	}
+	if !json.Valid([]byte(payload)) {
+		return "", fmt.Errorf("--focus-manifest %s is not valid JSON", trimmed)
+	}
+	return payload, nil
 }
 
 func awaitRepoProcessDocTask(
@@ -4058,6 +4089,7 @@ func addSyncFlags(cmd *cobra.Command, includeModeFlags bool) {
 	cmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Show the payload that would be sent and exit")
 	cmd.Flags().BoolVar(&syncJSON, "json", false, "Output machine-readable sync summary JSON")
 	cmd.Flags().BoolVar(&syncReanalyzeExisting, "reanalyze-existing", false, "When used with --snapshot-mode snapshot, generate feedback from already-indexed content instead of only new chunks")
+	cmd.Flags().StringVar(&syncFocusManifest, "focus-manifest", "", "Experimental JSON manifest that boosts selected snapshot path globs during feedback source selection")
 	cmd.Flags().StringVar(&syncGate, "gate", "", "Named gating preset: off, api-contract, cross-product, review, strict (or 'help')")
 	cmd.Flags().IntVar(&syncFailOnFeedback, "fail-on-feedback", 0, "Exit non-zero when new feedback count is at or above this threshold (0 disables)")
 	cmd.Flags().StringArrayVar(&syncFailOnSeverity, "fail-on-severity", nil, "Primary gate: fail when new notification severity matches (repeatable or comma-separated)")

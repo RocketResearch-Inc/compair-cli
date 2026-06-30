@@ -531,6 +531,7 @@ type ProcessDocOptions struct {
 	ReanalyzeExisting bool
 	ReferenceDocIDs   []string
 	SkipIndex         bool
+	FocusManifest     string
 }
 
 const processDocJSONPayloadThreshold = 768 * 1024
@@ -543,6 +544,7 @@ type processDocJSONRequest struct {
 	ReanalyzeExisting bool     `json:"reanalyze_existing,omitempty"`
 	ReferenceDocIDs   []string `json:"reference_doc_ids,omitempty"`
 	SkipIndex         bool     `json:"skip_index,omitempty"`
+	FocusManifest     string   `json:"focus_manifest,omitempty"`
 }
 
 func (c *Client) ProcessDoc(docID, text string, generateFeedback bool) (ProcessDocResp, error) {
@@ -577,6 +579,9 @@ func (c *Client) ProcessDocWithOptions(docID, text string, generateFeedback bool
 	if opts.SkipIndex {
 		data.Set("skip_index", "true")
 	}
+	if strings.TrimSpace(opts.FocusManifest) != "" {
+		data.Set("focus_manifest", strings.TrimSpace(opts.FocusManifest))
+	}
 	for _, docID := range opts.ReferenceDocIDs {
 		if trimmed := strings.TrimSpace(docID); trimmed != "" {
 			data.Add("reference_doc_ids", trimmed)
@@ -598,6 +603,7 @@ func (c *Client) processDocJSON(docID, encodedText string, generateFeedback bool
 		ChunkMode:         strings.TrimSpace(opts.ChunkMode),
 		ReanalyzeExisting: opts.ReanalyzeExisting,
 		SkipIndex:         opts.SkipIndex,
+		FocusManifest:     strings.TrimSpace(opts.FocusManifest),
 	}
 	for _, docID := range opts.ReferenceDocIDs {
 		if trimmed := strings.TrimSpace(docID); trimmed != "" {
