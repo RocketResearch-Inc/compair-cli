@@ -54,6 +54,7 @@ func writePreviewCredentials(t *testing.T, token string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	dir := filepath.Join(home, ".compair")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)

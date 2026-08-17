@@ -435,7 +435,7 @@ func TestUploadStateCorruptionAndSymlinkRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	secretInfo, err := os.Stat(filepath.Join(filepath.Dir(stateDirectory), "baseline-upload-install-secret.v1"))
-	if err != nil || secretInfo.Mode().Perm() != 0o600 || secretInfo.Size() != installSecretBytes {
+	if err != nil || !privateFilePermissions(secretInfo) || secretInfo.Size() != installSecretBytes {
 		t.Fatalf("install secret metadata = %#v, %v", secretInfo, err)
 	}
 	state := &uploadState{SchemaVersion: uploadStateSchemaVersion, GroupID: "group", IntegrityHMACSHA256: ""}

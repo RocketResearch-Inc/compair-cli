@@ -92,7 +92,9 @@ func TestBaselineUploadCommandEmitsExactlyOneSafeJSONValue(t *testing.T) {
 
 func TestBaselineUploadCommandUsageAndAuthenticationExitClasses(t *testing.T) {
 	input, planPath, _ := commandScanFixture(t)
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	stdout, _, err := executeBaselineForTest(t, "https://core.example.test", "baseline", "upload", "--plan", planPath)
 	if err == nil || exitCodeForError(err) != baselineUploadUsageExitCode || stdout != "" {
 		t.Fatalf("usage result = %q, %v, %d", stdout, err, exitCodeForError(err))
@@ -114,6 +116,7 @@ func installCommandCredential(t *testing.T, token string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	directory := filepath.Join(home, ".compair")
 	if err := os.Mkdir(directory, 0o700); err != nil {
 		t.Fatal(err)

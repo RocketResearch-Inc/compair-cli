@@ -499,7 +499,11 @@ func TestRawGitDiffV1MatchesVendoredComparatorBytes(t *testing.T) {
 			if !bytes.Equal(actual, vendor) {
 				t.Fatalf("raw_git_diff_v1 does not match vendor bytes: vendor=%s actual=%s", testSHA256(vendor), testSHA256(actual))
 			}
-			for _, expected := range []string{"ordinary.txt", "deleted.txt", "added.txt", "renamed-new.txt", "copied-new.txt", "old mode 100644", "new mode 100755", "Binary files"} {
+			expectedContent := []string{"ordinary.txt", "deleted.txt", "added.txt", "renamed-new.txt", "copied-new.txt", "Binary files"}
+			if runtime.GOOS != "windows" {
+				expectedContent = append(expectedContent, "old mode 100644", "new mode 100755")
+			}
+			for _, expected := range expectedContent {
 				if !bytes.Contains(actual, []byte(expected)) {
 					t.Fatalf("parity fixture did not exercise %q", expected)
 				}
