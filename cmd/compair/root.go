@@ -106,6 +106,8 @@ func shouldSkipTelemetry(cmd *cobra.Command) bool {
 		return false
 	}
 	return path == "compair telemetry" || strings.HasPrefix(path, "compair telemetry ") ||
+		path == "compair baseline repository" || strings.HasPrefix(path, "compair baseline repository ") ||
+		path == "compair baseline plan" || strings.HasPrefix(path, "compair baseline plan ") ||
 		path == "compair baseline scan" || path == "compair baseline upload" ||
 		path == "compair baseline index" || path == "compair baseline index status" ||
 		path == "compair baseline run" || path == "compair baseline run status"

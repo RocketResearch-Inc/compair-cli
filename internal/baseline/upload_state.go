@@ -110,15 +110,20 @@ func ensureProtectedDirectory(directory string) error {
 }
 
 func loadOrCreateInstallSecret(filename string) ([]byte, error) {
-	for attempts := 0; attempts < 2; attempts++ {
+	for attempts := 0; attempts < 50; attempts++ {
 		info, err := os.Lstat(filename)
 		if err == nil {
-			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || !privateFilePermissions(info) || info.Size() != installSecretBytes {
+			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || !privateFilePermissions(info) {
 				return nil, uploadError(UploadFailureContract, "unsafe_install_secret")
+			}
+			if info.Size() != installSecretBytes {
+				time.Sleep(5 * time.Millisecond)
+				continue
 			}
 			value, readErr := os.ReadFile(filename)
 			if readErr != nil || len(value) != installSecretBytes {
-				return nil, uploadError(UploadFailureContract, "corrupt_install_secret")
+				time.Sleep(5 * time.Millisecond)
+				continue
 			}
 			return value, nil
 		}

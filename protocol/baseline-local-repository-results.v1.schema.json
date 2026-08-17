@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-local-repository-results.v1.schema.json",
+  "title": "baseline-local-repository-results.v1",
+  "$defs": {
+    "uuid": {"type": "string", "format": "uuid"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "group_id": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]*$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"}
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "operation", "group_id", "registration_id", "state", "source_document_id", "identity_descriptor_sha256", "replayed"],
+      "properties": {
+        "schema_version": {"const": "baseline-local-repository-result.v1"},
+        "operation": {"enum": ["registered", "bound", "state_changed"]},
+        "group_id": {"$ref": "#/$defs/group_id"},
+        "registration_id": {"$ref": "#/$defs/uuid"},
+        "state": {"enum": ["active", "disabled"]},
+        "source_document_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+        "identity_descriptor_sha256": {"$ref": "#/$defs/sha256"},
+        "binding_id": {"$ref": "#/$defs/uuid"},
+        "path_sha256": {"$ref": "#/$defs/sha256"},
+        "git_sanity_sha256": {"$ref": "#/$defs/sha256"},
+        "replayed": {"type": "boolean"}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "group_id", "changed_repository_registration_id", "sibling_repository_registration_ids", "base_revision", "head_revision", "output_path_sha256", "plan_sha256", "created_at"],
+      "properties": {
+        "schema_version": {"const": "baseline-local-scan-plan-result.v1"},
+        "group_id": {"$ref": "#/$defs/group_id"},
+        "changed_repository_registration_id": {"$ref": "#/$defs/uuid"},
+        "sibling_repository_registration_ids": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "items": {"$ref": "#/$defs/uuid"}},
+        "base_revision": {"$ref": "#/$defs/revision"},
+        "head_revision": {"$ref": "#/$defs/revision"},
+        "output_path_sha256": {"$ref": "#/$defs/sha256"},
+        "plan_sha256": {"$ref": "#/$defs/sha256"},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  ]
+}

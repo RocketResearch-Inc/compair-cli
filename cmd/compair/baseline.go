@@ -80,7 +80,7 @@ func newBaselineCommand() *cobra.Command {
 	previewCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return withCLIExitCode(baselinePreviewUsageExitCode, err)
 	})
-	baselineCmd.AddCommand(previewCmd, newBaselineScanCommand(), newBaselineUploadCommand(), newBaselineIndexCommand(), newBaselineRunCommand())
+	baselineCmd.AddCommand(previewCmd, newBaselineRepositoryCommand(), newBaselinePlanCommand(), newBaselineScanCommand(), newBaselineUploadCommand(), newBaselineIndexCommand(), newBaselineRunCommand())
 	return baselineCmd
 }
 

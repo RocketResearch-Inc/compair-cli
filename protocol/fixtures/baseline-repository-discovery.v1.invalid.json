@@ -1,0 +1,52 @@
+{
+  "cases": [
+    {
+      "case": "local_path_forbidden",
+      "value": {
+        "schema_version": "baseline-repository-discovery.v1",
+        "message_type": "repository_inspection",
+        "request_id": "00000000-0000-4000-8000-000000000002",
+        "group_id": "group-safe",
+        "repository": {
+          "registration_id": "00000000-0000-4000-8000-000000000010",
+          "group_id": "group-safe",
+          "identity_descriptor_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "identity_descriptor": {
+            "version": "repository-identity.v1",
+            "authority": "compair-local-repository.v1",
+            "repository_uid": "local-safe-label-001"
+          },
+          "state": "active",
+          "source_document_id": null,
+          "created_at": "2026-08-17T12:00:00Z",
+          "updated_at": "2026-08-17T12:00:00Z",
+          "local_path": "/private/repository"
+        }
+      }
+    },
+    {
+      "case": "identity_material_forbidden",
+      "value": {
+        "schema_version": "baseline-repository-discovery.v1",
+        "message_type": "repository_list",
+        "request_id": "00000000-0000-4000-8000-000000000001",
+        "group_id": "group-safe",
+        "repositories": [],
+        "identity_descriptor": {
+          "version": "repository-identity.v1",
+          "authority": "compair-local-repository.v1",
+          "repository_uid": "extra-top-level-label"
+        }
+      }
+    },
+    {
+      "case": "cross_group_shape",
+      "value": {
+        "schema_version": "baseline-repository-discovery.v1",
+        "message_type": "repository_inspect_request",
+        "request_id": "00000000-0000-4000-8000-000000000002",
+        "group_id": "group-safe"
+      }
+    }
+  ]
+}

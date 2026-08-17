@@ -51,6 +51,7 @@ compair demo --mode cloud
 - [API Mapping](api_mapping.md)
 - [Hook Recipes](hook_recipes.md)
 - [Config Reference](config_reference.md)
+- [Local Baseline Repository Plans](baseline_repository_plan.md)
 
 Internal launch, release, and packaging runbooks are maintained outside the
 public docs set.

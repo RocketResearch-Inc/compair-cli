@@ -8,8 +8,6 @@ import (
 )
 
 func TestNotificationGateWaitBudgetRequiresNewFetchedUploadWork(t *testing.T) {
-	t.Parallel()
-
 	prevFeedbackWait := feedbackWaitSec
 	prevSeverities := syncFailOnSeverity
 	prevTypes := syncFailOnType
@@ -37,8 +35,6 @@ func TestNotificationGateWaitBudgetRequiresNewFetchedUploadWork(t *testing.T) {
 }
 
 func TestCollectNotificationGateResultSkipsDropEvents(t *testing.T) {
-	t.Parallel()
-
 	prevSeverities := syncFailOnSeverity
 	prevTypes := syncFailOnType
 	syncFailOnSeverity = []string{"high"}

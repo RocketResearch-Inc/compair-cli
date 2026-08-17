@@ -1,0 +1,46 @@
+{
+  "cases": [
+    {
+      "case": "local_path_forbidden",
+      "value": {
+        "schema_version": "baseline-local-repository-result.v1",
+        "operation": "bound",
+        "group_id": "group-safe",
+        "registration_id": "00000000-0000-4000-8000-000000000010",
+        "state": "active",
+        "source_document_id": null,
+        "identity_descriptor_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "replayed": false,
+        "local_path": "/private/repository"
+      }
+    },
+    {
+      "case": "plan_without_sibling",
+      "value": {
+        "schema_version": "baseline-local-scan-plan-result.v1",
+        "group_id": "group-safe",
+        "changed_repository_registration_id": "00000000-0000-4000-8000-000000000010",
+        "sibling_repository_registration_ids": [],
+        "base_revision": "1111111111111111111111111111111111111111",
+        "head_revision": "2222222222222222222222222222222222222222",
+        "output_path_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "plan_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "created_at": "2026-08-17T12:00:00Z"
+      }
+    },
+    {
+      "case": "repository_uid_forbidden",
+      "value": {
+        "schema_version": "baseline-local-repository-result.v1",
+        "operation": "registered",
+        "group_id": "group-safe",
+        "registration_id": "00000000-0000-4000-8000-000000000010",
+        "state": "active",
+        "source_document_id": null,
+        "identity_descriptor_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "replayed": false,
+        "repository_uid": "local-private-label"
+      }
+    }
+  ]
+}
