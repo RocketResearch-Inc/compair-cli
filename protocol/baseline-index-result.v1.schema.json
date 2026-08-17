@@ -1,0 +1,427 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-index-result.v1.schema.json",
+  "title": "baseline-index-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "protocol_sha256",
+    "group_id",
+    "scan_fingerprint",
+    "ingestion_continuation_id",
+    "corpus_id",
+    "corpus_generation_id",
+    "corpus_generation_version",
+    "corpus_manifest_hash",
+    "ingestion_provenance_fingerprint",
+    "index_job_id",
+    "dispatch_mode",
+    "state",
+    "exit_classification",
+    "compatible_publication_id",
+    "index_format_version",
+    "tokenizer_version",
+    "index_intent_fingerprint",
+    "retrieval_config_fingerprint",
+    "embedding_fingerprint",
+    "index_fingerprint",
+    "indexed_document_count",
+    "vector_count",
+    "resumed",
+    "replayed",
+    "transmitted_request_count",
+    "transmitted_request_bytes",
+    "created_at",
+    "updated_at",
+    "reason_code"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "baseline-index-result.v1"
+    },
+    "protocol_version": {
+      "const": "baseline-control-plane.v2"
+    },
+    "protocol_sha256": {
+      "const": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091"
+    },
+    "group_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$"
+    },
+    "scan_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "ingestion_continuation_id": {
+      "$ref": "#/$defs/nullable_uuid"
+    },
+    "corpus_id": {
+      "$ref": "#/$defs/nullable_uuid"
+    },
+    "corpus_generation_id": {
+      "$ref": "#/$defs/nullable_uuid"
+    },
+    "corpus_generation_version": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "corpus_manifest_hash": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "ingestion_provenance_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "index_job_id": {
+      "$ref": "#/$defs/nullable_uuid"
+    },
+    "dispatch_mode": {
+      "enum": [
+        "automatic",
+        "manual",
+        "unavailable"
+      ]
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "retryable_failed",
+        "retryable_incomplete",
+        "succeeded",
+        "terminal_failed",
+        "blocked",
+        "cancelled",
+        "failed"
+      ]
+    },
+    "exit_classification": {
+      "enum": [
+        "pending",
+        "success",
+        "retryable",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "compatible_publication_id": {
+      "$ref": "#/$defs/nullable_uuid"
+    },
+    "index_format_version": {
+      "anyOf": [
+        {
+          "const": "baseline-index.v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tokenizer_version": {
+      "anyOf": [
+        {
+          "const": "baseline_v1_frozen_tokenizer.v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "index_intent_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "retrieval_config_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "embedding_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "index_fingerprint": {
+      "$ref": "#/$defs/nullable_sha256"
+    },
+    "indexed_document_count": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "vector_count": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resumed": {
+      "type": "boolean"
+    },
+    "replayed": {
+      "type": "boolean"
+    },
+    "transmitted_request_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transmitted_request_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "created_at": {
+      "$ref": "#/$defs/nullable_timestamp"
+    },
+    "updated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"
+    },
+    "nullable_uuid": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullable_sha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullable_timestamp": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "succeeded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_classification": {
+            "const": "success"
+          },
+          "compatible_publication_id": {
+            "$ref": "#/$defs/uuid"
+          },
+          "index_format_version": {
+            "const": "baseline-index.v1"
+          },
+          "tokenizer_version": {
+            "const": "baseline_v1_frozen_tokenizer.v1"
+          },
+          "index_intent_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "retrieval_config_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "embedding_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "index_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "indexed_document_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50000
+          },
+          "vector_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50000
+          },
+          "reason_code": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "retryable_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_classification": {
+            "const": "pending"
+          },
+          "compatible_publication_id": {
+            "type": "null"
+          },
+          "index_fingerprint": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "retryable_failed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "retryable_incomplete"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_classification": {
+            "const": "retryable"
+          },
+          "compatible_publication_id": {
+            "type": "null"
+          },
+          "index_fingerprint": {
+            "type": "null"
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "terminal_failed",
+              "blocked",
+              "failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_classification": {
+            "const": "failed"
+          },
+          "compatible_publication_id": {
+            "type": "null"
+          },
+          "index_fingerprint": {
+            "type": "null"
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "cancelled"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_classification": {
+            "const": "cancelled"
+          },
+          "compatible_publication_id": {
+            "type": "null"
+          },
+          "index_fingerprint": {
+            "type": "null"
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          }
+        }
+      }
+    }
+  ]
+}

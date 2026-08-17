@@ -1,0 +1,66 @@
+{
+  "cases": [
+    {
+      "case_id": "request_with_both_selectors_invalid",
+      "base_case": "request_by_job",
+      "path": "/digest_id",
+      "value": "00000000-0000-4000-8000-000000000022"
+    },
+    {
+      "case_id": "contradictory_feedback_count_invalid",
+      "base_case": "positive_findings_control_document",
+      "path": "/control_job/feedback_count",
+      "value": 1
+    },
+    {
+      "case_id": "null_legacy_chunk_invalid",
+      "base_case": "positive_findings_legacy_chunk",
+      "path": "/source/chunk_id",
+      "value": null
+    },
+    {
+      "case_id": "nonnull_control_document_chunk_invalid",
+      "base_case": "zero_findings_control_document",
+      "path": "/source/chunk_id",
+      "value": "00000000-0000-4000-8000-000000000033"
+    },
+    {
+      "case_id": "zero_findings_with_digest_invalid",
+      "base_case": "zero_findings_control_document",
+      "path": "/digest",
+      "value": {
+        "digest_id": "00000000-0000-4000-8000-000000000022",
+        "state": "suppressed",
+        "channel": "in_app",
+        "finding_count": 1,
+        "finding_manifest_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "case_id": "unordered_feedback_invalid",
+      "base_case": "positive_findings_control_document",
+      "path": "/feedback/0/ordinal",
+      "value": 2
+    },
+    {
+      "case_id": "duplicate_feedback_invalid",
+      "base_case": "positive_findings_control_document",
+      "path": "/feedback/1/feedback_id",
+      "value": "00000000-0000-4000-8000-000000000023"
+    },
+    {
+      "case_id": "provenance_identity_mismatch_invalid",
+      "base_case": "positive_findings_control_document",
+      "path": "/provenance/index/index_id",
+      "value": "00000000-0000-4000-8000-000000000099"
+    },
+    {
+      "case_id": "nonfinite_dimension_invalid",
+      "raw_json": "{\"schema_version\":\"baseline-preview.v1\",\"provenance\":{\"embedding\":{\"dimension\":NaN}}}"
+    },
+    {
+      "case_id": "duplicate_nested_key_invalid",
+      "raw_json": "{\"schema_version\":\"baseline-preview.v1\",\"source\":{\"group_id\":\"a\",\"group_id\":\"b\"}}"
+    }
+  ]
+}

@@ -1,0 +1,260 @@
+{
+  "requests": [
+    {
+      "case_id": "request_by_job",
+      "value": {
+        "schema_version": "baseline-preview.v1",
+        "request_id": "00000000-0000-4000-8000-000000000001",
+        "group_id": "00000000-0000-4000-8000-000000000002",
+        "job_id": "00000000-0000-4000-8000-000000000010"
+      }
+    },
+    {
+      "case_id": "request_by_digest",
+      "value": {
+        "schema_version": "baseline-preview.v1",
+        "request_id": "00000000-0000-4000-8000-000000000003",
+        "group_id": "00000000-0000-4000-8000-000000000002",
+        "digest_id": "00000000-0000-4000-8000-000000000022"
+      }
+    }
+  ],
+  "responses": [
+    {
+      "case_id": "zero_findings_control_document",
+      "value": {
+        "schema_version": "baseline-preview.v1",
+        "request_id": "00000000-0000-4000-8000-000000000001",
+        "control_job": {
+          "job_id": "00000000-0000-4000-8000-000000000010",
+          "state": "feedback_persisted",
+          "completed_at": "2026-08-16T12:00:00Z",
+          "generation_invoked": true,
+          "feedback_count": 0,
+          "notification_outbox_count": 0
+        },
+        "retrieval": {
+          "persisted_run_id": "00000000-0000-4000-8000-000000000011",
+          "status": "ok",
+          "evidence_count": 2,
+          "reference_count": 2
+        },
+        "source": {
+          "group_id": "00000000-0000-4000-8000-000000000002",
+          "document_id": "00000000-0000-4000-8000-000000000004",
+          "source_scope": "control_document",
+          "chunk_id": null
+        },
+        "feedback": [],
+        "digest": null,
+        "provenance": {
+          "retrieval": {
+            "engine": "baseline_v1",
+            "version": "baseline_v1",
+            "result_schema_version": "retrieval-result.v2"
+          },
+          "query": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "length": 149,
+            "origin": "explicit"
+          },
+          "corpus": {
+            "generation_id": "00000000-0000-4000-8000-000000000040",
+            "generation_version": "corpus-generation.v1",
+            "manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "index": {
+            "publication_id": "00000000-0000-4000-8000-000000000041",
+            "publication_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "index_id": "00000000-0000-4000-8000-000000000041",
+            "version": "baseline-index.v1",
+            "schema_version": "baseline-index.v1",
+            "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "config_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          },
+          "embedding": {
+            "provider": "fastembed-http",
+            "model": "BAAI/bge-small-en-v1.5",
+            "revision": "package-snapshot-1",
+            "dimension": 384,
+            "fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "generation": {
+            "provider": "local",
+            "model": "structured-reviewer",
+            "version": "snapshot-1",
+            "input_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+            "output_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "positive_findings_control_document",
+      "value": {
+        "schema_version": "baseline-preview.v1",
+        "request_id": "00000000-0000-4000-8000-000000000003",
+        "control_job": {
+          "job_id": "00000000-0000-4000-8000-000000000020",
+          "state": "feedback_persisted",
+          "completed_at": "2026-08-16T12:01:00Z",
+          "generation_invoked": true,
+          "feedback_count": 2,
+          "notification_outbox_count": 1
+        },
+        "retrieval": {
+          "persisted_run_id": "00000000-0000-4000-8000-000000000021",
+          "status": "ok",
+          "evidence_count": 2,
+          "reference_count": 2
+        },
+        "source": {
+          "group_id": "00000000-0000-4000-8000-000000000002",
+          "document_id": "00000000-0000-4000-8000-000000000004",
+          "source_scope": "control_document",
+          "chunk_id": null
+        },
+        "feedback": [
+          {
+            "ordinal": 1,
+            "feedback_id": "00000000-0000-4000-8000-000000000023",
+            "feedback": "First ordered finding."
+          },
+          {
+            "ordinal": 2,
+            "feedback_id": "00000000-0000-4000-8000-000000000024",
+            "feedback": "Second ordered finding."
+          }
+        ],
+        "digest": {
+          "digest_id": "00000000-0000-4000-8000-000000000022",
+          "state": "suppressed",
+          "channel": "in_app",
+          "finding_count": 2,
+          "finding_manifest_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "provenance": {
+          "retrieval": {
+            "engine": "baseline_v1",
+            "version": "baseline_v1",
+            "result_schema_version": "retrieval-result.v2"
+          },
+          "query": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "length": 149,
+            "origin": "explicit"
+          },
+          "corpus": {
+            "generation_id": "00000000-0000-4000-8000-000000000040",
+            "generation_version": "corpus-generation.v1",
+            "manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "index": {
+            "publication_id": "00000000-0000-4000-8000-000000000041",
+            "publication_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "index_id": "00000000-0000-4000-8000-000000000041",
+            "version": "baseline-index.v1",
+            "schema_version": "baseline-index.v1",
+            "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "config_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          },
+          "embedding": {
+            "provider": "fastembed-http",
+            "model": "BAAI/bge-small-en-v1.5",
+            "revision": "package-snapshot-1",
+            "dimension": 384,
+            "fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "generation": {
+            "provider": "local",
+            "model": "structured-reviewer",
+            "version": "snapshot-1",
+            "input_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+            "output_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "positive_findings_legacy_chunk",
+      "value": {
+        "schema_version": "baseline-preview.v1",
+        "request_id": "00000000-0000-4000-8000-000000000005",
+        "control_job": {
+          "job_id": "00000000-0000-4000-8000-000000000030",
+          "state": "feedback_persisted",
+          "completed_at": "2026-08-16T12:02:00Z",
+          "generation_invoked": true,
+          "feedback_count": 1,
+          "notification_outbox_count": 1
+        },
+        "retrieval": {
+          "persisted_run_id": "00000000-0000-4000-8000-000000000031",
+          "status": "ok",
+          "evidence_count": 1,
+          "reference_count": 1
+        },
+        "source": {
+          "group_id": "00000000-0000-4000-8000-000000000002",
+          "document_id": "00000000-0000-4000-8000-000000000004",
+          "source_scope": "legacy_chunk",
+          "chunk_id": "00000000-0000-4000-8000-000000000033"
+        },
+        "feedback": [
+          {
+            "ordinal": 1,
+            "feedback_id": "00000000-0000-4000-8000-000000000034",
+            "feedback": "Retained legacy source finding."
+          }
+        ],
+        "digest": {
+          "digest_id": "00000000-0000-4000-8000-000000000032",
+          "state": "suppressed",
+          "channel": "in_app",
+          "finding_count": 1,
+          "finding_manifest_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+        },
+        "provenance": {
+          "retrieval": {
+            "engine": "baseline_v1",
+            "version": "baseline_v1",
+            "result_schema_version": "retrieval-result.v2"
+          },
+          "query": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "length": 149,
+            "origin": "explicit"
+          },
+          "corpus": {
+            "generation_id": "00000000-0000-4000-8000-000000000040",
+            "generation_version": "corpus-generation.v1",
+            "manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "index": {
+            "publication_id": "00000000-0000-4000-8000-000000000041",
+            "publication_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "index_id": "00000000-0000-4000-8000-000000000041",
+            "version": "baseline-index.v1",
+            "schema_version": "baseline-index.v1",
+            "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "config_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          },
+          "embedding": {
+            "provider": "fastembed-http",
+            "model": "BAAI/bge-small-en-v1.5",
+            "revision": "package-snapshot-1",
+            "dimension": 384,
+            "fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "generation": {
+            "provider": "local",
+            "model": "structured-reviewer",
+            "version": "snapshot-1",
+            "input_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+            "output_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        }
+      }
+    }
+  ]
+}

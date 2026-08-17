@@ -1,0 +1,653 @@
+{
+  "schema_version": "baseline-control-plane.v2-valid-fixtures.v1",
+  "messages": [
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "capabilities_request",
+      "request_id": "00000000-0000-4000-8000-000000000001",
+      "group_id": "group-toy-v2"
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "capabilities",
+      "request_id": "00000000-0000-4000-8000-000000000001",
+      "group_id": "group-toy-v2",
+      "supported_protocols": [
+        {
+          "version": "baseline-control-plane.v1",
+          "sha256": "3b45287a54d04cea751e9cc3209c5f0783192de13062e682eadcae40af322650",
+          "role": "staging_only"
+        },
+        {
+          "version": "baseline-control-plane.v2",
+          "sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+          "role": "index_and_run_submission"
+        }
+      ],
+      "operations": {
+        "index_build": {
+          "submission": "unavailable",
+          "endpoint": "unavailable",
+          "dispatch": "unavailable",
+          "readiness": "unavailable",
+          "reason_code": "capability_unavailable"
+        },
+        "baseline_run": {
+          "submission": "unavailable",
+          "endpoint": "unavailable",
+          "dispatch": "unavailable",
+          "readiness": "unavailable",
+          "reason_code": "capability_unavailable"
+        }
+      },
+      "limits": {
+        "control_request_bytes": 64000,
+        "run_request_bytes": 8100000,
+        "raw_query_bytes": 8000000,
+        "idempotency_key_min_characters": 32,
+        "idempotency_key_max_characters": 128,
+        "selected_evidence_items": 4,
+        "selected_evidence_characters": 16000,
+        "feedback_items": 4,
+        "terminal_status_retention_days": 30
+      },
+      "required_index_identity": {
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding": {
+          "contract_version": "baseline-embedding-http.v1",
+          "provider": "baseline_http_v1",
+          "model": "BAAI/bge-small-en-v1.5",
+          "revision": "52398278842ec682c6f32300af41344b1c0b0bb2",
+          "dimension": 384,
+          "dtype": "float32",
+          "fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "transport": {
+        "remote": "verified_https_required",
+        "loopback_http": "explicit_actual_peer_exception",
+        "json_media_type": "application/json",
+        "encoding": "utf-8"
+      }
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "index_build_submit",
+      "request_id": "00000000-0000-4000-8000-000000000002",
+      "group_id": "group-toy-v2",
+      "idempotency_key": "opaque-index-intent-00000000000001",
+      "ingestion_continuation_id": "20000000-0000-4000-8000-000000000001",
+      "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+      "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ingestion_provenance_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "index_intent": {
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding": {
+          "contract_version": "baseline-embedding-http.v1",
+          "provider": "baseline_http_v1",
+          "model": "BAAI/bge-small-en-v1.5",
+          "revision": "52398278842ec682c6f32300af41344b1c0b0bb2",
+          "dimension": 384,
+          "dtype": "float32",
+          "fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      }
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_accepted",
+      "request_id": "00000000-0000-4000-8000-000000000002",
+      "group_id": "group-toy-v2",
+      "job_id": "60000000-0000-4000-8000-000000000001",
+      "operation": "index_build",
+      "state": "queued",
+      "replayed": false,
+      "processing_run_id": null
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status_request",
+      "request_id": "00000000-0000-4000-8000-000000000003",
+      "group_id": "group-toy-v2",
+      "job_id": "60000000-0000-4000-8000-000000000001",
+      "operation": "index_build"
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000003",
+      "group_id": "group-toy-v2",
+      "job_id": "60000000-0000-4000-8000-000000000001",
+      "operation": "index_build",
+      "state": "queued",
+      "terminal": false,
+      "exit_classification": "pending",
+      "attempt": 0,
+      "created_at": "2026-08-16T12:00:00Z",
+      "updated_at": "2026-08-16T12:00:00Z",
+      "ingestion_continuation_id": "20000000-0000-4000-8000-000000000001",
+      "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+      "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "index_intent": {
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding": {
+          "contract_version": "baseline-embedding-http.v1",
+          "provider": "baseline_http_v1",
+          "model": "BAAI/bge-small-en-v1.5",
+          "revision": "52398278842ec682c6f32300af41344b1c0b0bb2",
+          "dimension": 384,
+          "dtype": "float32",
+          "fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "progress": {
+        "document_count": 0,
+        "vector_count": 0
+      },
+      "result": null,
+      "reason_code": null,
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000004",
+      "group_id": "group-toy-v2",
+      "job_id": "60000000-0000-4000-8000-000000000001",
+      "operation": "index_build",
+      "state": "succeeded",
+      "terminal": true,
+      "exit_classification": "success",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:00:00Z",
+      "updated_at": "2026-08-16T12:01:00Z",
+      "ingestion_continuation_id": "20000000-0000-4000-8000-000000000001",
+      "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+      "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "index_intent": {
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding": {
+          "contract_version": "baseline-embedding-http.v1",
+          "provider": "baseline_http_v1",
+          "model": "BAAI/bge-small-en-v1.5",
+          "revision": "52398278842ec682c6f32300af41344b1c0b0bb2",
+          "dimension": 384,
+          "dtype": "float32",
+          "fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "progress": {
+        "document_count": 2,
+        "vector_count": 2
+      },
+      "result": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "document_count": 2,
+        "vector_count": 2
+      },
+      "reason_code": null,
+      "replayed": true
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "run_submit",
+      "request_id": "00000000-0000-4000-8000-000000000010",
+      "group_id": "group-toy-v2",
+      "idempotency_key": "opaque-run-intent-0000000000000001",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "retrieval_query": {
+        "representation": "raw_git_diff_v1",
+        "origin": "explicit",
+        "encoding": "utf-8",
+        "base_revision": "1111111111111111111111111111111111111111",
+        "head_revision": "2222222222222222222222222222222222222222",
+        "byte_size": 149,
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "text": "diff --git a/src/café.py b/src/café.py\nindex 1111111..2222222 100644\n--- a/src/café.py\n+++ b/src/café.py\n@@ -1 +1 @@\n-print(\"old\")\n+print(\"new\")\n"
+      }
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_accepted",
+      "request_id": "00000000-0000-4000-8000-000000000010",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run",
+      "state": "queued",
+      "replayed": false,
+      "processing_run_id": "80000000-0000-4000-8000-000000000001"
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_accepted",
+      "request_id": "00000000-0000-4000-8000-000000000010",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run",
+      "state": "queued",
+      "replayed": true,
+      "processing_run_id": "80000000-0000-4000-8000-000000000001"
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status_request",
+      "request_id": "00000000-0000-4000-8000-000000000011",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run"
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000011",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000001",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "queued",
+      "terminal": false,
+      "exit_classification": "pending",
+      "attempt": 0,
+      "created_at": "2026-08-16T12:02:00Z",
+      "updated_at": "2026-08-16T12:02:00Z",
+      "retrieval_status": "pending",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 0,
+        "reference_count": 0,
+        "feedback_count": 0,
+        "generation_invoked": false,
+        "notification_outbox_count": 0,
+        "persisted_run_id": null
+      },
+      "reason_code": null,
+      "failure_stage": null,
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000012",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000001",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "references_persisted",
+      "terminal": false,
+      "exit_classification": "pending",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:02:00Z",
+      "updated_at": "2026-08-16T12:02:01Z",
+      "retrieval_status": "ok",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 2,
+        "reference_count": 2,
+        "feedback_count": 0,
+        "generation_invoked": false,
+        "notification_outbox_count": 0,
+        "persisted_run_id": "90000000-0000-4000-8000-000000000001"
+      },
+      "reason_code": null,
+      "failure_stage": null,
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000013",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000001",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000001",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "feedback_persisted",
+      "terminal": true,
+      "exit_classification": "success",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:02:00Z",
+      "updated_at": "2026-08-16T12:02:02Z",
+      "retrieval_status": "ok",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 2,
+        "reference_count": 2,
+        "feedback_count": 0,
+        "generation_invoked": true,
+        "notification_outbox_count": 0,
+        "persisted_run_id": "90000000-0000-4000-8000-000000000001"
+      },
+      "reason_code": null,
+      "failure_stage": null,
+      "replayed": true
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000014",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000002",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000002",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "insufficient",
+      "terminal": true,
+      "exit_classification": "insufficient",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:03:00Z",
+      "updated_at": "2026-08-16T12:03:01Z",
+      "retrieval_status": "insufficient",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 0,
+        "reference_count": 0,
+        "feedback_count": 0,
+        "generation_invoked": false,
+        "notification_outbox_count": 0,
+        "persisted_run_id": null
+      },
+      "reason_code": "retrieval_insufficient",
+      "failure_stage": "retrieval",
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000015",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000003",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000003",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "retryable_failed",
+      "terminal": false,
+      "exit_classification": "pending",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:04:00Z",
+      "updated_at": "2026-08-16T12:04:01Z",
+      "retrieval_status": "error",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 0,
+        "reference_count": 0,
+        "feedback_count": 0,
+        "generation_invoked": false,
+        "notification_outbox_count": 0,
+        "persisted_run_id": null
+      },
+      "reason_code": "retrieval_error",
+      "failure_stage": "retrieval",
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000016",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000004",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000004",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "terminal_failed",
+      "terminal": true,
+      "exit_classification": "failed",
+      "attempt": 2,
+      "created_at": "2026-08-16T12:05:00Z",
+      "updated_at": "2026-08-16T12:05:02Z",
+      "retrieval_status": "ok",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 2,
+        "reference_count": 2,
+        "feedback_count": 0,
+        "generation_invoked": true,
+        "notification_outbox_count": 0,
+        "persisted_run_id": "90000000-0000-4000-8000-000000000004"
+      },
+      "reason_code": "generation_terminal_failure",
+      "failure_stage": "generation",
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000017",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000005",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000005",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "blocked",
+      "terminal": true,
+      "exit_classification": "blocked",
+      "attempt": 1,
+      "created_at": "2026-08-16T12:06:00Z",
+      "updated_at": "2026-08-16T12:06:01Z",
+      "retrieval_status": "ok",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 2,
+        "reference_count": 2,
+        "feedback_count": 0,
+        "generation_invoked": true,
+        "notification_outbox_count": 0,
+        "persisted_run_id": "90000000-0000-4000-8000-000000000005"
+      },
+      "reason_code": "generation_blocked",
+      "failure_stage": "generation",
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "job_status",
+      "request_id": "00000000-0000-4000-8000-000000000018",
+      "group_id": "group-toy-v2",
+      "job_id": "70000000-0000-4000-8000-000000000006",
+      "operation": "baseline_run",
+      "processing_run_id": "80000000-0000-4000-8000-000000000006",
+      "source_document_id": "30000000-0000-4000-8000-000000000001",
+      "changed_repository_registration_id": "40000000-0000-4000-8000-000000000001",
+      "index_publication": {
+        "index_publication_id": "50000000-0000-4000-8000-000000000001",
+        "corpus_generation_id": "10000000-0000-4000-8000-000000000001",
+        "corpus_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "index_format_version": "baseline-index.v1",
+        "tokenizer_version": "baseline_v1_frozen_tokenizer.v1",
+        "retrieval_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "embedding_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "index_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "state": "cancelled",
+      "terminal": true,
+      "exit_classification": "cancelled",
+      "attempt": 0,
+      "created_at": "2026-08-16T12:07:00Z",
+      "updated_at": "2026-08-16T12:07:01Z",
+      "retrieval_status": "pending",
+      "query_provenance": {
+        "sha256": "bd12e261a9563f3c8a6504080028a8b4ba2e2f42a36290447f4589d6172adbc6",
+        "length": 145,
+        "byte_size": 149,
+        "origin": "explicit"
+      },
+      "effects": {
+        "evidence_count": 0,
+        "reference_count": 0,
+        "feedback_count": 0,
+        "generation_invoked": false,
+        "notification_outbox_count": 0,
+        "persisted_run_id": null
+      },
+      "reason_code": "job_cancelled",
+      "failure_stage": "dispatch",
+      "replayed": false
+    },
+    {
+      "protocol_version": "baseline-control-plane.v2",
+      "protocol_sha256": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091",
+      "message_type": "error",
+      "request_id": "00000000-0000-4000-8000-000000000019",
+      "http_status": 503,
+      "stage": "capability",
+      "retryable": true,
+      "code": "capability_unavailable"
+    }
+  ]
+}

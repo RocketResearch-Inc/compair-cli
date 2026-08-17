@@ -22,7 +22,7 @@ func Execute() {
 	cmd, err := rootCmd.ExecuteC()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, formatCLIError(cmd, err))
-		os.Exit(1)
+		os.Exit(exitCodeForError(err))
 	}
 }
 
@@ -105,5 +105,8 @@ func shouldSkipTelemetry(cmd *cobra.Command) bool {
 	if path == "" {
 		return false
 	}
-	return path == "compair telemetry" || strings.HasPrefix(path, "compair telemetry ")
+	return path == "compair telemetry" || strings.HasPrefix(path, "compair telemetry ") ||
+		path == "compair baseline scan" || path == "compair baseline upload" ||
+		path == "compair baseline index" || path == "compair baseline index status" ||
+		path == "compair baseline run" || path == "compair baseline run status"
 }

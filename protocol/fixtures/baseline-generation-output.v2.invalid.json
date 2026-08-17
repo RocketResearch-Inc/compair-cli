@@ -1,0 +1,91 @@
+{
+  "cases": [
+    {
+      "case_id": "plain_text_invalid",
+      "raw_output": "A plain-text finding"
+    },
+    {
+      "case_id": "blank_output_invalid",
+      "raw_output": ""
+    },
+    {
+      "case_id": "none_sentinel_invalid",
+      "raw_output": "NONE"
+    },
+    {
+      "case_id": "json_none_string_invalid",
+      "raw_output": "\"NONE\""
+    },
+    {
+      "case_id": "malformed_json_invalid",
+      "raw_output": "{\"schema_version\":"
+    },
+    {
+      "case_id": "duplicate_outcome_key_invalid",
+      "raw_output": "{\"schema_version\":\"baseline-generation-output.v2\",\"outcome\":\"no_findings\",\"outcome\":\"findings\",\"findings\":[]}"
+    },
+    {
+      "case_id": "no_findings_with_finding_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "no_findings",
+        "findings": [{"feedback": "Contradictory finding."}]
+      }
+    },
+    {
+      "case_id": "findings_without_finding_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": []
+      }
+    },
+    {
+      "case_id": "blank_feedback_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": "   \n\t"}]
+      }
+    },
+    {
+      "case_id": "too_many_findings_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [
+          {"feedback": "One."},
+          {"feedback": "Two."},
+          {"feedback": "Three."},
+          {"feedback": "Four."},
+          {"feedback": "Five."}
+        ]
+      }
+    },
+    {
+      "case_id": "extra_output_property_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "no_findings",
+        "findings": [],
+        "explanation": "not permitted"
+      }
+    },
+    {
+      "case_id": "extra_finding_property_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": "Finding.", "ordinal": 1}]
+      }
+    },
+    {
+      "case_id": "schema_version_mismatch_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v1",
+        "outcome": "no_findings",
+        "findings": []
+      }
+    }
+  ]
+}

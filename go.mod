@@ -5,9 +5,11 @@ go 1.24.0
 require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/charmbracelet/glamour v0.6.0
+	github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	golang.org/x/term v0.35.0
+	golang.org/x/text v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.30.1
 )
@@ -51,7 +53,6 @@ require (
 	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.52.1 // indirect

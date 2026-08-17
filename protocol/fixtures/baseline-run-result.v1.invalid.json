@@ -1,0 +1,14 @@
+{
+  "schema_version": "baseline-run-result.v1-invalid-fixtures.v1",
+  "cases": [
+    {"case_id": "obsolete_protocol_hash", "base_result": 0, "mutation": {"replace": {"path": "/protocol_sha256", "value": "c9486b3deb1a494781513109df17d8e8df1281fbc9687960ace711485b50d174"}}},
+    {"case_id": "raw_query_forbidden", "base_result": 0, "mutation": {"add": {"path": "/retrieval_query", "value": "forbidden"}}},
+    {"case_id": "feedback_text_forbidden", "base_result": 0, "mutation": {"add": {"path": "/feedback", "value": [{"ordinal": 1, "feedback": "forbidden"}]}}},
+    {"case_id": "zero_finding_outbox", "base_result": 1, "mutation": {"replace": {"path": "/notification_outbox_count", "value": 1}}},
+    {"case_id": "zero_finding_generation_not_invoked", "base_result": 1, "mutation": {"replace": {"path": "/generation_invoked", "value": false}}},
+    {"case_id": "references_are_per_chunk", "base_result": 2, "mutation": {"add": {"path": "/child_runs", "value": []}}},
+    {"case_id": "insufficient_has_reference", "base_result": 3, "mutation": {"replace": {"path": "/reference_count", "value": 1}}},
+    {"case_id": "too_many_job_wide_references", "base_result": 2, "mutation": {"replace": {"path": "/reference_count", "value": 5}}},
+    {"case_id": "mismatched_reference_evidence_counts", "base_result": 0, "mutation": {"replace": {"path": "/reference_count", "value": 1}}}
+  ]
+}

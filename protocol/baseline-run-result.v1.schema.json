@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-run-result.v1.schema.json",
+  "title": "baseline-run-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "protocol_version", "protocol_sha256", "group_id",
+    "run_job_id", "processing_run_id", "source_document_id",
+    "changed_repository_registration_id", "dispatch_mode", "state",
+    "exit_classification", "query_sha256", "query_length", "query_byte_size",
+    "query_origin", "scan_fingerprint", "corpus_generation_id",
+    "corpus_manifest_hash", "index_publication_id", "index_format_version",
+    "tokenizer_version", "retrieval_config_fingerprint", "embedding_fingerprint",
+    "index_fingerprint", "persisted_retrieval_run_id", "evidence_count",
+    "reference_count", "feedback_count", "notification_outbox_count",
+    "generation_invoked", "generation_provider", "generation_model",
+    "generation_version", "generation_input_fingerprint",
+    "generation_output_fingerprint", "resumed", "replayed",
+    "transmitted_request_count", "transmitted_request_bytes", "created_at",
+    "updated_at", "reason_code", "failure_stage"
+  ],
+  "properties": {
+    "schema_version": {"const": "baseline-run-result.v1"},
+    "protocol_version": {"const": "baseline-control-plane.v2"},
+    "protocol_sha256": {"const": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091"},
+    "group_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "run_job_id": {"$ref": "#/$defs/nullable_uuid"},
+    "processing_run_id": {"$ref": "#/$defs/nullable_uuid"},
+    "source_document_id": {"$ref": "#/$defs/nullable_uuid"},
+    "changed_repository_registration_id": {"$ref": "#/$defs/nullable_uuid"},
+    "dispatch_mode": {"enum": ["automatic", "manual", "unavailable"]},
+    "state": {"enum": ["queued", "running", "references_persisted", "feedback_persisted", "insufficient", "retryable_failed", "retryable_incomplete", "terminal_failed", "blocked", "cancelled", "failed"]},
+    "exit_classification": {"enum": ["pending", "success", "insufficient", "retryable", "failed", "blocked", "cancelled"]},
+    "query_sha256": {"$ref": "#/$defs/nullable_hash"},
+    "query_length": {"type": ["integer", "null"], "minimum": 1, "maximum": 8000000},
+    "query_byte_size": {"type": ["integer", "null"], "minimum": 1, "maximum": 8000000},
+    "query_origin": {"type": ["string", "null"], "enum": ["explicit", null]},
+    "scan_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "corpus_generation_id": {"$ref": "#/$defs/nullable_uuid"},
+    "corpus_manifest_hash": {"$ref": "#/$defs/nullable_hash"},
+    "index_publication_id": {"$ref": "#/$defs/nullable_uuid"},
+    "index_format_version": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "tokenizer_version": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "retrieval_config_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "embedding_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "index_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "persisted_retrieval_run_id": {"$ref": "#/$defs/nullable_uuid"},
+    "evidence_count": {"type": "integer", "minimum": 0, "maximum": 4},
+    "reference_count": {"type": "integer", "minimum": 0, "maximum": 4},
+    "feedback_count": {"type": "integer", "minimum": 0, "maximum": 4},
+    "notification_outbox_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+    "generation_invoked": {"type": "boolean"},
+    "generation_provider": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "generation_model": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+    "generation_version": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+    "generation_input_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "generation_output_fingerprint": {"$ref": "#/$defs/nullable_hash"},
+    "resumed": {"type": "boolean"},
+    "replayed": {"type": "boolean"},
+    "transmitted_request_count": {"type": "integer", "minimum": 0},
+    "transmitted_request_bytes": {"type": "integer", "minimum": 0},
+    "created_at": {"type": ["string", "null"], "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "reason_code": {"type": ["string", "null"], "pattern": "^[a-z0-9_]{1,64}$"},
+    "failure_stage": {"type": ["string", "null"], "enum": [null, "dispatch", "retrieval", "persistence", "generation"]}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "format": "uuid"},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nullable_uuid": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+    "nullable_hash": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "feedback_persisted"}}},
+      "then": {"properties": {"exit_classification": {"const": "success"}, "generation_invoked": {"const": true}, "evidence_count": {"minimum": 1}, "reference_count": {"minimum": 1}, "persisted_retrieval_run_id": {"$ref": "#/$defs/uuid"}, "reason_code": {"type": "null"}, "failure_stage": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "feedback_persisted"}, "feedback_count": {"const": 0}}, "required": ["state", "feedback_count"]},
+      "then": {"properties": {"notification_outbox_count": {"const": 0}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "references_persisted"}}},
+      "then": {"properties": {"exit_classification": {"const": "pending"}, "generation_invoked": {"const": false}, "evidence_count": {"minimum": 1}, "reference_count": {"minimum": 1}, "feedback_count": {"const": 0}, "notification_outbox_count": {"const": 0}, "persisted_retrieval_run_id": {"$ref": "#/$defs/uuid"}, "reason_code": {"type": "null"}, "failure_stage": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "insufficient"}}},
+      "then": {"properties": {"exit_classification": {"const": "insufficient"}, "evidence_count": {"const": 0}, "reference_count": {"const": 0}, "feedback_count": {"const": 0}, "notification_outbox_count": {"const": 0}, "generation_invoked": {"const": false}, "persisted_retrieval_run_id": {"type": "null"}, "reason_code": {"const": "retrieval_insufficient"}, "failure_stage": {"const": "retrieval"}}}
+    },
+    {
+      "if": {"properties": {"state": {"enum": ["queued", "running"]}}},
+      "then": {"properties": {"exit_classification": {"const": "pending"}, "evidence_count": {"const": 0}, "reference_count": {"const": 0}, "feedback_count": {"const": 0}, "notification_outbox_count": {"const": 0}, "generation_invoked": {"const": false}, "persisted_retrieval_run_id": {"type": "null"}, "reason_code": {"type": "null"}, "failure_stage": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "retryable_incomplete"}}},
+      "then": {"properties": {"exit_classification": {"const": "retryable"}, "reason_code": {"type": "string"}}}
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[
+  {"case": "legacy_total_upload_bytes", "mutation": {"remove": "maximum_planned_upload_bytes", "add": {"total_upload_bytes": 1900}}},
+  {"case": "inconsistent_upload_total", "mutation": {"replace": {"maximum_planned_upload_bytes": 1899}}},
+  {"case": "part_ordinal_gap", "mutation": {"replace": {"parts.0.part_ordinal": 2}}},
+  {"case": "inconsistent_supported_count", "mutation": {"replace": {"counts.supported_file_count": 2}}},
+  {"case": "raw_content_forbidden", "mutation": {"add": {"raw_diff_text": "forbidden"}}},
+  {"case": "local_path_forbidden", "mutation": {"add": {"local_path": "forbidden"}}},
+  {"case": "diagnostics_changed", "mutation": {"replace": {"warnings.0": "uploaded"}}},
+  {"case": "errors_not_empty", "mutation": {"replace": {"errors": ["private detail"]}}}
+]

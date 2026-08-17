@@ -1,0 +1,61 @@
+[
+  {
+    "schema_version": "baseline-scan-dry-run.v1",
+    "protocol_version": "baseline-control-plane.v1",
+    "protocol_sha256": "3b45287a54d04cea751e9cc3209c5f0783192de13062e682eadcae40af322650",
+    "group_id": "group-demo",
+    "changed_repository": {
+      "repository_registration_id": "11111111-1111-4111-8111-111111111111",
+      "base_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "head_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_document_id": "22222222-2222-4222-8222-222222222222"
+    },
+    "sibling_repositories": [
+      {
+        "repository_registration_id": "33333333-3333-4333-8333-333333333333",
+        "revision": "cccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "snapshot_id": "bsnap_4444444444444444444444444444444444444444444444444444444444444444",
+    "canonical_manifest_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+    "scan_plan_jcs_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "content_manifest_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+    "counts": {
+      "repository_count": 1,
+      "file_count": 2,
+      "supported_file_count": 1,
+      "skipped_file_count": 1,
+      "supported_content_bytes": 12
+    },
+    "skip_reason_counts": {
+      "non_utf8": 0,
+      "oversized": 1,
+      "symlink": 0,
+      "excluded_directory": 0,
+      "unsupported_file_type": 0,
+      "unreadable": 0
+    },
+    "raw_diff": {
+      "representation": "raw_git_diff_v1",
+      "base_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "head_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "byte_size": 24,
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "parts": [
+      {
+        "part_ordinal": 1,
+        "part_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "file_count": 1,
+        "decoded_content_bytes": 12,
+        "request_bytes": 500
+      }
+    ],
+    "manifest_request_bytes": 1000,
+    "commit_request_bytes": 400,
+    "maximum_planned_upload_bytes": 1900,
+    "scan_fingerprint": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    "warnings": ["dry_run_only", "no_network_or_persistence"],
+    "errors": []
+  }
+]

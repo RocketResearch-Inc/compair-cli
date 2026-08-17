@@ -1,0 +1,342 @@
+{
+  "schema_version": "baseline-control-plane.v2-invalid-fixtures.v1",
+  "cases": [
+    {
+      "case_id": "protocol_version_mismatch",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/protocol_version",
+        "value": "baseline-control-plane.v1"
+      }
+    },
+    {
+      "case_id": "protocol_hash_mismatch",
+      "expected_error": "protocol_mismatch",
+      "base": { "message_type": "index_build_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/protocol_sha256",
+        "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    },
+    {
+      "case_id": "obsolete_unreleased_v2_hash_rejected",
+      "expected_error": "protocol_mismatch",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/protocol_sha256",
+        "value": "c9486b3deb1a494781513109df17d8e8df1281fbc9687960ace711485b50d174"
+      }
+    },
+    {
+      "case_id": "missing_index_group_authorization",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "index_build_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "delete",
+        "path": "/group_id"
+      }
+    },
+    {
+      "case_id": "missing_run_source_document_authorization",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "delete",
+        "path": "/source_document_id"
+      }
+    },
+    {
+      "case_id": "missing_run_changed_registration_authorization",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "delete",
+        "path": "/changed_repository_registration_id"
+      }
+    },
+    {
+      "case_id": "client_parent_processing_identity_forbidden",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/parent_processing_key",
+        "value": "client-must-not-control-this-value"
+      }
+    },
+    {
+      "case_id": "retrieval_query_hash_mismatch",
+      "expected_error": "semantic_hash_mismatch",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/retrieval_query/sha256",
+        "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    },
+    {
+      "case_id": "retrieval_query_byte_size_mismatch",
+      "expected_error": "semantic_size_mismatch",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/retrieval_query/byte_size",
+        "value": 148
+      }
+    },
+    {
+      "case_id": "oversized_retrieval_query",
+      "expected_error": "limit_exceeded",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "repeat_ascii",
+        "path": "/retrieval_query/text",
+        "character": "x",
+        "count": 8000001,
+        "synchronize_declared_size_and_hash": true
+      }
+    },
+    {
+      "case_id": "insufficient_with_reference_write",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "insufficient" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/reference_count",
+        "value": 1
+      }
+    },
+    {
+      "case_id": "job_wide_evidence_item_limit_exceeded",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "references_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/evidence_count",
+        "value": 5
+      }
+    },
+    {
+      "case_id": "job_wide_reference_limit_exceeded",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "references_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/reference_count",
+        "value": 5
+      }
+    },
+    {
+      "case_id": "job_wide_evidence_character_limit_exceeded",
+      "expected_error": "invalid_state_combination",
+      "base": { "message_type": "capabilities", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/limits/selected_evidence_characters",
+        "value": 16001
+      }
+    },
+    {
+      "case_id": "multiple_persisted_run_ids_forbidden",
+      "expected_error": "schema_invalid",
+      "base": { "operation": "baseline_run", "state": "references_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/persisted_run_ids",
+        "value": [
+          "90000000-0000-4000-8000-000000000001",
+          "90000000-0000-4000-8000-000000000002"
+        ]
+      }
+    },
+    {
+      "case_id": "per_chunk_child_manifest_forbidden",
+      "expected_error": "schema_invalid",
+      "base": { "operation": "baseline_run", "state": "references_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/child_runs",
+        "value": []
+      }
+    },
+    {
+      "case_id": "aggregate_chunk_outcomes_forbidden",
+      "expected_error": "schema_invalid",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/chunk_outcomes",
+        "value": []
+      }
+    },
+    {
+      "case_id": "source_chunk_authority_forbidden",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/source_chunk_id",
+        "value": "91000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "case_id": "feedback_persisted_is_nonterminal",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/terminal",
+        "value": false
+      }
+    },
+    {
+      "case_id": "zero_findings_nonzero_outbox_forbidden",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/notification_outbox_count",
+        "value": 1
+      }
+    },
+    {
+      "case_id": "zero_findings_generation_not_invoked",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/generation_invoked",
+        "value": false
+      }
+    },
+    {
+      "case_id": "zero_findings_missing_persisted_run",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/persisted_run_id",
+        "value": null
+      }
+    },
+    {
+      "case_id": "zero_findings_without_evidence",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/evidence_count",
+        "value": 0
+      }
+    },
+    {
+      "case_id": "zero_findings_without_references",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/reference_count",
+        "value": 0
+      }
+    },
+    {
+      "case_id": "zero_findings_feedback_payload_forbidden",
+      "expected_error": "protected_field_forbidden",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/effects/feedback",
+        "value": "NONE"
+      }
+    },
+    {
+      "case_id": "index_succeeded_without_publication",
+      "expected_error": "invalid_state_combination",
+      "base": { "operation": "index_build", "state": "succeeded" },
+      "mutation": {
+        "operation": "set",
+        "path": "/result",
+        "value": null
+      }
+    },
+    {
+      "case_id": "raw_query_forbidden_in_status",
+      "expected_error": "protected_field_forbidden",
+      "base": { "operation": "baseline_run", "state": "feedback_persisted" },
+      "mutation": {
+        "operation": "set",
+        "path": "/retrieval_query",
+        "value": "forbidden-protected-text"
+      }
+    },
+    {
+      "case_id": "raw_query_forbidden_in_capabilities",
+      "expected_error": "protected_field_forbidden",
+      "base": { "message_type": "capabilities", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/raw_diff",
+        "value": "forbidden-protected-text"
+      }
+    },
+    {
+      "case_id": "endpoint_url_forbidden_in_capabilities",
+      "expected_error": "protected_field_forbidden",
+      "base": { "message_type": "capabilities", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/endpoint_url",
+        "value": "https://internal.invalid"
+      }
+    },
+    {
+      "case_id": "idempotency_key_forbidden_in_status",
+      "expected_error": "protected_field_forbidden",
+      "base": { "operation": "baseline_run", "state": "queued" },
+      "mutation": {
+        "operation": "set",
+        "path": "/idempotency_key",
+        "value": "opaque-run-intent-0000000000000001"
+      }
+    },
+    {
+      "case_id": "duplicate_top_level_group_id",
+      "expected_error": "duplicate_json_key",
+      "raw_json": "{\"protocol_version\":\"baseline-control-plane.v2\",\"protocol_sha256\":\"b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091\",\"message_type\":\"capabilities_request\",\"request_id\":\"00000000-0000-4000-8000-000000000020\",\"group_id\":\"group-toy-v2\",\"group_id\":\"group-shadow\"}"
+    },
+    {
+      "case_id": "duplicate_nested_retrieval_query_hash",
+      "expected_error": "duplicate_json_key",
+      "raw_json": "{\"protocol_version\":\"baseline-control-plane.v2\",\"protocol_sha256\":\"b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091\",\"message_type\":\"run_submit\",\"request_id\":\"00000000-0000-4000-8000-000000000021\",\"group_id\":\"group-toy-v2\",\"retrieval_query\":{\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}"
+    },
+    {
+      "case_id": "duplicate_protocol_hash",
+      "expected_error": "duplicate_json_key",
+      "raw_json": "{\"protocol_version\":\"baseline-control-plane.v2\",\"protocol_sha256\":\"b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091\",\"protocol_sha256\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"message_type\":\"capabilities_request\",\"request_id\":\"00000000-0000-4000-8000-000000000023\",\"group_id\":\"group-toy-v2\"}"
+    },
+    {
+      "case_id": "non_finite_retrieval_query_size",
+      "expected_error": "non_finite_number",
+      "raw_json": "{\"protocol_version\":\"baseline-control-plane.v2\",\"protocol_sha256\":\"b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091\",\"message_type\":\"run_submit\",\"request_id\":\"00000000-0000-4000-8000-000000000022\",\"group_id\":\"group-toy-v2\",\"retrieval_query\":{\"byte_size\":NaN}}"
+    },
+    {
+      "case_id": "malformed_utf8_request",
+      "expected_error": "invalid_utf8",
+      "raw_bytes_hex": "7b2267726f75705f6964223a22ff227d"
+    },
+    {
+      "case_id": "non_utf8_declared_encoding",
+      "expected_error": "schema_invalid",
+      "base": { "message_type": "run_submit", "occurrence": 1 },
+      "mutation": {
+        "operation": "set",
+        "path": "/retrieval_query/encoding",
+        "value": "utf-16"
+      }
+    }
+  ]
+}

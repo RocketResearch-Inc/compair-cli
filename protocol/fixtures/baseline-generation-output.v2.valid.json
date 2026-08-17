@@ -1,0 +1,26 @@
+{
+  "outputs": [
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "no_findings",
+      "findings": []
+    },
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "findings",
+      "findings": [
+        {"feedback": "Validate the timeout before retrying this operation."}
+      ]
+    },
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "findings",
+      "findings": [
+        {"feedback": "First ordered finding."},
+        {"feedback": "Second ordered finding."},
+        {"feedback": "Third ordered finding."},
+        {"feedback": "Fourth ordered finding."}
+      ]
+    }
+  ]
+}

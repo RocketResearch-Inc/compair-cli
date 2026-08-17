@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-control-plane.v1.schema.json",
+  "title": "Compair baseline control-plane protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/scan_plan" },
+    { "$ref": "#/$defs/snapshot_begin" },
+    { "$ref": "#/$defs/snapshot_content_part" },
+    { "$ref": "#/$defs/snapshot_commit" },
+    { "$ref": "#/$defs/index_build_submit" },
+    { "$ref": "#/$defs/run_submit" },
+    { "$ref": "#/$defs/job_accepted" },
+    { "$ref": "#/$defs/job_status_request" },
+    { "$ref": "#/$defs/job_status" },
+    { "$ref": "#/$defs/error" },
+    { "$ref": "#/$defs/capabilities_request" },
+    { "$ref": "#/$defs/capabilities" }
+  ],
+  "$defs": {
+    "protocol_version": { "type": "string", "const": "baseline-control-plane.v1" },
+    "protocol_sha256": { "$ref": "#/$defs/sha256" },
+    "request_id": { "type": "string", "format": "uuid" },
+    "group_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]*$" },
+    "idempotency_key": { "type": "string", "minLength": 32, "maxLength": 128, "pattern": "^[A-Za-z0-9._~-]+$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "git_revision": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "repository_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]*$" },
+    "repository_name": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "relative_path": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*\\u0000)(?![A-Za-z]:)(?!.*[^/]/$).+$" },
+    "changed_repository_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "local_path", "repository_id", "repository_name", "repository_revision", "source_document_id"],
+      "properties": {
+        "schema_version": { "const": "baseline-changed-repository-input.v1" },
+        "local_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "repository_id": { "$ref": "#/$defs/repository_id" },
+        "repository_name": { "$ref": "#/$defs/repository_name" },
+        "repository_revision": { "$ref": "#/$defs/git_revision" },
+        "source_document_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "sibling_repository_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "local_path", "repository_id", "repository_name", "repository_revision"],
+      "properties": {
+        "schema_version": { "const": "baseline-sibling-repository-input.v1" },
+        "local_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "repository_id": { "$ref": "#/$defs/repository_id" },
+        "repository_name": { "$ref": "#/$defs/repository_name" },
+        "repository_revision": { "$ref": "#/$defs/git_revision" }
+      }
+    },
+    "changed_repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_id", "repository_name", "repository_revision", "role", "base_revision", "head_revision", "source_document_id", "expected_file_count"],
+      "properties": {
+        "repository_id": { "$ref": "#/$defs/repository_id" },
+        "repository_name": { "$ref": "#/$defs/repository_name" },
+        "repository_revision": { "$ref": "#/$defs/git_revision" },
+        "role": { "const": "changed" },
+        "base_revision": { "$ref": "#/$defs/git_revision" },
+        "head_revision": { "$ref": "#/$defs/git_revision" },
+        "source_document_id": { "type": "string", "format": "uuid" },
+        "expected_file_count": { "const": 0 }
+      }
+    },
+    "sibling_repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_id", "repository_name", "repository_revision", "role", "expected_file_count"],
+      "properties": {
+        "repository_id": { "$ref": "#/$defs/repository_id" },
+        "repository_name": { "$ref": "#/$defs/repository_name" },
+        "repository_revision": { "$ref": "#/$defs/git_revision" },
+        "role": { "const": "sibling" },
+        "expected_file_count": { "type": "integer", "minimum": 0, "maximum": 50000 }
+      }
+    },
+    "file_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "repository_id", "repository_name", "repository_revision", "relative_path", "git_mode", "git_object_id", "file_state", "skip_reason", "byte_size", "content_sha256", "content_required"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 1, "maximum": 50000 },
+        "repository_id": { "$ref": "#/$defs/repository_id" },
+        "repository_name": { "$ref": "#/$defs/repository_name" },
+        "repository_revision": { "$ref": "#/$defs/git_revision" },
+        "relative_path": { "$ref": "#/$defs/relative_path" },
+        "git_mode": { "enum": ["100644", "100755", "120000", "160000"] },
+        "git_object_id": { "$ref": "#/$defs/git_revision" },
+        "file_state": { "enum": ["supported", "unsupported_utf8", "oversized", "symlink_rejected", "excluded", "unreadable"] },
+        "skip_reason": { "type": ["string", "null"], "enum": [null, "non_utf8", "oversized", "symlink", "excluded_directory", "unsupported_file_type", "unreadable"] },
+        "byte_size": { "type": "integer", "minimum": 0, "maximum": 512000000 },
+        "content_sha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "content_required": { "type": "boolean" }
+      }
+    },
+    "snapshot_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "group_id", "changed_repository", "sibling_repositories", "files", "repository_count", "total_file_count", "supported_file_count", "supported_content_bytes", "canonical_manifest_hash", "snapshot_id"],
+      "properties": {
+        "schema_version": { "const": "baseline-snapshot.v1" },
+        "group_id": { "$ref": "#/$defs/group_id" },
+        "changed_repository": { "$ref": "#/$defs/changed_repository" },
+        "sibling_repositories": { "type": "array", "minItems": 1, "maxItems": 128, "items": { "$ref": "#/$defs/sibling_repository" } },
+        "files": { "type": "array", "maxItems": 50000, "items": { "$ref": "#/$defs/file_record" } },
+        "repository_count": { "type": "integer", "minimum": 1, "maximum": 128 },
+        "total_file_count": { "type": "integer", "minimum": 0, "maximum": 50000 },
+        "supported_file_count": { "type": "integer", "minimum": 0, "maximum": 50000 },
+        "supported_content_bytes": { "type": "integer", "minimum": 0, "maximum": 512000000 },
+        "canonical_manifest_hash": { "$ref": "#/$defs/sha256" },
+        "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" }
+      }
+    },
+    "raw_diff_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["representation", "base_revision", "head_revision", "byte_size", "sha256"],
+      "properties": {
+        "representation": { "const": "raw_git_diff_v1" },
+        "base_revision": { "$ref": "#/$defs/git_revision" },
+        "head_revision": { "$ref": "#/$defs/git_revision" },
+        "byte_size": { "type": "integer", "minimum": 1, "maximum": 8000000 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "raw_diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["representation", "base_revision", "head_revision", "byte_size", "sha256", "text"],
+      "properties": {
+        "representation": { "const": "raw_git_diff_v1" },
+        "base_revision": { "$ref": "#/$defs/git_revision" },
+        "head_revision": { "$ref": "#/$defs/git_revision" },
+        "byte_size": { "type": "integer", "minimum": 1, "maximum": 8000000 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 8000000 }
+      }
+    },
+    "content_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_ordinal", "byte_size", "content_sha256", "content_utf8"],
+      "properties": {
+        "file_ordinal": { "type": "integer", "minimum": 1, "maximum": 50000 },
+        "byte_size": { "type": "integer", "minimum": 0, "maximum": 200000 },
+        "content_sha256": { "$ref": "#/$defs/sha256" },
+        "content_utf8": { "type": "string", "maxLength": 200000 }
+      }
+    },
+    "part_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["part_ordinal", "part_sha256"],
+      "properties": {
+        "part_ordinal": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "part_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "embedding_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "provider", "model", "revision", "dimension", "fingerprint"],
+      "properties": {
+        "contract_version": { "const": "baseline-embedding-http.v1" },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revision": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "dimension": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "job_state": { "enum": ["queued", "running", "succeeded", "retryable_failed", "terminal_failed", "cancelled"] },
+    "safe_error_code": { "enum": ["invalid_contract", "limit_exceeded", "authentication_required", "not_found_or_forbidden", "repository_not_authorized", "source_not_authorized", "protocol_mismatch", "manifest_hash_mismatch", "content_hash_mismatch", "idempotency_conflict", "concurrent_conflict", "part_conflict", "commit_conflict", "stale_snapshot", "stale_publication", "staging_not_open", "staging_expired", "incomplete_staging", "staging_incompatible", "job_lease_unavailable", "job_state_incompatible", "transport_unavailable", "embedding_unavailable", "worker_unavailable", "capability_unavailable", "internal_failure"] },
+    "scan_plan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "message_type", "group_id", "snapshot", "raw_diff"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "message_type": { "const": "scan_plan" },
+        "group_id": { "$ref": "#/$defs/group_id" }, "snapshot": { "$ref": "#/$defs/snapshot_manifest" }, "raw_diff": { "$ref": "#/$defs/raw_diff_metadata" }
+      }
+    },
+    "snapshot_begin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "idempotency_key", "snapshot"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "snapshot_begin" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "idempotency_key": { "$ref": "#/$defs/idempotency_key" }, "snapshot": { "$ref": "#/$defs/snapshot_manifest" }
+      }
+    },
+    "snapshot_content_part": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "job_id", "snapshot_id", "part_ordinal", "part_sha256", "content_items"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "snapshot_content_part" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "job_id": { "type": "string", "format": "uuid" },
+        "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" }, "part_ordinal": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "part_sha256": { "$ref": "#/$defs/sha256" }, "content_items": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/content_item" } }
+      }
+    },
+    "snapshot_commit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "job_id", "snapshot_id", "parts", "content_manifest_hash"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "snapshot_commit" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "job_id": { "type": "string", "format": "uuid" },
+        "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" },
+        "parts": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/part_descriptor" } }, "content_manifest_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "index_build_submit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "idempotency_key", "snapshot_id", "corpus_generation_id", "canonical_manifest_hash", "index_format_version", "tokenizer_version", "retrieval_config_fingerprint", "embedding"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "index_build_submit" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "idempotency_key": { "$ref": "#/$defs/idempotency_key" },
+        "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" }, "corpus_generation_id": { "type": "string", "format": "uuid" },
+        "canonical_manifest_hash": { "$ref": "#/$defs/sha256" }, "index_format_version": { "const": "baseline-index.v1" },
+        "tokenizer_version": { "type": "string", "minLength": 1, "maxLength": 64 }, "retrieval_config_fingerprint": { "$ref": "#/$defs/sha256" }, "embedding": { "$ref": "#/$defs/embedding_identity" }
+      }
+    },
+    "run_submit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "idempotency_key", "parent_processing_key", "source_document_id", "source_chunk_id", "changed_repository_id", "snapshot_id", "corpus_generation_id", "canonical_manifest_hash", "index_publication_id", "raw_diff"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "run_submit" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "idempotency_key": { "$ref": "#/$defs/idempotency_key" }, "parent_processing_key": { "$ref": "#/$defs/idempotency_key" },
+        "source_document_id": { "type": "string", "format": "uuid" }, "source_chunk_id": { "type": "string", "format": "uuid" }, "changed_repository_id": { "$ref": "#/$defs/repository_id" },
+        "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" }, "corpus_generation_id": { "type": "string", "format": "uuid" },
+        "canonical_manifest_hash": { "$ref": "#/$defs/sha256" }, "index_publication_id": { "type": "string", "format": "uuid" }, "raw_diff": { "$ref": "#/$defs/raw_diff" }
+      }
+    },
+    "job_accepted": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "job_id", "operation", "state", "replayed"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "job_accepted" }, "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" },
+        "job_id": { "type": "string", "format": "uuid" }, "operation": { "enum": ["snapshot_ingest", "index_build", "baseline_run"] }, "state": { "$ref": "#/$defs/job_state" }, "replayed": { "type": "boolean" }
+      }
+    },
+    "job_status_request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "job_id"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "job_status_request" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }, "job_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "job_status": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "job_id", "operation", "state", "attempt", "created_at", "updated_at", "progress", "result", "error_code", "staging", "replayed"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "job_status" }, "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" },
+        "job_id": { "type": "string", "format": "uuid" }, "operation": { "enum": ["snapshot_ingest", "index_build", "baseline_run"] }, "state": { "$ref": "#/$defs/job_state" }, "attempt": { "type": "integer", "minimum": 0 },
+        "created_at": { "type": "string", "format": "date-time" }, "updated_at": { "type": "string", "format": "date-time" },
+        "progress": { "type": "object", "additionalProperties": false, "required": ["completed", "total"], "properties": { "completed": { "type": "integer", "minimum": 0 }, "total": { "type": "integer", "minimum": 0 } } },
+        "result": { "type": ["object", "null"], "additionalProperties": false, "properties": { "snapshot_id": { "type": "string", "pattern": "^bsnap_[0-9a-f]{64}$" }, "staging_state": { "enum": ["open", "sealed", "expired", "failed", null] }, "corpus_eligible": { "const": false }, "index_eligible": { "const": false }, "corpus_generation_id": { "type": "string", "format": "uuid" }, "index_publication_id": { "type": "string", "format": "uuid" }, "baseline_run_id": { "type": "string", "format": "uuid" } } },
+        "error_code": { "anyOf": [{ "$ref": "#/$defs/safe_error_code" }, { "type": "null" }] },
+        "staging": { "type": ["object", "null"], "additionalProperties": false, "properties": { "state": { "enum": ["open", "sealed", "expired", "failed"] }, "received_parts": { "type": "integer", "minimum": 0, "maximum": 512 }, "expected_parts": { "type": "integer", "minimum": 0, "maximum": 512 }, "expires_at": { "type": "string", "format": "date-time" }, "corpus_eligible": { "const": false }, "index_eligible": { "const": false } } },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "http_status", "stage", "retryable", "code"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "error" }, "request_id": { "anyOf": [{ "$ref": "#/$defs/request_id" }, { "type": "null" }] },
+        "http_status": { "enum": [400, 401, 404, 409, 413, 422, 429, 503] }, "stage": { "enum": ["authentication", "admission", "snapshot", "content_staging", "index_build", "run_submission", "transport", "worker"] },
+        "retryable": { "type": "boolean" }, "code": { "$ref": "#/$defs/safe_error_code" }
+      }
+    },
+    "capabilities_request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "capabilities_request" },
+        "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" }
+      }
+    },
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "protocol_sha256", "message_type", "request_id", "group_id", "operations", "transport", "request_body_logging", "staging_is_corpus_eligible", "staging_is_index_eligible", "limits"],
+      "properties": {
+        "protocol_version": { "$ref": "#/$defs/protocol_version" }, "protocol_sha256": { "$ref": "#/$defs/protocol_sha256" }, "message_type": { "const": "capabilities" }, "request_id": { "$ref": "#/$defs/request_id" }, "group_id": { "$ref": "#/$defs/group_id" },
+        "operations": { "type": "object", "additionalProperties": false, "required": ["snapshot_staging", "corpus_ingestion", "index_build", "baseline_run"], "properties": { "snapshot_staging": { "enum": ["safe", "unavailable"] }, "corpus_ingestion": { "const": "unavailable" }, "index_build": { "const": "unavailable" }, "baseline_run": { "const": "unavailable" } } },
+        "transport": { "type": "object", "additionalProperties": false, "required": ["status", "reason", "encrypted", "local_override_enabled"], "properties": { "status": { "enum": ["safe", "unavailable", "local_override"] }, "reason": { "enum": ["https", "explicit_loopback_http_override", "authenticated_https_required"] }, "encrypted": { "type": "boolean" }, "local_override_enabled": { "type": "boolean" } } },
+        "request_body_logging": { "const": false }, "staging_is_corpus_eligible": { "const": false }, "staging_is_index_eligible": { "const": false },
+        "limits": {
+          "type": "object", "additionalProperties": false,
+          "required": ["sibling_repositories", "file_records", "file_bytes", "supported_content_bytes", "manifest_request_bytes", "content_part_request_bytes", "content_part_bytes", "content_part_items", "content_parts", "control_request_bytes", "staging_lifetime_seconds"],
+          "properties": {
+            "sibling_repositories": { "const": 128 }, "file_records": { "const": 50000 }, "file_bytes": { "const": 200000 }, "supported_content_bytes": { "const": 512000000 },
+            "manifest_request_bytes": { "const": 32000000 }, "content_part_request_bytes": { "const": 8000000 }, "content_part_bytes": { "const": 1000000 }, "content_part_items": { "const": 1000 }, "content_parts": { "const": 512 }, "control_request_bytes": { "const": 64000 },
+            "staging_lifetime_seconds": { "const": 86400 }
+          }
+        }
+      }
+    }
+  }
+}

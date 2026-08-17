@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-preview.v1.schema.json",
+  "title": "baseline-preview.v1",
+  "oneOf": [
+    { "$ref": "#/$defs/request_by_job" },
+    { "$ref": "#/$defs/request_by_digest" },
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "schema_version": { "const": "baseline-preview.v1" },
+    "request_by_job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "group_id", "job_id"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "group_id": { "$ref": "#/$defs/uuid" },
+        "job_id": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "request_by_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "group_id", "digest_id"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "group_id": { "$ref": "#/$defs/uuid" },
+        "digest_id": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "feedback_id", "feedback"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "feedback_id": { "$ref": "#/$defs/uuid" },
+        "feedback": { "type": "string", "minLength": 1, "maxLength": 100000 }
+      }
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest_id",
+        "state",
+        "channel",
+        "finding_count",
+        "finding_manifest_sha256"
+      ],
+      "properties": {
+        "digest_id": { "$ref": "#/$defs/uuid" },
+        "state": {
+          "enum": [
+            "pending",
+            "running",
+            "delivered",
+            "retryable_failed",
+            "terminal_failed",
+            "suppressed",
+            "cancelled"
+          ]
+        },
+        "channel": { "const": "in_app" },
+        "finding_count": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "finding_manifest_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_id", "document_id", "source_scope", "chunk_id"],
+      "properties": {
+        "group_id": { "$ref": "#/$defs/uuid" },
+        "document_id": { "$ref": "#/$defs/uuid" },
+        "source_scope": { "enum": ["control_document", "legacy_chunk"] },
+        "chunk_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "source_scope": { "const": "control_document" } } },
+          "then": { "properties": { "chunk_id": { "type": "null" } } },
+          "else": { "properties": { "chunk_id": { "$ref": "#/$defs/uuid" } } }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retrieval", "query", "corpus", "index", "embedding", "generation"],
+      "properties": {
+        "retrieval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["engine", "version", "result_schema_version"],
+          "properties": {
+            "engine": { "const": "baseline_v1" },
+            "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "result_schema_version": { "type": "string", "minLength": 1, "maxLength": 64 }
+          }
+        },
+        "query": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256", "length", "origin"],
+          "properties": {
+            "sha256": { "$ref": "#/$defs/hash" },
+            "length": { "type": "integer", "minimum": 1, "maximum": 8000000 },
+            "origin": { "const": "explicit" }
+          }
+        },
+        "corpus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["generation_id", "generation_version", "manifest_sha256"],
+          "properties": {
+            "generation_id": { "$ref": "#/$defs/uuid" },
+            "generation_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "manifest_sha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "index": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "publication_id",
+            "publication_fingerprint",
+            "index_id",
+            "version",
+            "schema_version",
+            "fingerprint",
+            "config_fingerprint"
+          ],
+          "properties": {
+            "publication_id": { "$ref": "#/$defs/uuid" },
+            "publication_fingerprint": { "$ref": "#/$defs/hash" },
+            "index_id": { "$ref": "#/$defs/uuid" },
+            "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "schema_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "fingerprint": { "$ref": "#/$defs/hash" },
+            "config_fingerprint": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "embedding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model", "revision", "dimension", "fingerprint"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "revision": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "dimension": { "type": "integer", "minimum": 1, "maximum": 8192 },
+            "fingerprint": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "generation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model", "version", "input_fingerprint", "output_fingerprint"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "version": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "input_fingerprint": { "$ref": "#/$defs/hash" },
+            "output_fingerprint": { "$ref": "#/$defs/hash" }
+          }
+        }
+      }
+    },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_id",
+        "control_job",
+        "retrieval",
+        "source",
+        "feedback",
+        "digest",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "control_job": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "job_id",
+            "state",
+            "completed_at",
+            "generation_invoked",
+            "feedback_count",
+            "notification_outbox_count"
+          ],
+          "properties": {
+            "job_id": { "$ref": "#/$defs/uuid" },
+            "state": { "const": "feedback_persisted" },
+            "completed_at": { "type": "string", "format": "date-time" },
+            "generation_invoked": { "const": true },
+            "feedback_count": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "notification_outbox_count": { "type": "integer", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "retrieval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["persisted_run_id", "status", "evidence_count", "reference_count"],
+          "properties": {
+            "persisted_run_id": { "$ref": "#/$defs/uuid" },
+            "status": { "const": "ok" },
+            "evidence_count": { "type": "integer", "minimum": 1, "maximum": 4 },
+            "reference_count": { "type": "integer", "minimum": 1, "maximum": 4 }
+          }
+        },
+        "source": { "$ref": "#/$defs/source" },
+        "feedback": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/feedback" }
+        },
+        "digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "control_job": {
+                "properties": { "feedback_count": { "const": 0 } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "control_job": {
+                "properties": { "notification_outbox_count": { "const": 0 } }
+              },
+              "feedback": { "maxItems": 0 },
+              "digest": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "control_job": {
+                "properties": { "notification_outbox_count": { "const": 1 } }
+              },
+              "feedback": { "minItems": 1 },
+              "digest": { "$ref": "#/$defs/digest" }
+            }
+          }
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request_id", "code"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "request_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "code": {
+          "enum": [
+            "preview_request_invalid",
+            "preview_request_too_large",
+            "preview_transport_unavailable",
+            "preview_not_found",
+            "preview_unavailable"
+          ]
+        }
+      }
+    }
+  }
+}

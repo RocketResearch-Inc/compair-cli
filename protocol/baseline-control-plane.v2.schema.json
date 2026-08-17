@@ -1,0 +1,1335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compair.dev/protocol/baseline-control-plane.v2.schema.json",
+  "title": "Compair baseline control-plane protocol v2",
+  "oneOf": [
+    { "$ref": "#/$defs/index_build_submit" },
+    { "$ref": "#/$defs/run_submit" },
+    { "$ref": "#/$defs/job_accepted" },
+    { "$ref": "#/$defs/job_status_request" },
+    { "$ref": "#/$defs/index_job_status" },
+    { "$ref": "#/$defs/run_job_status" },
+    { "$ref": "#/$defs/error" },
+    { "$ref": "#/$defs/capabilities_request" },
+    { "$ref": "#/$defs/capabilities" }
+  ],
+  "$defs": {
+    "protocol_version": {
+      "type": "string",
+      "const": "baseline-control-plane.v2"
+    },
+    "protocol_sha256": {
+      "type": "string",
+      "const": "b278abe007779f05e92509db068f555701c03cba5cf236151e8df231a9b44091"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "group_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._~-]*$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._~-]+$"
+    },
+    "git_revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullable_safe_reason": {
+      "anyOf": [
+        { "$ref": "#/$defs/safe_reason_code" },
+        { "type": "null" }
+      ]
+    },
+    "safe_reason_code": {
+      "type": "string",
+      "enum": [
+        "authorization_revoked",
+        "capability_unavailable",
+        "corpus_incompatible",
+        "embedding_identity_mismatch",
+        "embedding_unavailable",
+        "generation_blocked",
+        "generation_malformed",
+        "generation_terminal_failure",
+        "idempotency_conflict",
+        "index_build_failed",
+        "index_publication_stale",
+        "index_vector_invalid",
+        "internal_failure",
+        "job_cancelled",
+        "job_not_found_or_forbidden",
+        "limit_exceeded",
+        "protocol_mismatch",
+        "repository_not_authorized",
+        "retrieval_error",
+        "retrieval_insufficient",
+        "source_not_authorized",
+        "transport_unavailable",
+        "worker_unavailable"
+      ]
+    },
+    "embedding_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "provider",
+        "model",
+        "revision",
+        "dimension",
+        "dtype",
+        "fingerprint"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "baseline-embedding-http.v1"
+        },
+        "provider": {
+          "const": "baseline_http_v1"
+        },
+        "model": {
+          "const": "BAAI/bge-small-en-v1.5"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "dimension": {
+          "const": 384
+        },
+        "dtype": {
+          "const": "float32"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "index_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_format_version",
+        "tokenizer_version",
+        "retrieval_config_fingerprint",
+        "embedding"
+      ],
+      "properties": {
+        "index_format_version": {
+          "const": "baseline-index.v1"
+        },
+        "tokenizer_version": {
+          "const": "baseline_v1_frozen_tokenizer.v1"
+        },
+        "retrieval_config_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "embedding": {
+          "$ref": "#/$defs/embedding_identity"
+        }
+      }
+    },
+    "index_publication_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_publication_id",
+        "corpus_generation_id",
+        "corpus_manifest_hash",
+        "index_format_version",
+        "tokenizer_version",
+        "retrieval_config_fingerprint",
+        "embedding_fingerprint",
+        "index_fingerprint"
+      ],
+      "properties": {
+        "index_publication_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_generation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_manifest_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "index_format_version": {
+          "const": "baseline-index.v1"
+        },
+        "tokenizer_version": {
+          "const": "baseline_v1_frozen_tokenizer.v1"
+        },
+        "retrieval_config_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "embedding_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "index_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "retrieval_query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "representation",
+        "origin",
+        "encoding",
+        "base_revision",
+        "head_revision",
+        "byte_size",
+        "sha256",
+        "text"
+      ],
+      "properties": {
+        "representation": {
+          "const": "raw_git_diff_v1"
+        },
+        "origin": {
+          "const": "explicit"
+        },
+        "encoding": {
+          "const": "utf-8"
+        },
+        "base_revision": {
+          "$ref": "#/$defs/git_revision"
+        },
+        "head_revision": {
+          "$ref": "#/$defs/git_revision"
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8000000
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000000,
+          "pattern": ".*\\S.*"
+        }
+      }
+    },
+    "query_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "length",
+        "byte_size",
+        "origin"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8000000
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8000000
+        },
+        "origin": {
+          "const": "explicit"
+        }
+      }
+    },
+    "index_build_submit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "idempotency_key",
+        "ingestion_continuation_id",
+        "corpus_generation_id",
+        "corpus_manifest_hash",
+        "ingestion_provenance_fingerprint",
+        "index_intent"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "index_build_submit"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/idempotency_key"
+        },
+        "ingestion_continuation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_generation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_manifest_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ingestion_provenance_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "index_intent": {
+          "$ref": "#/$defs/index_intent"
+        }
+      }
+    },
+    "run_submit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "idempotency_key",
+        "source_document_id",
+        "changed_repository_registration_id",
+        "index_publication",
+        "retrieval_query"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "run_submit"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/idempotency_key"
+        },
+        "source_document_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "changed_repository_registration_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "index_publication": {
+          "$ref": "#/$defs/index_publication_identity"
+        },
+        "retrieval_query": {
+          "$ref": "#/$defs/retrieval_query"
+        }
+      }
+    },
+    "job_accepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "job_id",
+        "operation",
+        "state",
+        "replayed",
+        "processing_run_id"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "job_accepted"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "job_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "enum": [
+            "index_build",
+            "baseline_run"
+          ]
+        },
+        "state": {
+          "const": "queued"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "processing_run_id": {
+          "anyOf": [
+            { "$ref": "#/$defs/uuid" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "baseline_run"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "processing_run_id": {
+                "$ref": "#/$defs/uuid"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "processing_run_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "job_status_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "job_id",
+        "operation"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "job_status_request"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "job_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "enum": [
+            "index_build",
+            "baseline_run"
+          ]
+        }
+      }
+    },
+    "index_progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_count",
+        "vector_count"
+      ],
+      "properties": {
+        "document_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        },
+        "vector_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        }
+      }
+    },
+    "index_job_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_publication_id",
+        "corpus_generation_id",
+        "corpus_manifest_hash",
+        "index_fingerprint",
+        "retrieval_config_fingerprint",
+        "embedding_fingerprint",
+        "document_count",
+        "vector_count"
+      ],
+      "properties": {
+        "index_publication_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_generation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_manifest_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "index_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "retrieval_config_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "embedding_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "document_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        },
+        "vector_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        }
+      }
+    },
+    "index_job_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "job_id",
+        "operation",
+        "state",
+        "terminal",
+        "exit_classification",
+        "attempt",
+        "created_at",
+        "updated_at",
+        "ingestion_continuation_id",
+        "corpus_generation_id",
+        "corpus_manifest_hash",
+        "index_intent",
+        "progress",
+        "result",
+        "reason_code",
+        "replayed"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "job_status"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "job_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "const": "index_build"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "retryable_failed",
+            "terminal_failed",
+            "cancelled",
+            "succeeded"
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "exit_classification": {
+          "enum": [
+            "pending",
+            "success",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "ingestion_continuation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_generation_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "corpus_manifest_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "index_intent": {
+          "$ref": "#/$defs/index_intent"
+        },
+        "progress": {
+          "$ref": "#/$defs/index_progress"
+        },
+        "result": {
+          "anyOf": [
+            { "$ref": "#/$defs/index_job_result" },
+            { "type": "null" }
+          ]
+        },
+        "reason_code": {
+          "$ref": "#/$defs/nullable_safe_reason"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "state": { "enum": ["queued", "running"] },
+            "terminal": { "const": false },
+            "exit_classification": { "const": "pending" },
+            "result": { "type": "null" },
+            "reason_code": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "retryable_failed" },
+            "terminal": { "const": false },
+            "exit_classification": { "const": "pending" },
+            "result": { "type": "null" },
+            "reason_code": { "$ref": "#/$defs/safe_reason_code" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "terminal_failed" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "failed" },
+            "result": { "type": "null" },
+            "reason_code": { "$ref": "#/$defs/safe_reason_code" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "cancelled" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "cancelled" },
+            "result": { "type": "null" },
+            "reason_code": { "const": "job_cancelled" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "succeeded" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "success" },
+            "result": { "$ref": "#/$defs/index_job_result" },
+            "reason_code": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "zero_run_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_count",
+        "reference_count",
+        "feedback_count",
+        "generation_invoked",
+        "notification_outbox_count",
+        "persisted_run_id"
+      ],
+      "properties": {
+        "evidence_count": { "const": 0 },
+        "reference_count": { "const": 0 },
+        "feedback_count": { "const": 0 },
+        "generation_invoked": { "const": false },
+        "notification_outbox_count": { "const": 0 },
+        "persisted_run_id": { "type": "null" }
+      }
+    },
+    "run_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_count",
+        "reference_count",
+        "feedback_count",
+        "generation_invoked",
+        "notification_outbox_count",
+        "persisted_run_id"
+      ],
+      "properties": {
+        "evidence_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "reference_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "feedback_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "generation_invoked": {
+          "type": "boolean"
+        },
+        "notification_outbox_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "persisted_run_id": {
+          "anyOf": [
+            { "$ref": "#/$defs/uuid" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "positive_reference_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_count",
+        "reference_count",
+        "feedback_count",
+        "generation_invoked",
+        "notification_outbox_count",
+        "persisted_run_id"
+      ],
+      "properties": {
+        "evidence_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "reference_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "feedback_count": { "const": 0 },
+        "generation_invoked": { "const": false },
+        "notification_outbox_count": { "const": 0 },
+        "persisted_run_id": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "positive_feedback_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_count",
+        "reference_count",
+        "feedback_count",
+        "generation_invoked",
+        "notification_outbox_count",
+        "persisted_run_id"
+      ],
+      "properties": {
+        "evidence_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "reference_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "feedback_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "generation_invoked": { "const": true },
+        "notification_outbox_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "persisted_run_id": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "feedback_count": { "const": 0 }
+            },
+            "required": ["feedback_count"]
+          },
+          "then": {
+            "properties": {
+              "notification_outbox_count": { "const": 0 }
+            }
+          }
+        }
+      ]
+    },
+    "run_job_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "job_id",
+        "operation",
+        "processing_run_id",
+        "source_document_id",
+        "changed_repository_registration_id",
+        "index_publication",
+        "state",
+        "terminal",
+        "exit_classification",
+        "attempt",
+        "created_at",
+        "updated_at",
+        "retrieval_status",
+        "query_provenance",
+        "effects",
+        "reason_code",
+        "failure_stage",
+        "replayed"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "job_status"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "job_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "const": "baseline_run"
+        },
+        "processing_run_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "source_document_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "changed_repository_registration_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "index_publication": {
+          "$ref": "#/$defs/index_publication_identity"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "references_persisted",
+            "feedback_persisted",
+            "insufficient",
+            "retryable_failed",
+            "terminal_failed",
+            "blocked",
+            "cancelled"
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "exit_classification": {
+          "enum": [
+            "pending",
+            "success",
+            "insufficient",
+            "failed",
+            "blocked",
+            "cancelled"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "retrieval_status": {
+          "enum": [
+            "pending",
+            "ok",
+            "insufficient",
+            "error"
+          ]
+        },
+        "query_provenance": {
+          "$ref": "#/$defs/query_provenance"
+        },
+        "effects": {
+          "$ref": "#/$defs/run_effects"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/nullable_safe_reason"
+        },
+        "failure_stage": {
+          "type": ["string", "null"],
+          "enum": [
+            null,
+            "dispatch",
+            "retrieval",
+            "persistence",
+            "generation"
+          ]
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "state": { "enum": ["queued", "running"] },
+            "terminal": { "const": false },
+            "exit_classification": { "const": "pending" },
+            "retrieval_status": { "const": "pending" },
+            "effects": { "$ref": "#/$defs/zero_run_effects" },
+            "reason_code": { "type": "null" },
+            "failure_stage": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "references_persisted" },
+            "terminal": { "const": false },
+            "exit_classification": { "const": "pending" },
+            "retrieval_status": { "const": "ok" },
+            "effects": { "$ref": "#/$defs/positive_reference_effects" },
+            "reason_code": { "type": "null" },
+            "failure_stage": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "feedback_persisted" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "success" },
+            "retrieval_status": { "const": "ok" },
+            "effects": { "$ref": "#/$defs/positive_feedback_effects" },
+            "reason_code": { "type": "null" },
+            "failure_stage": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "insufficient" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "insufficient" },
+            "retrieval_status": { "const": "insufficient" },
+            "effects": { "$ref": "#/$defs/zero_run_effects" },
+            "reason_code": { "const": "retrieval_insufficient" },
+            "failure_stage": { "const": "retrieval" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "retryable_failed" },
+            "terminal": { "const": false },
+            "exit_classification": { "const": "pending" },
+            "reason_code": { "$ref": "#/$defs/safe_reason_code" },
+            "failure_stage": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "terminal_failed" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "failed" },
+            "reason_code": { "$ref": "#/$defs/safe_reason_code" },
+            "failure_stage": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "blocked" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "blocked" },
+            "reason_code": { "$ref": "#/$defs/safe_reason_code" },
+            "failure_stage": { "type": "string" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "const": "cancelled" },
+            "terminal": { "const": true },
+            "exit_classification": { "const": "cancelled" },
+            "reason_code": { "const": "job_cancelled" },
+            "failure_stage": { "const": "dispatch" }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "retrieval_status": {
+                "enum": ["pending", "insufficient", "error"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": {
+                "$ref": "#/$defs/zero_run_effects"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "http_status",
+        "stage",
+        "retryable",
+        "code"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "error"
+        },
+        "request_id": {
+          "anyOf": [
+            { "$ref": "#/$defs/request_id" },
+            { "type": "null" }
+          ]
+        },
+        "http_status": {
+          "enum": [
+            400,
+            401,
+            403,
+            404,
+            409,
+            413,
+            422,
+            429,
+            503
+          ]
+        },
+        "stage": {
+          "enum": [
+            "authentication",
+            "authorization",
+            "capability",
+            "index_submission",
+            "protocol",
+            "run_submission",
+            "status",
+            "transport",
+            "internal"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "code": {
+          "$ref": "#/$defs/safe_reason_code"
+        }
+      }
+    },
+    "capabilities_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "capabilities_request"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        }
+      }
+    },
+    "operation_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "submission",
+        "endpoint",
+        "dispatch",
+        "readiness",
+        "reason_code"
+      ],
+      "properties": {
+        "submission": {
+          "enum": ["safe", "unavailable"]
+        },
+        "endpoint": {
+          "enum": ["authenticated_post", "unavailable"]
+        },
+        "dispatch": {
+          "enum": ["automatic", "manual", "unavailable"]
+        },
+        "readiness": {
+          "enum": ["ready", "not_ready", "unavailable"]
+        },
+        "reason_code": {
+          "$ref": "#/$defs/nullable_safe_reason"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "submission": { "const": "safe" },
+            "endpoint": { "const": "authenticated_post" }
+          }
+        },
+        {
+          "properties": {
+            "submission": { "const": "unavailable" },
+            "endpoint": { "const": "unavailable" },
+            "reason_code": { "const": "capability_unavailable" }
+          }
+        }
+      ]
+    },
+    "supported_protocol_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256", "role"],
+      "properties": {
+        "version": { "const": "baseline-control-plane.v1" },
+        "sha256": { "const": "3b45287a54d04cea751e9cc3209c5f0783192de13062e682eadcae40af322650" },
+        "role": { "const": "staging_only" }
+      }
+    },
+    "supported_protocol_v2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256", "role"],
+      "properties": {
+        "version": { "const": "baseline-control-plane.v2" },
+        "sha256": { "$ref": "#/$defs/protocol_sha256" },
+        "role": { "const": "index_and_run_submission" }
+      }
+    },
+    "capability_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "control_request_bytes",
+        "run_request_bytes",
+        "raw_query_bytes",
+        "idempotency_key_min_characters",
+        "idempotency_key_max_characters",
+        "selected_evidence_items",
+        "selected_evidence_characters",
+        "feedback_items",
+        "terminal_status_retention_days"
+      ],
+      "properties": {
+        "control_request_bytes": { "const": 64000 },
+        "run_request_bytes": { "const": 8100000 },
+        "raw_query_bytes": { "const": 8000000 },
+        "idempotency_key_min_characters": { "const": 32 },
+        "idempotency_key_max_characters": { "const": 128 },
+        "selected_evidence_items": { "const": 4 },
+        "selected_evidence_characters": { "const": 16000 },
+        "feedback_items": { "const": 4 },
+        "terminal_status_retention_days": { "const": 30 }
+      }
+    },
+    "transport_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote", "loopback_http", "json_media_type", "encoding"],
+      "properties": {
+        "remote": { "const": "verified_https_required" },
+        "loopback_http": { "const": "explicit_actual_peer_exception" },
+        "json_media_type": { "const": "application/json" },
+        "encoding": { "const": "utf-8" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "protocol_sha256",
+        "message_type",
+        "request_id",
+        "group_id",
+        "supported_protocols",
+        "operations",
+        "limits",
+        "required_index_identity",
+        "transport"
+      ],
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/protocol_version"
+        },
+        "protocol_sha256": {
+          "$ref": "#/$defs/protocol_sha256"
+        },
+        "message_type": {
+          "const": "capabilities"
+        },
+        "request_id": {
+          "$ref": "#/$defs/request_id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/group_id"
+        },
+        "supported_protocols": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/supported_protocol_v1" },
+            { "$ref": "#/$defs/supported_protocol_v2" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "operations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["index_build", "baseline_run"],
+          "properties": {
+            "index_build": {
+              "$ref": "#/$defs/operation_capability"
+            },
+            "baseline_run": {
+              "$ref": "#/$defs/operation_capability"
+            }
+          }
+        },
+        "limits": {
+          "$ref": "#/$defs/capability_limits"
+        },
+        "required_index_identity": {
+          "$ref": "#/$defs/index_intent"
+        },
+        "transport": {
+          "$ref": "#/$defs/transport_policy"
+        }
+      }
+    }
+  }
+}
