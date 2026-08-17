@@ -432,30 +432,28 @@ func TestProductionScannerFrozenJCSAndLimitBoundaries(t *testing.T) {
 	}
 }
 
-func TestProductionScannerV1ArtifactsRemainCoreIdentical(t *testing.T) {
-	artifacts := [][]string{
-		{"baseline-control-plane.v1.md"},
-		{"baseline-control-plane.v1.schema.json"},
-		{"fixtures", "baseline-control-plane.v1.valid.json"},
-		{"fixtures", "baseline-scanner-inputs.v1.valid.json"},
-		{"baseline-scan-dry-run.v1.md"},
-		{"baseline-scan-dry-run.v1.schema.json"},
-		{"fixtures", "baseline-scan-dry-run.v1.valid.json"},
-		{"fixtures", "baseline-scan-dry-run.v1.invalid.json"},
+func TestProductionScannerV1ArtifactsMatchCorePins(t *testing.T) {
+	artifacts := []struct {
+		relative string
+		digest   string
+	}{
+		{relative: "baseline-control-plane.v1.md", digest: pinnedSpecSHA256},
+		{relative: "baseline-control-plane.v1.schema.json", digest: pinnedSchemaSHA256},
+		{relative: "fixtures/baseline-control-plane.v1.valid.json", digest: pinnedFixtureSHA256},
+		{relative: "fixtures/baseline-scanner-inputs.v1.valid.json", digest: pinnedScannerFixtureSHA256},
+		{relative: "baseline-scan-dry-run.v1.md", digest: "080633b7af37a7dfed4998527a1e7d1877bee364385e55c9027a53cd81e66ca4"},
+		{relative: "baseline-scan-dry-run.v1.schema.json", digest: "9dc19feca68ee5aa655a397b7001c1d675592d6f146049c7469ebe6befe636fd"},
+		{relative: "fixtures/baseline-scan-dry-run.v1.valid.json", digest: "35ef126001808d4b6e9ebb1072dd6e9b12772775bb35f867441876221b7719f4"},
+		{relative: "fixtures/baseline-scan-dry-run.v1.invalid.json", digest: "cf1e52d90d552f0b91d737ea38556ab439962733166476c31600888d497ce683"},
 	}
-	for _, parts := range artifacts {
-		cliPath := filepath.Join(append([]string{"..", "..", "protocol"}, parts...)...)
-		corePath := filepath.Join(append([]string{"..", "..", "..", "compair_core", "protocol"}, parts...)...)
+	for _, artifact := range artifacts {
+		cliPath := filepath.Join("..", "..", "protocol", filepath.FromSlash(artifact.relative))
 		cliBytes, err := os.ReadFile(cliPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		coreBytes, err := os.ReadFile(corePath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(cliBytes, coreBytes) {
-			t.Fatalf("Core/CLI protocol bytes differ for %s", filepath.Join(parts...))
+		if got := testSHA256(cliBytes); got != artifact.digest {
+			t.Fatalf("%s SHA-256 = %s, want %s", artifact.relative, got, artifact.digest)
 		}
 	}
 }

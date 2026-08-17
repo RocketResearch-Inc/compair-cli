@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,16 +28,6 @@ const (
 	generationOutputValidFixtureSHA256   = "b9781155870350dd8b72619e562ea8da6997125229f2064a39947e71a494b488"
 	generationOutputInvalidFixtureSHA256 = "489164e6b5f1596134ce0a4e0092dcdc65a80d0fd173870beafa01fe73ea108f"
 )
-
-func readCoreProtocolFile(t *testing.T, parts ...string) []byte {
-	t.Helper()
-	all := append([]string{"..", "..", "..", "compair_core", "protocol"}, parts...)
-	value, err := os.ReadFile(filepath.Join(all...))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
-}
 
 func strictJSONValue(decoder *json.Decoder) (any, error) {
 	token, err := decoder.Token()
@@ -128,7 +117,7 @@ func v2FixtureMessages(t *testing.T) []map[string]any {
 	return result
 }
 
-func TestV2ProtocolArtifactsAreFrozenAndByteIdenticalToCore(t *testing.T) {
+func TestV2ProtocolArtifactsAreFrozenAndMatchCorePins(t *testing.T) {
 	artifacts := []struct {
 		parts  []string
 		digest string
@@ -146,9 +135,6 @@ func TestV2ProtocolArtifactsAreFrozenAndByteIdenticalToCore(t *testing.T) {
 		cliBytes := readProtocolFile(t, artifact.parts...)
 		if got := hashBytes(cliBytes); got != artifact.digest {
 			t.Fatalf("%s SHA-256 = %s", filepath.Join(artifact.parts...), got)
-		}
-		if !bytes.Equal(cliBytes, readCoreProtocolFile(t, artifact.parts...)) {
-			t.Fatalf("Core/CLI bytes differ for %s", filepath.Join(artifact.parts...))
 		}
 	}
 

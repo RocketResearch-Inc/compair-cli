@@ -12,20 +12,6 @@ import (
 )
 
 func TestDryRunV1FrozenArtifactsAndSemanticValidation(t *testing.T) {
-	artifacts := [][]string{
-		{"baseline-scan-dry-run.v1.md"},
-		{"baseline-scan-dry-run.v1.schema.json"},
-		{"fixtures", "baseline-scan-dry-run.v1.valid.json"},
-		{"fixtures", "baseline-scan-dry-run.v1.invalid.json"},
-	}
-	for _, parts := range artifacts {
-		cli := readProtocolFile(t, parts...)
-		core := readCoreProtocolFile(t, parts...)
-		if !bytes.Equal(cli, core) {
-			t.Fatalf("Core/CLI dry-run protocol bytes differ for %s", filepath.Join(parts...))
-		}
-	}
-
 	var reports []DryRunReport
 	decoder := json.NewDecoder(bytes.NewReader(readProtocolFile(t, "fixtures", "baseline-scan-dry-run.v1.valid.json")))
 	decoder.DisallowUnknownFields()

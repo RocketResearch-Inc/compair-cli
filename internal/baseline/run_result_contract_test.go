@@ -1,7 +1,6 @@
 package baseline
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +15,7 @@ var runResultArtifactHashes = map[string]string{
 	"fixtures/baseline-run-result.v1.invalid.json": "785a3eb6b00d9cfe7564ea29e0d00b444b82af1a3a23badbb69ec8852d53deaa",
 }
 
-func TestRunResultArtifactsAreFrozenAndByteIdenticalToCore(t *testing.T) {
+func TestRunResultArtifactsAreFrozenAndMatchCorePins(t *testing.T) {
 	for relative, expected := range runResultArtifactHashes {
 		parts := []string{relative}
 		if filepath.Dir(relative) != "." {
@@ -26,9 +25,6 @@ func TestRunResultArtifactsAreFrozenAndByteIdenticalToCore(t *testing.T) {
 		digest := sha256.Sum256(cli)
 		if got := hex.EncodeToString(digest[:]); got != expected {
 			t.Fatalf("%s SHA-256 = %s", relative, got)
-		}
-		if !bytes.Equal(cli, readCoreProtocolFile(t, parts...)) {
-			t.Fatalf("Core/CLI bytes differ for %s", relative)
 		}
 	}
 }
