@@ -9,10 +9,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/RocketResearch-Inc/compair-cli/internal/auth"
 )
 
 type Client struct {
@@ -185,24 +186,7 @@ func (c *Client) LoadUserByID(userID string) (UserInfo, error) {
 }
 
 func loadTokenFromDisk() string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	p := filepath.Join(h, ".compair", "credentials.json")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return ""
-	}
-	var tmp struct {
-		AccessToken string `json:"access_token"`
-		AuthToken   string `json:"auth_token"`
-	}
-	_ = json.Unmarshal(b, &tmp)
-	if tmp.AccessToken != "" {
-		return tmp.AccessToken
-	}
-	return tmp.AuthToken
+	return auth.Token()
 }
 
 func applyDefaultHeaders(req *http.Request) {
@@ -216,18 +200,9 @@ func applyDefaultHeaders(req *http.Request) {
 }
 
 func loadUserIDFromDisk() string {
-	h, err := os.UserHomeDir()
+	credentials, err := auth.Load()
 	if err != nil {
 		return ""
 	}
-	p := filepath.Join(h, ".compair", "credentials.json")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return ""
-	}
-	var tmp struct {
-		UserID string `json:"user_id"`
-	}
-	_ = json.Unmarshal(b, &tmp)
-	return tmp.UserID
+	return credentials.UserID
 }

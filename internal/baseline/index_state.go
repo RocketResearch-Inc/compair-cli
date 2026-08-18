@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -47,23 +46,8 @@ type indexStateStore struct {
 }
 
 func newIndexStateStore(override string) (*indexStateStore, error) {
-	directory := strings.TrimSpace(override)
-	if directory == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, indexError(IndexFailureInternal, "state_directory_unavailable")
-		}
-		base := filepath.Join(home, ".compair")
-		if err := ensureProtectedDirectory(base); err != nil {
-			return nil, asIndexStateError(err)
-		}
-		stateRoot := filepath.Join(base, "state")
-		if err := ensureProtectedDirectory(stateRoot); err != nil {
-			return nil, asIndexStateError(err)
-		}
-		directory = filepath.Join(stateRoot, "baseline-indexes")
-	}
-	if err := ensureProtectedDirectory(directory); err != nil {
+	directory, err := resolveBaselineStateDirectory(override, "baseline-indexes")
+	if err != nil {
 		return nil, asIndexStateError(err)
 	}
 	secret, err := loadOrCreateInstallSecret(filepath.Join(filepath.Dir(directory), "baseline-upload-install-secret.v1"))

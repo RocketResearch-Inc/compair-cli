@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 	"github.com/RocketResearch-Inc/compair-cli/internal/baseline"
 )
 
@@ -93,8 +94,7 @@ func TestBaselineUploadCommandEmitsExactlyOneSafeJSONValue(t *testing.T) {
 func TestBaselineUploadCommandUsageAndAuthenticationExitClasses(t *testing.T) {
 	input, planPath, _ := commandScanFixture(t)
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	setCommandLegacyHome(t, home)
 	stdout, _, err := executeBaselineForTest(t, "https://core.example.test", "baseline", "upload", "--plan", planPath)
 	if err == nil || exitCodeForError(err) != baselineUploadUsageExitCode || stdout != "" {
 		t.Fatalf("usage result = %q, %v, %d", stdout, err, exitCodeForError(err))
@@ -115,14 +115,34 @@ func TestBaselineUploadCommandUsageAndAuthenticationExitClasses(t *testing.T) {
 func installCommandCredential(t *testing.T, token string) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	setCommandLegacyHome(t, home)
 	directory := filepath.Join(home, ".compair")
 	if err := os.Mkdir(directory, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	value, _ := json.Marshal(map[string]string{"access_token": token})
 	if err := os.WriteFile(filepath.Join(directory, "credentials.json"), value, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func setCommandLegacyHome(t *testing.T, home string) {
+	t.Helper()
+	t.Cleanup(func() { _ = appdir.InitializeFromEnvironment() })
+	previousAppDir, appDirWasSet := os.LookupEnv(appdir.EnvironmentVariable)
+	t.Cleanup(func() {
+		if appDirWasSet {
+			_ = os.Setenv(appdir.EnvironmentVariable, previousAppDir)
+		} else {
+			_ = os.Unsetenv(appdir.EnvironmentVariable)
+		}
+	})
+	if err := os.Unsetenv(appdir.EnvironmentVariable); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if err := appdir.InitializeFromEnvironment(); err != nil {
 		t.Fatal(err)
 	}
 }

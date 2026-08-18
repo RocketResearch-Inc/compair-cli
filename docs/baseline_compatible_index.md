@@ -58,11 +58,13 @@ still a valid submission: `--wait` only observes while a trusted operator runs
 the internal worker.
 
 Protected state lives under
-`~/.compair/state/baseline-indexes/`. It contains only safe IDs, hashes,
+`<application-root>/state/baseline-indexes/`. It contains only safe IDs, hashes,
 states, counts, protocol pins, and timestamps; it is HMAC-protected, written
 atomically with restrictive permissions, and rejects symlinks. Successful
 state is removed only after the final JSON value is written. Retryable state is
 retained. Upload state and plan files are never removed by this command.
+The application root defaults to `~/.compair` and honors the secure
+`COMPAIR_APP_DIR` contract.
 
 ## Output and exit codes
 
@@ -87,4 +89,3 @@ The frozen v2 index-status schema has no `blocked` index state. Core therefore
 must project a blocked index build as its frozen safe error or terminal-failed
 status; the CLI rejects an unversioned `blocked` wire response rather than
 silently expanding the contract.
-

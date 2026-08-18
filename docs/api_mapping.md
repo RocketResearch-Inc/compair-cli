@@ -4,7 +4,7 @@
 |---|---|
 | `login --email --password` | `POST /login` (JSON `{username,password}`) → stores token and sends `Authorization: Bearer` (+ `auth-token` for compatibility) |
 | `login browser` | `POST /auth/google/device/start` → opens browser to returned `auth_url` → polls `GET /auth/google/device/poll?poll_token=...` until completion, then stores the returned auth token |
-| `login --token <token>` | No HTTP call; stores provided token in `~/.compair/credentials.json` for subsequent API requests |
+| `login --token <token>` | No HTTP call; stores the token in `<application-root>/credentials.json` for subsequent API requests (`~/.compair` by default; `COMPAIR_APP_DIR` overrides) |
 | `signup --email --name` | `POST /sign-up` (JSON `{username,name,password}`) |
 | `group create <name>` | `POST /create_group` (multipart/form-data) |
 | `group ls` | `GET /load_groups?user_id=...&own_groups_only=true` |

@@ -60,7 +60,7 @@ Notes:
 - `--provider openai` switches both generation and embeddings to OpenAI.
 - For local demos, `--generation-provider openai --embedding-provider local` is the recommended starting point.
 
-If you prefer not to save the key into `~/.compair/core_runtime.yaml`, export `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` first and omit `--openai-api-key`.
+If you prefer not to save the key into `<application-root>/core_runtime.yaml`, export `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` first and omit `--openai-api-key`. The application root defaults to `~/.compair` and can be isolated with `COMPAIR_APP_DIR`.
 
 You can also tune the local Core OpenAI-backed path more precisely:
 

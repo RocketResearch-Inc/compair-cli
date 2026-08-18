@@ -10,7 +10,8 @@ This guide covers how to host the API base, configure environments, and publish 
 Expose the API base to users via `COMPAIR_API_BASE` or `--api-base`.
 
 ## Secrets
-- The CLI reads user tokens from `~/.compair/credentials.json`.
+- The CLI reads user tokens from `<application-root>/credentials.json`; the
+  root defaults to `~/.compair` and may be set securely with `COMPAIR_APP_DIR`.
 - The API should validate the `Authorization: Bearer` header.
 
 ## Publishing binaries (optional)

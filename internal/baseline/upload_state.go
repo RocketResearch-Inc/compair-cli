@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -63,23 +62,8 @@ type uploadStateStore struct {
 }
 
 func newUploadStateStore(override string) (*uploadStateStore, error) {
-	directory := strings.TrimSpace(override)
-	if directory == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, uploadError(UploadFailureInternal, "state_directory_unavailable")
-		}
-		base := filepath.Join(home, ".compair")
-		if err := ensureProtectedDirectory(base); err != nil {
-			return nil, err
-		}
-		stateRoot := filepath.Join(base, "state")
-		if err := ensureProtectedDirectory(stateRoot); err != nil {
-			return nil, err
-		}
-		directory = filepath.Join(stateRoot, "baseline-uploads")
-	}
-	if err := ensureProtectedDirectory(directory); err != nil {
+	directory, err := resolveBaselineStateDirectory(override, "baseline-uploads")
+	if err != nil {
 		return nil, err
 	}
 	secret, err := loadOrCreateInstallSecret(filepath.Join(filepath.Dir(directory), "baseline-upload-install-secret.v1"))

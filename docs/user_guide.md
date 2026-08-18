@@ -102,7 +102,9 @@ Use email/password directly:
 compair login --email you@example.com --password 'your-password'
 ```
 
-Successful login stores a token at `~/.compair/credentials.json` and sends it in the `Authorization: Bearer` header (and `auth-token` for compatibility).
+Successful login stores a token beneath the resolved application root
+(`~/.compair` by default, or `COMPAIR_APP_DIR`) and sends it in the
+`Authorization: Bearer` header (and `auth-token` for compatibility).
 
 If you already have a valid token from web/device auth (or CI secret storage), you can save it directly:
 ```bash
@@ -233,7 +235,7 @@ Notes:
 
 ## Global options and active group
 - `--api-base`, `--profile`, `--group`, `--verbose`, `--debug-http`, `--no-color`
-- Active group resolution: `COMPAIR_ACTIVE_GROUP` → `--group` → `~/.compair/active_group`; if none is set, the CLI auto-selects a default (your `{username}` group if present, else the first group you belong to) and persists it.
+- Active group resolution: `COMPAIR_ACTIVE_GROUP` → `--group` → `<application-root>/active_group`; if none is set, the CLI auto-selects a default (your `{username}` group if present, else the first group you belong to) and persists it.
 ```bash
 compair group ls                # list groups (id + name); marks (active)
 compair group use <group>       # set active group (id or name)
@@ -598,7 +600,7 @@ compair watch --all
 See [Hook Recipes](hook_recipes.md) for ideas.
 
 ## Track files, directories, and repos (workspace DB)
-The CLI maintains a canonical index at `~/.compair/workspace.db` to map local paths ↔ groups ↔ documents.
+The CLI maintains a canonical index at `<application-root>/workspace.db` to map local paths ↔ groups ↔ documents. The root defaults to `~/.compair` and can be isolated with `COMPAIR_APP_DIR`.
 ```bash
 # Add items to the active group
 compair add ./src ./README.md

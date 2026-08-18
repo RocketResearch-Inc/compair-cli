@@ -45,7 +45,7 @@ func TestValidatePairwiseMode(t *testing.T) {
 
 func TestResolvePairwiseRepoScopesPrefersCrossRepoPeersBeforeSelf(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setCommandLegacyHome(t, home)
 
 	groupID := "grp_pairwise"
 	targetRoot := filepath.Join(home, "target-repo")

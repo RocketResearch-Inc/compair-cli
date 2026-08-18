@@ -46,23 +46,8 @@ type repositoryBindingStore struct {
 }
 
 func newRepositoryBindingStore(override string) (*repositoryBindingStore, error) {
-	directory := strings.TrimSpace(override)
-	if directory == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, repositoryError(RepositoryFailureInternal, "state_directory_unavailable")
-		}
-		base := filepath.Join(home, ".compair")
-		if err := ensureProtectedDirectory(base); err != nil {
-			return nil, repositoryError(RepositoryFailureContract, "unsafe_state_path")
-		}
-		stateRoot := filepath.Join(base, "state")
-		if err := ensureProtectedDirectory(stateRoot); err != nil {
-			return nil, repositoryError(RepositoryFailureContract, "unsafe_state_path")
-		}
-		directory = filepath.Join(stateRoot, "baseline-repositories")
-	}
-	if err := ensureProtectedDirectory(directory); err != nil {
+	directory, err := resolveBaselineStateDirectory(override, "baseline-repositories")
+	if err != nil {
 		return nil, repositoryError(RepositoryFailureContract, "unsafe_state_path")
 	}
 	secret, err := loadOrCreateInstallSecret(filepath.Join(filepath.Dir(directory), "baseline-upload-install-secret.v1"))

@@ -72,7 +72,7 @@ compair core config set --generation-provider openai --embedding-provider local 
 compair core restart
 ```
 
-If you do not want the key saved in `~/.compair/core_runtime.yaml`, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` in your shell and omit `--openai-api-key`.
+If you do not want the key saved in `<application-root>/core_runtime.yaml`, set `COMPAIR_OPENAI_API_KEY` or `OPENAI_API_KEY` in your shell and omit `--openai-api-key`. The application root defaults to `~/.compair`; set a private absolute `COMPAIR_APP_DIR` for an isolated CLI invocation.
 
 ### Cloud
 

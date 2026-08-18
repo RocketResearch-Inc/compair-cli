@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -58,23 +57,8 @@ type runStateStore struct {
 }
 
 func newRunStateStore(override string) (*runStateStore, error) {
-	directory := strings.TrimSpace(override)
-	if directory == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, runError(RunFailureInternal, "state_directory_unavailable")
-		}
-		base := filepath.Join(home, ".compair")
-		if err := ensureProtectedDirectory(base); err != nil {
-			return nil, translateRunStateError(err)
-		}
-		root := filepath.Join(base, "state")
-		if err := ensureProtectedDirectory(root); err != nil {
-			return nil, translateRunStateError(err)
-		}
-		directory = filepath.Join(root, "baseline-runs")
-	}
-	if err := ensureProtectedDirectory(directory); err != nil {
+	directory, err := resolveBaselineStateDirectory(override, "baseline-runs")
+	if err != nil {
 		return nil, translateRunStateError(err)
 	}
 	secret, err := loadOrCreateInstallSecret(filepath.Join(filepath.Dir(directory), "baseline-upload-install-secret.v1"))

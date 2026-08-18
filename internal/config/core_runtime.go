@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,11 +66,7 @@ func defaultCoreRuntime() *CoreRuntime {
 }
 
 func coreRuntimePath() (string, error) {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, ".compair", "core_runtime.yaml"), nil
+	return appdir.Path("core_runtime.yaml")
 }
 
 func LoadCoreRuntime() (*CoreRuntime, error) {

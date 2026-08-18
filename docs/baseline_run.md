@@ -65,8 +65,11 @@ cancelled, 8 transport/server-contract failure, and 9 internal failure.
 Safe resumable state is stored beneath:
 
 ```text
-~/.compair/state/baseline-runs/
+<application-root>/state/baseline-runs/
 ```
+
+The application root defaults to `~/.compair` and honors the secure
+`COMPAIR_APP_DIR` clean-isolation contract.
 
 Files are atomically replaced, mode 0600, authenticated with the protected
 installation secret, and rejected if symlinked or corrupt. State contains

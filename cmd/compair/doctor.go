@@ -231,9 +231,9 @@ var doctorCmd = &cobra.Command{
 			item, err := store.FindByPathGroup(context.Background(), root, compareGroup)
 			if err != nil {
 				if err == sql.ErrNoRows {
-					doctorWarn(&report, &summary, emit, "Workspace DB binding", "missing repo entry", "Run 'compair track' or 'compair review' to refresh ~/.compair/workspace.db.")
+					doctorWarn(&report, &summary, emit, "Workspace DB binding", "missing repo entry", "Run 'compair track' or 'compair review' to refresh the CLI application workspace database.")
 				} else {
-					doctorWarn(&report, &summary, emit, "Workspace DB binding", compactErr(err), "The repo entry could not be read from ~/.compair/workspace.db.")
+					doctorWarn(&report, &summary, emit, "Workspace DB binding", compactErr(err), "The repo entry could not be read from the CLI application workspace database.")
 				}
 			} else {
 				doctorOK(&report, emit, "Workspace DB binding", fmt.Sprintf("%s (%s)", item.Path, compareGroup))

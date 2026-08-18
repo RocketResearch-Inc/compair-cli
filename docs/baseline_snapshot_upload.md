@@ -34,12 +34,15 @@ Retryable transport/5xx failures use bounded exponential backoff with bounded ji
 
 ## Protected state
 
-Default locations are:
+Locations beneath the resolved application root are:
 
 ```text
-~/.compair/state/baseline-upload-install-secret.v1
-~/.compair/state/baseline-uploads/<safe-plan-identity-sha256>.json
+<application-root>/state/baseline-upload-install-secret.v1
+<application-root>/state/baseline-uploads/<safe-plan-identity-sha256>.json
 ```
+
+The application root defaults to `~/.compair` and may be securely isolated
+with `COMPAIR_APP_DIR` as documented in [Config Reference](config_reference.md).
 
 On POSIX systems directories are mode `0700` and files are mode `0600`; Windows uses the current user's protected profile ACL inherited by the existing CLI application directory. Existing symlinks, non-regular files, permissive POSIX secret/state files, and invalid HMACs are rejected. State writes use a same-directory temporary file, file flush, and atomic replace (`rename` plus directory fsync on POSIX; replace-existing/write-through `MoveFileEx` on Windows).
 

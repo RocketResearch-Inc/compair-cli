@@ -2,9 +2,8 @@ package compair
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/auth"
 	"github.com/spf13/cobra"
 )
 
@@ -12,12 +11,7 @@ var logoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Remove stored credentials",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		h, err := os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-		p := filepath.Join(h, ".compair", "credentials.json")
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		if err := auth.Remove(); err != nil {
 			return err
 		}
 		fmt.Println("Logged out.")

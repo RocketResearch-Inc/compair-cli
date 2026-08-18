@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 	"gopkg.in/yaml.v3"
 )
 
-// Global config lives in ~/.compair/config.yaml
+// Global config lives beneath the centrally resolved application root.
 type Global struct {
 	APIBase   string          `yaml:"api_base,omitempty"`
 	Defaults  map[string]any  `yaml:"defaults,omitempty"`
@@ -23,11 +24,10 @@ type TelemetryConfig struct {
 }
 
 func globalDir() (string, error) {
-	h, err := os.UserHomeDir()
+	d, err := appdir.Root()
 	if err != nil {
 		return "", err
 	}
-	d := filepath.Join(h, ".compair")
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		return "", err
 	}
@@ -70,7 +70,7 @@ func WriteGlobal(g Global) error {
 	return os.WriteFile(p, b, 0o600)
 }
 
-// Active group resolution uses: env COMPAIR_ACTIVE_GROUP -> flag --group -> ~/.compair/active_group
+// Active group resolution uses: env COMPAIR_ACTIVE_GROUP -> flag --group -> application-root/active_group
 // The flag is expected to be provided by the caller. This function reads env and active_group file.
 func ResolveActiveGroup(flagVal string) (string, error) {
 	if v := os.Getenv("COMPAIR_ACTIVE_GROUP"); strings.TrimSpace(v) != "" {

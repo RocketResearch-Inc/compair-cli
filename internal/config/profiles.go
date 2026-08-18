@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 	"gopkg.in/yaml.v3"
 )
 
@@ -44,11 +45,7 @@ func defaultProfiles() *Profiles {
 }
 
 func profilesPath() (string, error) {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, ".compair", "profiles.yaml"), nil
+	return appdir.Path("profiles.yaml")
 }
 
 func LoadProfiles() (*Profiles, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 	"github.com/RocketResearch-Inc/compair-cli/internal/config"
 	cliTelemetry "github.com/RocketResearch-Inc/compair-cli/internal/telemetry"
 )
@@ -44,6 +45,9 @@ func init() {
 	_ = viper.BindPFlag("debug_http", rootCmd.PersistentFlags().Lookup("debug-http"))
 	_ = viper.BindPFlag("no_color", rootCmd.PersistentFlags().Lookup("no-color"))
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := appdir.InitializeFromEnvironment(); err != nil {
+			return err
+		}
 		if err := resolveAPIBase(cmd, args); err != nil {
 			return err
 		}

@@ -58,12 +58,15 @@ scans or uploads. Use `--overwrite` only to explicitly replace an existing
 regular output file.
 
 Local bindings are stored as versioned JSON files under
-`~/.compair/state/baseline-repositories/`. Each contains the group and
+`<application-root>/state/baseline-repositories/`. Each contains the group and
 registration scope, random UID, canonical local path, descriptor/path/Git
 sanity hashes, and optional source-document ID. Files are HMAC-authenticated by
-the existing `~/.compair/state/baseline-upload-install-secret.v1`, use private
+the existing `<application-root>/state/baseline-upload-install-secret.v1`, use private
 permissions, and reject symlinks. They contain no credentials, authenticated
 remote, file content, diff, query, or evidence.
+
+The application root defaults to `~/.compair`; `COMPAIR_APP_DIR` provides the
+documented fail-closed clean-isolation override.
 
 Moving, recloning, or adding another working copy requires an explicit bind:
 

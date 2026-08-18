@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/RocketResearch-Inc/compair-cli/internal/appdir"
 )
 
 type Capabilities struct {
@@ -56,11 +58,7 @@ type cachedCapabilities struct {
 }
 
 func capabilitiesCachePath() (string, error) {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, ".compair", "cache", "capabilities.json"), nil
+	return appdir.Path("cache", "capabilities.json")
 }
 
 func (c *Client) fetchCapabilities() (*Capabilities, error) {
