@@ -24,19 +24,26 @@ const (
 )
 
 type uploadTestServer struct {
-	t              *testing.T
-	server         *httptest.Server
-	mu             sync.Mutex
-	requests       map[string][][]byte
-	failFirst      map[string]bool
-	failParts      bool
-	receivedParts  int
-	expectedParts  int
-	continuations  []string
-	continuationAt int
-	wrongProtocol  bool
-	authFailure    bool
-	stageErrors    map[string]uploadTestHTTPError
+	t                *testing.T
+	server           *httptest.Server
+	mu               sync.Mutex
+	requests         map[string][][]byte
+	failFirst        map[string]bool
+	failParts        bool
+	receivedParts    int
+	expectedParts    int
+	continuations    []string
+	continuationAt   int
+	wrongProtocol    bool
+	authFailure      bool
+	stageErrors      map[string]uploadTestHTTPError
+	forceReplay      bool
+	stagingState     string
+	stagingJobState  string
+	raceSealOnPart   bool
+	raceMismatch     bool
+	statusMismatch   bool
+	preserveJobState bool
 }
 
 type uploadTestHTTPError struct {
@@ -47,7 +54,10 @@ type uploadTestHTTPError struct {
 
 func newUploadTestServer(t *testing.T) *uploadTestServer {
 	t.Helper()
-	fixture := &uploadTestServer{t: t, requests: make(map[string][][]byte), failFirst: make(map[string]bool), continuations: []string{"queued", "succeeded"}}
+	fixture := &uploadTestServer{
+		t: t, requests: make(map[string][][]byte), failFirst: make(map[string]bool),
+		continuations: []string{"queued", "succeeded"}, stagingState: "open", stagingJobState: "queued",
+	}
 	fixture.server = httptest.NewServer(http.HandlerFunc(fixture.handle))
 	t.Cleanup(fixture.server.Close)
 	return fixture
@@ -114,13 +124,46 @@ func (fixture *uploadTestServer) handle(writer http.ResponseWriter, request *htt
 		}
 		_ = json.Unmarshal(body, &value)
 		fixture.expectedParts = countContentPartsFromRequests(value.Snapshot.Files)
-		fixture.writeJSON(writer, map[string]any{"protocol_version": ControlProtocolVersion, "protocol_sha256": ControlProtocolSHA256, "message_type": "job_accepted", "request_id": requestID, "group_id": groupID, "job_id": uploadTestJobID, "operation": "snapshot_ingest", "state": "queued", "replayed": len(fixture.requests[stage]) > 1})
+		if fixture.stagingState == "sealed" {
+			fixture.receivedParts = fixture.expectedParts
+			if !fixture.preserveJobState {
+				fixture.stagingJobState = "succeeded"
+			}
+		}
+		fixture.writeJSON(writer, map[string]any{"protocol_version": ControlProtocolVersion, "protocol_sha256": ControlProtocolSHA256, "message_type": "job_accepted", "request_id": requestID, "group_id": groupID, "job_id": uploadTestJobID, "operation": "snapshot_ingest", "state": "queued", "replayed": fixture.forceReplay || len(fixture.requests[stage]) > 1})
+	case "status":
+		result := any(nil)
+		if fixture.stagingState == "sealed" {
+			snapshotID := fixture.snapshotID()
+			if fixture.statusMismatch {
+				snapshotID = "bsnap_" + strings.Repeat("f", 64)
+			}
+			result = map[string]any{"snapshot_id": snapshotID, "staging_state": "sealed", "corpus_eligible": false, "index_eligible": false}
+		}
+		fixture.writeJSON(writer, fixture.jobStatus(requestID, groupID, fixture.stagingJobState, result, fixture.forceReplay))
 	case "part":
+		if fixture.raceSealOnPart {
+			fixture.raceSealOnPart = false
+			fixture.stagingState = "sealed"
+			fixture.stagingJobState = "succeeded"
+			fixture.receivedParts = fixture.expectedParts
+			fixture.statusMismatch = fixture.raceMismatch
+			fixture.writeError(writer, requestID, http.StatusConflict, "staging_not_open", false)
+			return
+		}
+		if fixture.stagingState != "open" {
+			fixture.writeError(writer, requestID, http.StatusConflict, "staging_not_open", false)
+			return
+		}
 		fixture.receivedParts++
-		fixture.writeJSON(writer, fixture.jobStatus(requestID, groupID, "queued", nil, len(fixture.requests[stage]) > 1))
+		fixture.writeJSON(writer, fixture.jobStatus(requestID, groupID, fixture.stagingJobState, nil, len(fixture.requests[stage]) > 1))
 	case "commit":
+		wasSealed := fixture.stagingState == "sealed"
+		fixture.stagingState = "sealed"
+		fixture.stagingJobState = "succeeded"
+		fixture.receivedParts = fixture.expectedParts
 		result := map[string]any{"snapshot_id": jsonString(body, "snapshot_id"), "staging_state": "sealed", "corpus_eligible": false, "index_eligible": false}
-		fixture.writeJSON(writer, fixture.jobStatus(requestID, groupID, "succeeded", result, len(fixture.requests[stage]) > 1))
+		fixture.writeJSON(writer, fixture.jobStatus(requestID, groupID, "succeeded", result, wasSealed || len(fixture.requests[stage]) > 1))
 	case "continuation":
 		state := fixture.continuations[min(fixture.continuationAt, len(fixture.continuations)-1)]
 		fixture.continuationAt++
@@ -136,6 +179,8 @@ func (fixture *uploadTestServer) stage(path string) string {
 		return "capabilities"
 	case path == "/baseline/control/v1/snapshots":
 		return "begin"
+	case path == "/baseline/control/v1/jobs/status":
+		return "status"
 	case strings.HasSuffix(path, "/parts"):
 		return "part"
 	case strings.HasSuffix(path, "/commit"):
@@ -153,7 +198,7 @@ func (fixture *uploadTestServer) jobStatus(requestID, groupID, state string, res
 		"protocol_version": ControlProtocolVersion, "protocol_sha256": ControlProtocolSHA256, "message_type": "job_status", "request_id": requestID, "group_id": groupID,
 		"job_id": uploadTestJobID, "operation": "snapshot_ingest", "state": state, "attempt": 0, "created_at": now, "updated_at": now,
 		"progress": map[string]any{"completed": fixture.receivedParts, "total": fixture.expectedParts}, "result": result, "error_code": nil,
-		"staging":  map[string]any{"state": map[bool]string{true: "sealed", false: "open"}[state == "succeeded"], "received_parts": fixture.receivedParts, "expected_parts": fixture.expectedParts, "expires_at": "2026-01-03T03:04:05Z", "corpus_eligible": false, "index_eligible": false},
+		"staging":  map[string]any{"state": fixture.stagingState, "received_parts": fixture.receivedParts, "expected_parts": fixture.expectedParts, "expires_at": "2026-01-03T03:04:05Z", "corpus_eligible": false, "index_eligible": false},
 		"replayed": replayed,
 	}
 }

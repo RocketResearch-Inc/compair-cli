@@ -371,14 +371,41 @@ func RunUpload(ctx context.Context, groupID string, input ScanInput, options Upl
 	if err := runtime.begin(operationContext, scan); err != nil {
 		return runtime.failureExecution(err, shouldDiscardState(err))
 	}
-	if err := runtime.parts(operationContext, scan); err != nil {
-		return runtime.failureExecution(err, shouldDiscardState(err))
+	beginReplayed := runtime.replayed
+	sealedReplay := false
+	if beginReplayed {
+		status, err := runtime.stagingStatus(operationContext)
+		if err != nil {
+			return runtime.failureExecution(err, shouldDiscardState(err))
+		}
+		sealedReplay, err = runtime.reconcileStagingStatus(status)
+		if err != nil {
+			return runtime.failureExecution(err, shouldDiscardState(err))
+		}
+	}
+	if !sealedReplay {
+		if err := runtime.parts(operationContext, scan); err != nil {
+			if beginReplayed && SafeUploadReason(err) == "staging_not_open" {
+				recovered, refreshErr := runtime.refreshSealedRace(operationContext)
+				if refreshErr == nil && recovered {
+					sealedReplay = true
+				} else {
+					return runtime.failureExecution(err, shouldDiscardState(err))
+				}
+			} else {
+				return runtime.failureExecution(err, shouldDiscardState(err))
+			}
+		}
 	}
 	if err := runtime.commit(operationContext, scan); err != nil {
 		return runtime.failureExecution(err, shouldDiscardState(err))
 	}
 	if options.Wait {
 		if err := runtime.waitForContinuation(operationContext); err != nil {
+			return runtime.failureExecution(err, shouldDiscardState(err))
+		}
+	} else if sealedReplay {
+		if err := runtime.recoverContinuation(operationContext); err != nil {
 			return runtime.failureExecution(err, shouldDiscardState(err))
 		}
 	} else {
@@ -512,6 +539,103 @@ func (runtime *uploadRuntime) begin(ctx context.Context, scan *ScanResult) error
 	return nil
 }
 
+func (runtime *uploadRuntime) stagingStatus(ctx context.Context) (*jobStatusResponse, error) {
+	requestID, err := newUUID()
+	if err != nil {
+		return nil, uploadError(UploadFailureInternal, "request_identity_failed")
+	}
+	payload := struct {
+		ProtocolVersion string `json:"protocol_version"`
+		ProtocolSHA256  string `json:"protocol_sha256"`
+		MessageType     string `json:"message_type"`
+		RequestID       string `json:"request_id"`
+		GroupID         string `json:"group_id"`
+		JobID           string `json:"job_id"`
+	}{ControlProtocolVersion, ControlProtocolSHA256, "job_status_request", requestID, runtime.state.GroupID, runtime.state.StagingJobID}
+	body, err := canonicalJSONBytes(payload)
+	if err != nil || len(body) > MaxControlRequest {
+		return nil, uploadError(UploadFailureInternal, "status_request_failed")
+	}
+	response, err := runtime.postWithRetry(ctx, "/baseline/control/v1/jobs/status", body)
+	clearBytes(body)
+	if err != nil {
+		return nil, err
+	}
+	status, err := validateJobStatus(response.Body, requestID, runtime.state.GroupID, runtime.state.StagingJobID)
+	if err != nil {
+		return nil, err
+	}
+	runtime.replayed = runtime.replayed || status.Replayed
+	return status, nil
+}
+
+// reconcileStagingStatus binds the replayed begin response to the locally
+// reconstructed immutable upload. The begin idempotency key is HMAC-derived
+// from the local plan identity and scan fingerprint, so Core's replay response
+// binds those values without exposing them. Snapshot/count equality is checked
+// here; the idempotent commit below proves the exact ordered part descriptors
+// and content-manifest hash before any continuation result is accepted.
+func (runtime *uploadRuntime) reconcileStagingStatus(status *jobStatusResponse) (bool, error) {
+	if status.Operation != "snapshot_ingest" || status.Staging == nil {
+		return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+	}
+	if status.ErrorCode != nil && !validSafeReasonCode(*status.ErrorCode) {
+		return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+	}
+	staging := status.Staging
+	expected := len(runtime.state.Parts)
+	if staging.ExpectedParts != expected || staging.ReceivedParts < 0 || staging.ReceivedParts > expected || status.Progress.Total != expected || status.Progress.Completed != staging.ReceivedParts || staging.CorpusEligible || staging.IndexEligible {
+		return false, uploadError(UploadFailureContract, "replay_count_mismatch")
+	}
+	switch staging.State {
+	case "expired":
+		return false, uploadError(UploadFailureTerminal, "staging_expired")
+	case "failed":
+		return false, uploadError(UploadFailureTerminal, safeSnapshotReason(status.State, status.ErrorCode))
+	case "open":
+		if status.Result != nil {
+			return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+		}
+		switch status.State {
+		case "queued", "running":
+			if status.ErrorCode != nil {
+				return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+			}
+		case "retryable_failed":
+			return false, uploadError(UploadFailureRetryable, safeSnapshotReason(status.State, status.ErrorCode))
+		case "terminal_failed", "blocked", "cancelled":
+			return false, uploadError(UploadFailureTerminal, safeSnapshotReason(status.State, status.ErrorCode))
+		default:
+			return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+		}
+	case "sealed":
+		if status.State != "succeeded" || status.Result == nil || staging.ReceivedParts != expected || status.Result.SnapshotID != runtime.state.SnapshotID || status.Result.StagingState != "sealed" || status.Result.CorpusEligible || status.Result.IndexEligible || status.ErrorCode != nil {
+			return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+		}
+	default:
+		return false, uploadError(UploadFailureContract, "replay_status_mismatch")
+	}
+	if len(runtime.state.CompletedParts) > staging.ReceivedParts {
+		return false, uploadError(UploadFailureContract, "replay_count_mismatch")
+	}
+	runtime.state.CompletedParts = append([]uploadStatePart(nil), runtime.state.Parts[:staging.ReceivedParts]...)
+	runtime.state.SafeState = "staging_" + staging.State
+	runtime.state.UpdatedAt = timestamp(runtime.options.now().UTC())
+	runtime.result.PartCompleted = staging.ReceivedParts
+	if err := runtime.store.save(runtime.stateID, runtime.state); err != nil {
+		return false, err
+	}
+	return staging.State == "sealed", nil
+}
+
+func (runtime *uploadRuntime) refreshSealedRace(ctx context.Context) (bool, error) {
+	status, err := runtime.stagingStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+	return runtime.reconcileStagingStatus(status)
+}
+
 func (runtime *uploadRuntime) parts(ctx context.Context, scan *ScanResult) error {
 	completed := len(runtime.state.CompletedParts)
 	for index := completed; index < len(scan.Parts); index++ {
@@ -583,10 +707,12 @@ func (runtime *uploadRuntime) commit(ctx context.Context, scan *ScanResult) erro
 		return err
 	}
 	status, err := validateJobStatus(response.Body, requestID, runtime.state.GroupID, runtime.state.StagingJobID)
-	if err != nil || status.Operation != "snapshot_ingest" || status.State != "succeeded" || status.Result == nil || status.Result.SnapshotID != runtime.state.SnapshotID || status.Result.StagingState != "sealed" || status.Result.CorpusEligible || status.Result.IndexEligible {
+	if err != nil || status.Operation != "snapshot_ingest" || status.State != "succeeded" || status.Result == nil || status.Result.SnapshotID != runtime.state.SnapshotID || status.Result.StagingState != "sealed" || status.Result.CorpusEligible || status.Result.IndexEligible || status.Staging == nil || status.Staging.State != "sealed" || status.Staging.ReceivedParts != len(runtime.state.Parts) || status.Staging.ExpectedParts != len(runtime.state.Parts) || status.Progress.Completed != len(runtime.state.Parts) || status.Progress.Total != len(runtime.state.Parts) || status.ErrorCode != nil {
 		return uploadError(UploadFailureContract, "commit_response_mismatch")
 	}
 	runtime.replayed = runtime.replayed || status.Replayed
+	runtime.state.CompletedParts = append([]uploadStatePart(nil), runtime.state.Parts...)
+	runtime.result.PartCompleted = len(runtime.state.Parts)
 	runtime.state.SafeState = "snapshot_committed"
 	runtime.state.UpdatedAt = timestamp(runtime.options.now().UTC())
 	if err := runtime.store.save(runtime.stateID, runtime.state); err != nil {
@@ -598,69 +724,124 @@ func (runtime *uploadRuntime) commit(ctx context.Context, scan *ScanResult) erro
 
 func (runtime *uploadRuntime) waitForContinuation(ctx context.Context) error {
 	for {
-		requestID, err := newUUID()
-		if err != nil {
-			return uploadError(UploadFailureInternal, "request_identity_failed")
-		}
-		payload := struct {
-			SchemaVersion     string  `json:"schema_version"`
-			MessageType       string  `json:"message_type"`
-			RequestID         string  `json:"request_id"`
-			GroupID           string  `json:"group_id"`
-			StagingJobID      *string `json:"staging_job_id"`
-			ContinuationJobID *string `json:"continuation_job_id"`
-		}{SchemaVersion: "baseline-snapshot-continuation.v1", MessageType: "continuation_job_status_request", RequestID: requestID, GroupID: runtime.state.GroupID}
-		if runtime.state.ContinuationJobID == "" {
-			payload.StagingJobID = &runtime.state.StagingJobID
-		} else {
-			payload.ContinuationJobID = &runtime.state.ContinuationJobID
-		}
-		body, err := canonicalJSONBytes(payload)
-		if err != nil || len(body) > MaxControlRequest {
-			return uploadError(UploadFailureInternal, "status_request_failed")
-		}
-		response, err := runtime.postWithRetry(ctx, "/baseline/control/v1/continuations/status", body)
-		clearBytes(body)
+		status, err := runtime.continuationStatus(ctx)
 		if err != nil {
 			return err
 		}
-		var status continuationStatusResponse
-		if err := decodeStrictResponseJSON(response.Body, &status); err != nil || status.SchemaVersion != "baseline-snapshot-continuation.v1" || status.MessageType != "continuation_job_status" || status.RequestID != requestID || status.GroupID != runtime.state.GroupID || status.StagingJobID != runtime.state.StagingJobID || !validUUID(status.JobID) || status.Operation != "sealed_snapshot_continue" || status.Result.SnapshotID != runtime.state.SnapshotID {
-			return uploadError(UploadFailureContract, "continuation_response_mismatch")
-		}
-		if runtime.state.ContinuationJobID != "" && runtime.state.ContinuationJobID != status.JobID {
-			return uploadError(UploadFailureContract, "continuation_identity_mismatch")
-		}
-		if status.ErrorCode != nil && !validSafeReasonCode(*status.ErrorCode) {
-			return uploadError(UploadFailureContract, "continuation_response_mismatch")
-		}
-		runtime.state.ContinuationJobID = status.JobID
-		runtime.result.ContinuationJobID = status.JobID
-		runtime.state.SafeState = status.State
-		runtime.state.UpdatedAt = timestamp(runtime.options.now().UTC())
-		if err := runtime.store.save(runtime.stateID, runtime.state); err != nil {
+		done, err := runtime.applyContinuationStatus(status)
+		if err != nil {
 			return err
 		}
-		runtime.progress("continuation", status.Progress.Completed, status.Progress.Total)
-		switch status.State {
-		case "succeeded":
-			if !status.Result.CorpusIngestionComplete || !status.Result.CorpusEligible || status.Result.IndexEligible || status.Result.BaselineEligible || !validUUID(status.Result.CorpusID) || !validUUID(status.Result.CorpusGenerationID) || !validSafeIdentity(status.Result.CorpusGenerationVersion) {
-				return uploadError(UploadFailureContract, "continuation_result_mismatch")
-			}
-			runtime.result.State = "succeeded"
-			runtime.result.CorpusID = status.Result.CorpusID
-			runtime.result.CorpusGenerationID = status.Result.CorpusGenerationID
-			runtime.result.CorpusGenerationVersion = status.Result.CorpusGenerationVersion
+		if done {
 			return nil
-		case "queued", "running", "retryable_failed":
-			if err := runtime.options.sleep(ctx, runtime.options.PollInterval); err != nil {
-				return uploadError(UploadFailureRetryable, "wait_timeout")
-			}
-		case "terminal_failed", "blocked", "cancelled":
-			return uploadError(UploadFailureTerminal, safeContinuationReason(status.State, status.ErrorCode))
-		default:
-			return uploadError(UploadFailureContract, "continuation_state_incompatible")
 		}
+		if err := runtime.options.sleep(ctx, runtime.options.PollInterval); err != nil {
+			return uploadError(UploadFailureRetryable, "wait_timeout")
+		}
+	}
+}
+
+func (runtime *uploadRuntime) recoverContinuation(ctx context.Context) error {
+	status, err := runtime.continuationStatus(ctx)
+	if err != nil {
+		return err
+	}
+	done, err := runtime.applyContinuationStatus(status)
+	if err != nil {
+		return err
+	}
+	if !done {
+		runtime.result.State = "snapshot_committed"
+		runtime.result.ReasonCode = ""
+	}
+	return nil
+}
+
+func (runtime *uploadRuntime) continuationStatus(ctx context.Context) (*continuationStatusResponse, error) {
+	requestID, err := newUUID()
+	if err != nil {
+		return nil, uploadError(UploadFailureInternal, "request_identity_failed")
+	}
+	payload := struct {
+		SchemaVersion     string  `json:"schema_version"`
+		MessageType       string  `json:"message_type"`
+		RequestID         string  `json:"request_id"`
+		GroupID           string  `json:"group_id"`
+		StagingJobID      *string `json:"staging_job_id"`
+		ContinuationJobID *string `json:"continuation_job_id"`
+	}{SchemaVersion: "baseline-snapshot-continuation.v1", MessageType: "continuation_job_status_request", RequestID: requestID, GroupID: runtime.state.GroupID}
+	if runtime.state.ContinuationJobID == "" {
+		payload.StagingJobID = &runtime.state.StagingJobID
+	} else {
+		payload.ContinuationJobID = &runtime.state.ContinuationJobID
+	}
+	body, err := canonicalJSONBytes(payload)
+	if err != nil || len(body) > MaxControlRequest {
+		return nil, uploadError(UploadFailureInternal, "status_request_failed")
+	}
+	response, err := runtime.postWithRetry(ctx, "/baseline/control/v1/continuations/status", body)
+	clearBytes(body)
+	if err != nil {
+		return nil, err
+	}
+	var status continuationStatusResponse
+	if err := decodeStrictResponseJSON(response.Body, &status); err != nil {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	if status.SchemaVersion != "baseline-snapshot-continuation.v1" || status.MessageType != "continuation_job_status" || status.RequestID != requestID || status.GroupID != runtime.state.GroupID || status.StagingJobID != runtime.state.StagingJobID || !validUUID(status.JobID) || status.Operation != "sealed_snapshot_continue" {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	if status.Result.SnapshotID != runtime.state.SnapshotID || status.Result.StagingState != "sealed" || status.Staging.State != "sealed" || status.Staging.ReceivedParts != len(runtime.state.Parts) || status.Staging.ExpectedParts != len(runtime.state.Parts) || status.Staging.CorpusEligible || status.Staging.IndexEligible {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	succeeded := status.State == "succeeded"
+	wantCompleted := 0
+	if succeeded {
+		wantCompleted = 1
+	}
+	if status.Progress.Total != 1 || status.Progress.Completed != wantCompleted || status.Continuation.JobID != status.JobID || status.Continuation.Operation != "sealed_snapshot_continue" || status.Continuation.State != status.State || status.Continuation.CorpusIngestionComplete != succeeded || status.Continuation.CorpusEligible != succeeded || status.Continuation.IndexEligible || status.Continuation.BaselineEligible {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	if runtime.state.ContinuationJobID != "" && runtime.state.ContinuationJobID != status.JobID {
+		return nil, uploadError(UploadFailureContract, "continuation_identity_mismatch")
+	}
+	if status.ErrorCode != nil && !validSafeReasonCode(*status.ErrorCode) {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	if status.Continuation.ErrorCode != nil && !validSafeReasonCode(*status.Continuation.ErrorCode) {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	if (status.ErrorCode == nil) != (status.Continuation.ErrorCode == nil) || (status.ErrorCode != nil && *status.ErrorCode != *status.Continuation.ErrorCode) {
+		return nil, uploadError(UploadFailureContract, "continuation_response_mismatch")
+	}
+	return &status, nil
+}
+
+func (runtime *uploadRuntime) applyContinuationStatus(status *continuationStatusResponse) (bool, error) {
+	runtime.state.ContinuationJobID = status.JobID
+	runtime.result.ContinuationJobID = status.JobID
+	runtime.state.SafeState = status.State
+	runtime.state.UpdatedAt = timestamp(runtime.options.now().UTC())
+	if err := runtime.store.save(runtime.stateID, runtime.state); err != nil {
+		return false, err
+	}
+	runtime.progress("continuation", status.Progress.Completed, status.Progress.Total)
+	switch status.State {
+	case "succeeded":
+		if !status.Result.CorpusIngestionComplete || !status.Result.CorpusEligible || status.Result.IndexEligible || status.Result.BaselineEligible || !validUUID(status.Result.CorpusID) || !validUUID(status.Result.CorpusGenerationID) || !validSafeIdentity(status.Result.CorpusGenerationVersion) {
+			return false, uploadError(UploadFailureContract, "continuation_result_mismatch")
+		}
+		runtime.result.State = "succeeded"
+		runtime.result.CorpusID = status.Result.CorpusID
+		runtime.result.CorpusGenerationID = status.Result.CorpusGenerationID
+		runtime.result.CorpusGenerationVersion = status.Result.CorpusGenerationVersion
+		return true, nil
+	case "queued", "running", "retryable_failed":
+		return false, nil
+	case "terminal_failed", "blocked", "cancelled":
+		return false, uploadError(UploadFailureTerminal, safeContinuationReason(status.State, status.ErrorCode))
+	default:
+		return false, uploadError(UploadFailureContract, "continuation_state_incompatible")
 	}
 }
 
@@ -795,6 +976,13 @@ func safeContinuationReason(state string, code *string) string {
 		return *code
 	}
 	return "continuation_" + state
+}
+
+func safeSnapshotReason(state string, code *string) string {
+	if code != nil && *code != "" {
+		return *code
+	}
+	return "snapshot_" + state
 }
 
 func validSafeReasonCode(value string) bool {

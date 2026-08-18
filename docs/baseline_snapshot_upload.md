@@ -32,6 +32,23 @@ The CLI therefore creates a random 32-byte installation secret and HMAC-derives 
 
 Retryable transport/5xx failures use bounded exponential backoff with bounded jitter. Authentication, authorization, schema, hash, manifest, intent, and idempotency conflicts are not retried. A lost response is recovered by sending the same canonical mutation request. `--resume` requires the retained state and an exact new scan match; it never silently starts another upload.
 
+A normal exact resubmission is also the supported recovery path after an earlier
+upload completed and its local resume record was removed. When
+`snapshot_begin` reports a replay, the CLI first reads the authoritative
+staging status. An open staging record resumes at the server-confirmed accepted
+part prefix. A sealed record transmits no content parts: the CLI replays only
+the existing idempotent commit to prove the exact ordered part descriptors and
+content-manifest hash, then recovers the original continuation and corpus
+result. A one-time status refresh handles the race where another client seals
+the staging record after the first status read. Identity, count, state, or
+authorization contradictions fail closed.
+
+This completed-replay behavior does not redefine `--resume`. That flag is only
+for interrupted work with a retained, authenticated local state record.
+Successful completion deliberately removes that record, so `--resume` after
+cleanup returns `resume_state_not_found`; rerun the same command without
+`--resume` for an exact completed replay.
+
 ## Protected state
 
 Locations beneath the resolved application root are:
