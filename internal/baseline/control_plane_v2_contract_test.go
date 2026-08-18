@@ -23,10 +23,12 @@ const (
 	v2MaximumRawQueryBytes               = 8_000_000
 	v2MaximumRunRequestByte              = 8_100_000
 	v2MaximumEvidenceChars               = 16_000
-	generationOutputSpecSHA256           = "1dccd3a11ec659a5e8705f9b8acf333a64a21f056265fcd7c96e9c6ac197bb20"
-	generationOutputSchemaSHA256         = "39f8e8eaf5e5a219e806d34f46af887d69268a88d5f1d06d45e6c56465e250ed"
-	generationOutputValidFixtureSHA256   = "b9781155870350dd8b72619e562ea8da6997125229f2064a39947e71a494b488"
-	generationOutputInvalidFixtureSHA256 = "489164e6b5f1596134ce0a4e0092dcdc65a80d0fd173870beafa01fe73ea108f"
+	generationOutputSpecSHA256           = "e670731777b253f9d5e3984405c2d99871ba26f637a17e6221cc82d97bc8beb1"
+	generationOutputSchemaSHA256         = "fc5a85d5d38c18775afe0966987ea74e7e9ac072148822c1be60a199e32cca27"
+	generationOutputValidFixtureSHA256   = "887e03e9749f63237507556c5a85df40c684bb856e74b474071c39d0807beaa5"
+	generationOutputInvalidFixtureSHA256 = "935dec72319d6b46133a509464cd44cf34fa460f62956253de949576ea153a4a"
+	obsoleteGenerationOutputSpecSHA256   = "1dccd3a11ec659a5e8705f9b8acf333a64a21f056265fcd7c96e9c6ac197bb20"
+	obsoleteGenerationOutputSchemaSHA256 = "39f8e8eaf5e5a219e806d34f46af887d69268a88d5f1d06d45e6c56465e250ed"
 )
 
 func strictJSONValue(decoder *json.Decoder) (any, error) {
@@ -145,6 +147,10 @@ func TestV2ProtocolArtifactsAreFrozenAndMatchCorePins(t *testing.T) {
 	if got := hashBytes(readProtocolFile(t, "baseline-control-plane.v1.schema.json")); got != pinnedSchemaSHA256 {
 		t.Fatalf("v1 schema SHA-256 changed: %s", got)
 	}
+	if generationOutputSpecSHA256 == obsoleteGenerationOutputSpecSHA256 ||
+		generationOutputSchemaSHA256 == obsoleteGenerationOutputSchemaSHA256 {
+		t.Fatal("obsolete unreleased generation-output hash remains compatible")
+	}
 }
 
 func validateGenerationOutput(value any) error {
@@ -193,7 +199,7 @@ func TestGenerationOutputV2ValidAndInvalidFixtures(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputs := validValue.(map[string]any)["outputs"].([]any)
-	if len(outputs) != 3 {
+	if len(outputs) != 6 {
 		t.Fatalf("valid generation outputs = %d", len(outputs))
 	}
 	for _, output := range outputs {
@@ -201,7 +207,7 @@ func TestGenerationOutputV2ValidAndInvalidFixtures(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ordered := outputs[2].(map[string]any)["findings"].([]any)
+	ordered := outputs[5].(map[string]any)["findings"].([]any)
 	for index, expected := range []string{
 		"First ordered finding.",
 		"Second ordered finding.",

@@ -38,6 +38,12 @@ or:
 - `outcome=findings` requires one through four findings.
 - Every finding contains exactly one `feedback` string with at least one
   non-whitespace character.
+- The anchored feedback pattern is
+  `^(.|\n|\r|\u2028|\u2029)*[^\t-\r\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000](.|\n|\r|\u2028|\u2029)*$`.
+  Its explicit whitespace class is equivalent to Core's `\s`/`str.strip()`
+  semantics, while the surrounding alternatives preserve multiline content.
+  This anchored form is portable to the supported Ollama structured-output
+  converter; it does not weaken validation to `minLength` alone.
 - Array order is the durable finding order and must be preserved unchanged.
 - Plain text, blank output, the sentinel `NONE`, a JSON string containing
   `NONE`, malformed JSON, mismatched outcome/count combinations, empty or

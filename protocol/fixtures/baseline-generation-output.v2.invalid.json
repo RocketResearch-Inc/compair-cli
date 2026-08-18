@@ -41,7 +41,39 @@
       }
     },
     {
-      "case_id": "blank_feedback_invalid",
+      "case_id": "empty_feedback_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": ""}]
+      }
+    },
+    {
+      "case_id": "spaces_only_feedback_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": "     "}]
+      }
+    },
+    {
+      "case_id": "tabs_only_feedback_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": "\t\t\t"}]
+      }
+    },
+    {
+      "case_id": "newlines_only_feedback_invalid",
+      "value": {
+        "schema_version": "baseline-generation-output.v2",
+        "outcome": "findings",
+        "findings": [{"feedback": "\n\r\n"}]
+      }
+    },
+    {
+      "case_id": "mixed_whitespace_only_feedback_invalid",
       "value": {
         "schema_version": "baseline-generation-output.v2",
         "outcome": "findings",

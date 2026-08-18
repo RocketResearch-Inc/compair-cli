@@ -16,6 +16,27 @@
       "schema_version": "baseline-generation-output.v2",
       "outcome": "findings",
       "findings": [
+        {"feedback": "  Leading and trailing whitespace remains valid.  \n"}
+      ]
+    },
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "findings",
+      "findings": [
+        {"feedback": "\nFirst line.\n\tSecond line.\r\n"}
+      ]
+    },
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "findings",
+      "findings": [
+        {"feedback": "  検査結果 Δ  "}
+      ]
+    },
+    {
+      "schema_version": "baseline-generation-output.v2",
+      "outcome": "findings",
+      "findings": [
         {"feedback": "First ordered finding."},
         {"feedback": "Second ordered finding."},
         {"feedback": "Third ordered finding."},
