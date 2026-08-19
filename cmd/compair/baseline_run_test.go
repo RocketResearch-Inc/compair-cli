@@ -70,6 +70,7 @@ func TestBaselineRunCommandEmitsOneSafeJSONAndUsesSeparatePreview(t *testing.T) 
 	}
 
 	var queryText string
+	submissionCalls := 0
 	statusCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.RawQuery != "" || request.Header.Get("Authorization") != "Bearer run-command-token" {
@@ -90,12 +91,13 @@ func TestBaselineRunCommandEmitsOneSafeJSONAndUsesSeparatePreview(t *testing.T) 
 			operations["baseline_run"] = map[string]any{"submission": "safe", "endpoint": "authenticated_post", "dispatch": "automatic", "readiness": "ready", "reason_code": nil}
 			writeCommandUploadJSON(t, writer, capability)
 		case "/baseline/control/v2/runs":
+			submissionCalls++
 			query := payload["retrieval_query"].(map[string]any)
 			queryText = query["text"].(string)
 			writeCommandUploadJSON(t, writer, map[string]any{
 				"protocol_version": baseline.IndexControlProtocolVersion, "protocol_sha256": baseline.IndexControlProtocolSHA256,
 				"message_type": "job_accepted", "request_id": requestID, "group_id": commandRunGroup,
-				"job_id": commandRunJob, "operation": "baseline_run", "state": "queued", "replayed": false,
+				"job_id": commandRunJob, "operation": "baseline_run", "state": "queued", "replayed": submissionCalls > 1,
 				"processing_run_id": commandRunProcessing,
 			})
 		case "/baseline/control/v2/runs/status":
@@ -144,7 +146,7 @@ func TestBaselineRunCommandEmitsOneSafeJSONAndUsesSeparatePreview(t *testing.T) 
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		t.Fatalf("stdout is not exactly one JSON value: %q", stdout)
 	}
-	if result.State != "feedback_persisted" || result.FeedbackCount != 2 || result.ReferenceCount != 2 || result.RunJobID == nil || *result.RunJobID != commandRunJob {
+	if result.State != "feedback_persisted" || result.FeedbackCount != 2 || result.ReferenceCount != 2 || result.RunJobID == nil || *result.RunJobID != commandRunJob || result.Replayed || result.Resumed {
 		t.Fatalf("result=%#v", result)
 	}
 	if !strings.Contains(stderr, "state=references_persisted") || !strings.Contains(stderr, "state=feedback_persisted") {
@@ -153,6 +155,29 @@ func TestBaselineRunCommandEmitsOneSafeJSONAndUsesSeparatePreview(t *testing.T) 
 	for _, forbidden := range append(protected, "run-command-token", server.URL, queryText, "idempotency_key", "lease_token") {
 		if forbidden != "" && strings.Contains(stdout+stderr, forbidden) {
 			t.Fatalf("command output leaked protected value")
+		}
+	}
+
+	replayStdout, replayStderr, err := executeBaselineForTest(t, server.URL, "baseline", "run", "--group", commandRunGroup, "--plan", planPath, "--index-result", indexPath, "--wait", "--poll-interval", "1ms", "--allow-loopback-http", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var replay baseline.RunResult
+	if err := json.Unmarshal([]byte(replayStdout), &replay); err != nil {
+		t.Fatal(err)
+	}
+	if !replay.Replayed || replay.Resumed || replay.RunJobID == nil || result.RunJobID == nil || *replay.RunJobID != *result.RunJobID ||
+		replay.ProcessingRunID == nil || result.ProcessingRunID == nil || *replay.ProcessingRunID != *result.ProcessingRunID ||
+		replay.PersistedRetrievalRunID == nil || result.PersistedRetrievalRunID == nil || *replay.PersistedRetrievalRunID != *result.PersistedRetrievalRunID ||
+		replay.ReferenceCount != result.ReferenceCount || replay.FeedbackCount != result.FeedbackCount {
+		t.Fatalf("completed command replay changed projection: first=%#v replay=%#v", result, replay)
+	}
+	if replay.TransmittedRequestCount <= 0 || replay.TransmittedRequestBytes <= 0 || replay.TransmittedRequestCount >= result.TransmittedRequestCount {
+		t.Fatalf("completed command replay counters are not invocation-local: first=%#v replay=%#v", result, replay)
+	}
+	for _, forbidden := range append(protected, "run-command-token", server.URL, queryText, "idempotency_key", "lease_token") {
+		if forbidden != "" && strings.Contains(replayStdout+replayStderr, forbidden) {
+			t.Fatalf("completed command replay leaked protected value")
 		}
 	}
 

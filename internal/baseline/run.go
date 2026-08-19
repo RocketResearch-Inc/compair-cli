@@ -671,7 +671,10 @@ func (runtime *runRuntime) applyStatus(status *v2RunStatus) error {
 	result.EvidenceCount, result.ReferenceCount, result.FeedbackCount = status.Effects.EvidenceCount, status.Effects.ReferenceCount, status.Effects.FeedbackCount
 	result.NotificationOutboxCount, result.GenerationInvoked = status.Effects.NotificationOutboxCount, status.Effects.GenerationInvoked
 	result.CreatedAt, result.UpdatedAt = stringPointer(status.CreatedAt), status.UpdatedAt
-	result.ReasonCode, result.FailureStage, result.Replayed = status.ReasonCode, status.FailureStage, status.Replayed
+	// Replayed describes this invocation's authoritative submission receipt.
+	// Status polling cannot infer or replace that receipt (Core status snapshots
+	// deliberately report replayed=false).
+	result.ReasonCode, result.FailureStage = status.ReasonCode, status.FailureStage
 	if runtime.state != nil {
 		if runtime.state.ProcessingRunID != "" && runtime.state.ProcessingRunID != status.ProcessingRunID {
 			return runError(RunFailureConflict, "processing_run_identity_mismatch")

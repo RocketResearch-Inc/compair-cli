@@ -39,7 +39,13 @@ type runTestServer struct {
 	feedbackCount      int
 	terminalReason     string
 	failSubmissionOnce bool
+	forceReplay        bool
+	statusReplayed     bool
 	conflict           bool
+	retrievalCalls     int
+	generationCalls    int
+	durableRows        map[string]int
+	durableIDs         map[string][]string
 	querySHA           string
 	queryLength        int
 	queryByteSize      int
@@ -51,7 +57,7 @@ func newRunTestServer(t *testing.T, publication v2RunPublication) *runTestServer
 	fixture := &runTestServer{
 		t: t, requests: map[string][][]byte{}, dispatch: "automatic", readiness: "ready",
 		statuses:      []string{"queued", "running", "references_persisted", "feedback_persisted"},
-		feedbackCount: 2, publication: publication,
+		feedbackCount: 2, publication: publication, durableRows: map[string]int{}, durableIDs: map[string][]string{},
 	}
 	fixture.server = httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
 	t.Cleanup(fixture.server.Close)
@@ -94,6 +100,24 @@ func (fixture *runTestServer) serveHTTP(writer http.ResponseWriter, request *htt
 		fixture.querySHA = query["sha256"].(string)
 		fixture.queryByteSize = int(query["byte_size"].(float64))
 		fixture.queryLength = utf8RuneCount(query["text"].(string))
+		replayed := fixture.forceReplay || requestCount > 1
+		fixture.mu.Lock()
+		if !replayed {
+			fixture.retrievalCalls++
+			fixture.generationCalls++
+			fixture.durableRows = map[string]int{
+				"retrieval_runs": 1,
+				"references":     2,
+				"feedback":       fixture.feedbackCount,
+			}
+			fixture.durableIDs = map[string][]string{
+				"retrieval_runs": []string{runTestPersisted},
+				"references":     []string{"10000000-0000-4000-8000-000000000008", "10000000-0000-4000-8000-000000000009"},
+				"feedback":       []string{"10000000-0000-4000-8000-000000000010", "10000000-0000-4000-8000-000000000011"}[:fixture.feedbackCount],
+				"preview":        []string{runTestJob, runTestPersisted},
+			}
+		}
+		fixture.mu.Unlock()
 		if fixture.failSubmissionOnce && requestCount == 1 {
 			connection, _, _ := writer.(http.Hijacker).Hijack()
 			_ = connection.Close()
@@ -104,7 +128,7 @@ func (fixture *runTestServer) serveHTTP(writer http.ResponseWriter, request *htt
 			"protocol_version": IndexControlProtocolVersion, "protocol_sha256": IndexControlProtocolSHA256,
 			"message_type": "job_accepted", "request_id": requestID, "group_id": groupID,
 			"job_id": runTestJob, "operation": "baseline_run", "state": "queued",
-			"replayed": requestCount > 1, "processing_run_id": runTestProcessing,
+			"replayed": replayed, "processing_run_id": runTestProcessing,
 		})
 	case "/baseline/control/v2/runs/status":
 		state := fixture.statuses[min(fixture.statusAt, len(fixture.statuses)-1)]
@@ -180,7 +204,7 @@ func (fixture *runTestServer) status(requestID, groupID, state string) map[strin
 		"exit_classification": exit, "attempt": 1, "created_at": "2026-08-17T12:00:00Z", "updated_at": "2026-08-17T12:01:00Z",
 		"retrieval_status": retrieval,
 		"query_provenance": map[string]any{"sha256": fixture.querySHA, "length": fixture.queryLength, "byte_size": fixture.queryByteSize, "origin": "explicit"},
-		"effects":          effects, "reason_code": reason, "failure_stage": failureStage, "replayed": false,
+		"effects":          effects, "reason_code": reason, "failure_stage": failureStage, "replayed": fixture.statusReplayed,
 	}
 }
 
@@ -262,6 +286,20 @@ func runTestOptions(fixture *runTestServer, directory string) RunOptions {
 	}
 }
 
+func (fixture *runTestServer) effectSnapshot() (int, int, map[string]int, map[string][]string) {
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	rows := make(map[string]int, len(fixture.durableRows))
+	for name, count := range fixture.durableRows {
+		rows[name] = count
+	}
+	identities := make(map[string][]string, len(fixture.durableIDs))
+	for name, values := range fixture.durableIDs {
+		identities[name] = append([]string(nil), values...)
+	}
+	return fixture.retrievalCalls, fixture.generationCalls, rows, identities
+}
+
 func TestBaselineRunPositiveAndZeroFindingCompletion(t *testing.T) {
 	for _, feedbackCount := range []int{2, 0} {
 		t.Run(strconvItoa(feedbackCount), func(t *testing.T) {
@@ -279,6 +317,9 @@ func TestBaselineRunPositiveAndZeroFindingCompletion(t *testing.T) {
 			}
 			if execution.Result.State != "feedback_persisted" || execution.Result.FeedbackCount != feedbackCount || !execution.Result.GenerationInvoked || execution.Result.ReferenceCount != 2 || execution.Result.EvidenceCount != 2 || execution.Result.DispatchMode != fixture.dispatch {
 				t.Fatalf("unexpected result: %#v", execution.Result)
+			}
+			if execution.Result.Replayed || execution.Result.Resumed {
+				t.Fatalf("fresh run replay/resume projection: %#v", execution.Result)
 			}
 			if feedbackCount == 0 && execution.Result.NotificationOutboxCount != 0 {
 				t.Fatal("zero findings created an outbox effect")
@@ -305,6 +346,80 @@ func TestBaselineRunPositiveAndZeroFindingCompletion(t *testing.T) {
 				t.Fatalf("sensitive run output: %s", output.Bytes())
 			}
 		})
+	}
+}
+
+func TestBaselineRunPreservesAuthoritativeReplayThroughPolling(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		feedbackCount int
+	}{
+		{name: "positive_findings", feedbackCount: 2},
+		{name: "zero_findings", feedbackCount: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			input := runTestInput(t)
+			indexFile, index := runTestIndexResult(t, input, directory)
+			fixture := newRunTestServer(t, publicationFromIndexResult(index))
+			fixture.feedbackCount = test.feedbackCount
+			options := runTestOptions(fixture, directory)
+
+			fresh, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
+			if err != nil || fresh.Result.Replayed || fresh.Result.Resumed {
+				t.Fatalf("fresh result=%#v err=%v", fresh.Result, err)
+			}
+			if err := fresh.Finalize(); err != nil {
+				t.Fatal(err)
+			}
+			beforeRetrieval, beforeGeneration, beforeRows, beforeIDs := fixture.effectSnapshot()
+
+			replay, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
+			if err != nil || !replay.Result.Replayed || replay.Result.Resumed {
+				t.Fatalf("replay result=%#v err=%v", replay.Result, err)
+			}
+			if replay.Result.RunJobID == nil || fresh.Result.RunJobID == nil || *replay.Result.RunJobID != *fresh.Result.RunJobID ||
+				replay.Result.ProcessingRunID == nil || fresh.Result.ProcessingRunID == nil || *replay.Result.ProcessingRunID != *fresh.Result.ProcessingRunID ||
+				replay.Result.PersistedRetrievalRunID == nil || fresh.Result.PersistedRetrievalRunID == nil || *replay.Result.PersistedRetrievalRunID != *fresh.Result.PersistedRetrievalRunID ||
+				replay.Result.ReferenceCount != fresh.Result.ReferenceCount || replay.Result.FeedbackCount != fresh.Result.FeedbackCount {
+				t.Fatalf("completed replay changed durable identities/effects: fresh=%#v replay=%#v", fresh.Result, replay.Result)
+			}
+			afterRetrieval, afterGeneration, afterRows, afterIDs := fixture.effectSnapshot()
+			if beforeRetrieval != 1 || afterRetrieval != beforeRetrieval || beforeGeneration != 1 || afterGeneration != beforeGeneration || !reflect.DeepEqual(afterRows, beforeRows) || !reflect.DeepEqual(afterIDs, beforeIDs) {
+				t.Fatalf("completed replay repeated or replaced effects: before=(%d,%d,%v,%v) after=(%d,%d,%v,%v)", beforeRetrieval, beforeGeneration, beforeRows, beforeIDs, afterRetrieval, afterGeneration, afterRows, afterIDs)
+			}
+			if replay.Result.TransmittedRequestCount <= 0 || replay.Result.TransmittedRequestBytes <= 0 || replay.Result.TransmittedRequestCount >= fresh.Result.TransmittedRequestCount {
+				t.Fatalf("current invocation counters not projected: fresh=%#v replay=%#v", fresh.Result, replay.Result)
+			}
+		})
+	}
+}
+
+func TestBaselineRunPendingReplayUsesAcceptedResponse(t *testing.T) {
+	directory := t.TempDir()
+	input := runTestInput(t)
+	indexFile, index := runTestIndexResult(t, input, directory)
+	fixture := newRunTestServer(t, publicationFromIndexResult(index))
+	fixture.forceReplay = true
+	options := runTestOptions(fixture, directory)
+	options.Wait = false
+	execution, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
+	if err != nil || execution.Result.State != "queued" || !execution.Result.Replayed || execution.Result.Resumed {
+		t.Fatalf("pending replay result=%#v err=%v", execution.Result, err)
+	}
+}
+
+func TestBaselineRunStatusCannotInventSubmissionReplay(t *testing.T) {
+	directory := t.TempDir()
+	input := runTestInput(t)
+	_, index := runTestIndexResult(t, input, directory)
+	fixture := newRunTestServer(t, publicationFromIndexResult(index))
+	fixture.querySHA, fixture.queryLength, fixture.queryByteSize = indexTestHashA, 1, 1
+	fixture.statuses = []string{"feedback_persisted"}
+	fixture.statusReplayed = true
+	execution, err := RunBaselineRunStatus(context.Background(), input.GroupID, runTestJob, runTestOptions(fixture, directory))
+	if err != nil || execution.Result.Replayed || execution.Result.Resumed {
+		t.Fatalf("status-only replay inference: result=%#v err=%v", execution.Result, err)
 	}
 }
 
@@ -354,17 +469,16 @@ func TestBaselineRunInsufficientAndReferencesPersistedSemantics(t *testing.T) {
 	}
 }
 
-func TestBaselineRunLostResponseExactReplayAndResume(t *testing.T) {
+func TestBaselineRunLostResponseRecoveryPreservesReplay(t *testing.T) {
 	directory := t.TempDir()
 	input := runTestInput(t)
 	indexFile, index := runTestIndexResult(t, input, directory)
 	fixture := newRunTestServer(t, publicationFromIndexResult(index))
 	fixture.failSubmissionOnce = true
 	options := runTestOptions(fixture, directory)
-	options.Wait = false
-	first, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
-	if err != nil || !first.Result.Replayed {
-		t.Fatalf("result=%#v err=%v", first.Result, err)
+	execution, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
+	if err != nil || !execution.Result.Replayed || execution.Result.Resumed || execution.Result.State != "feedback_persisted" {
+		t.Fatalf("result=%#v err=%v", execution.Result, err)
 	}
 	fixture.mu.Lock()
 	submissions := append([][]byte(nil), fixture.requests["v2/runs"]...)
@@ -372,9 +486,26 @@ func TestBaselineRunLostResponseExactReplayAndResume(t *testing.T) {
 	if len(submissions) != 2 || !reflect.DeepEqual(submissions[0], submissions[1]) {
 		t.Fatalf("lost-response replay changed bytes")
 	}
+	retrievalCalls, generationCalls, _, _ := fixture.effectSnapshot()
+	if retrievalCalls != 1 || generationCalls != 1 {
+		t.Fatalf("lost-response recovery repeated effects: retrieval=%d generation=%d", retrievalCalls, generationCalls)
+	}
+}
+
+func TestBaselineRunInterruptedStateResumeIsExplicit(t *testing.T) {
+	directory := t.TempDir()
+	input := runTestInput(t)
+	indexFile, index := runTestIndexResult(t, input, directory)
+	fixture := newRunTestServer(t, publicationFromIndexResult(index))
+	options := runTestOptions(fixture, directory)
+	options.Wait = false
+	first, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
+	if err != nil || first.Result.Replayed || first.Result.Resumed || first.Result.State != "queued" {
+		t.Fatalf("initial result=%#v err=%v", first.Result, err)
+	}
 	options.Resume, options.Wait = true, true
 	resumed, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, options)
-	if err != nil || !resumed.Result.Resumed || resumed.Result.State != "feedback_persisted" {
+	if err != nil || !resumed.Result.Resumed || resumed.Result.Replayed || resumed.Result.State != "feedback_persisted" {
 		t.Fatalf("result=%#v err=%v", resumed.Result, err)
 	}
 }
@@ -418,7 +549,7 @@ func TestBaselineRunCapabilityStaleAndTerminalStates(t *testing.T) {
 		}
 	})
 
-	t.Run("stale_index", func(t *testing.T) {
+	t.Run("conflicting_intent", func(t *testing.T) {
 		directory := t.TempDir()
 		input := runTestInput(t)
 		indexFile, index := runTestIndexResult(t, input, directory)
@@ -427,6 +558,10 @@ func TestBaselineRunCapabilityStaleAndTerminalStates(t *testing.T) {
 		_, err := RunBaselineRun(context.Background(), input.GroupID, input, indexFile, runTestOptions(fixture, directory))
 		if RunFailure(err) != RunFailureConflict {
 			t.Fatalf("failure=%s err=%v", RunFailure(err), err)
+		}
+		retrievalCalls, generationCalls, rows, identities := fixture.effectSnapshot()
+		if retrievalCalls != 0 || generationCalls != 0 || len(rows) != 0 || len(identities) != 0 {
+			t.Fatalf("conflicting intent produced effects: retrieval=%d generation=%d rows=%v identities=%v", retrievalCalls, generationCalls, rows, identities)
 		}
 	})
 }
